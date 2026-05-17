@@ -1,0 +1,56 @@
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;700&family=Syne:wght@400;600;700;800&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Default dark theme tokens — overridden by applyTheme() */
+:root {
+    --bitcoin: #F7931A;
+    --bitcoin-dim: #6B3D06;
+    --sat-green: #00C27B;
+    --sat-green-dim: #003D26;
+    --nostr-purple: #8B5CF6;
+    --nostr-dim: #2D1B6B;
+    --bg: #0A0A0A;
+    --surface: #111111;
+    --surface2: #1A1A1A;
+    --border: #2A2A2A;
+    --border2: #333333;
+    --text: #F0EDE8;
+    --muted: #888888;
+    --danger: #FF4444;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    margin: 0;
+    transition: background 0.2s, color 0.2s;
+}
+
+/* Smooth theme transitions */
+*,
+*::before,
+*::after {
+    transition: background-color 0.2s, border-color 0.2s, color 0.2s;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+    width: 4px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--bg);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--border2);
+    border-radius: 2px;
+}

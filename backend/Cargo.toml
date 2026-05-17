@@ -1,0 +1,31 @@
+[package]
+name = "bitpilot"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "bitpilot"
+path = "src/main.rs"
+
+[dependencies]
+# Web framework
+axum = { version = "0.7", features = ["json", "ws"] }
+tokio = { version = "1", features = ["full"] }
+tower-http = { version = "0.5", features = ["cors", "trace"] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Utilities
+uuid = { version = "1", features = ["v4"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+anyhow = "1"
+thiserror = "1"
+dotenvy = "0.15"
+
+# These will be added back when we plug in real Lightning/Nostr/eCash
+# ldk-node = "0.3"
+# nostr-sdk = "0.29"
+# cdk = { version = "0.7", features = ["wallet"] }
