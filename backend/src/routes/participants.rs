@@ -5,18 +5,23 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-
 use crate::error::AppError;
 use crate::models::{Participant, Session};
 use crate::state::AppState;
 
+// /api/sessions routes
+pub fn sessions_router() -> Router<Arc<AppState>> {
+    Router::new()
+        .route("/", post(create_session))
+        .route("/:id", get(get_session))
+        .route("/:id/participants", get(list_participants))
+}
+
+// /api/participants routes
 pub fn router() -> Router<Arc<AppState>> {
     Router::new()
         .route("/", post(join_session))
         .route("/:id", get(get_participant))
-        .route("/sessions", post(create_session))
-        .route("/sessions/:id", get(get_session))
-        .route("/sessions/:id/participants", get(list_participants))
 }
 
 #[derive(Deserialize)]
@@ -45,15 +50,17 @@ async fn get_session(
     let sessions = state.sessions.lock().unwrap();
     let session = sessions.get(&id).ok_or(AppError::NotFound)?.clone();
     drop(sessions);
-
     let participants = state.participants.lock().unwrap();
     let session_participants: Vec<&Participant> = session
         .participant_ids.iter()
         .filter_map(|pid| participants.get(pid))
         .collect();
     let total_sats = session_participants.iter().map(|p| p.sats_earned).sum();
-
-    Ok(Json(SessionResponse { participant_count: session_participants.len(), total_sats_distributed: total_sats, session }))
+    Ok(Json(SessionResponse {
+        participant_count: session_participants.len(),
+        total_sats_distributed: total_sats,
+        session,
+    }))
 }
 
 async fn list_participants(
@@ -82,9 +89,11 @@ async fn join_session(
         }
     }
     let participant = Participant::new(&body.name, &body.session_id);
-    state.sessions.lock().unwrap().get_mut(&body.session_id).unwrap()
+    state.sessions.lock().unwrap()
+        .get_mut(&body.session_id).unwrap()
         .participant_ids.push(participant.id.clone());
-    state.participants.lock().unwrap().insert(participant.id.clone(), participant.clone());
+    state.participants.lock().unwrap()
+        .insert(participant.id.clone(), participant.clone());
     Ok(Json(participant))
 }
 

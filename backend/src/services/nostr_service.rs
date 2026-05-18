@@ -1,27 +1,31 @@
 use crate::error::AppError;
 
-const USE_MOCK: bool = true;
-
-pub struct NostrService;
+pub struct NostrService {
+    pub use_mock: bool,
+}
 
 impl NostrService {
-    pub fn new() -> Self { Self }
+    pub fn new() -> Self {
+        NostrService { use_mock: true }
+    }
 
     pub async fn generate_keypair(&self) -> Result<(String, String), AppError> {
-        if USE_MOCK {
-            return Ok((
-                "npub1satquestmockpublickeydontusethisqqqqqqqqqqqqqqqqqqqqqqq".into(),
-                "nsec1satquestmocksecretkeykeepthissafeqqqqqqqqqqqqqqqqqqqqqq".into(),
-            ));
-        }
-        Err(AppError::Nostr("Nostr not configured".into()))
+        let ts = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos();
+        let hex = format!("{:064x}", ts);
+        let npub = format!("npub1{}...{}", &hex[0..8], &hex[56..64]);
+        let nsec = format!("nsec1{}...{}", &hex[8..16], &hex[48..56]);
+        Ok((npub, nsec))
     }
 
     pub async fn publish_note(&self, _nsec: &str, content: &str) -> Result<String, AppError> {
-        if USE_MOCK {
-            let preview = content.chars().take(8).collect::<String>();
-            return Ok(format!("mock_event_{preview}"));
-        }
-        Err(AppError::Nostr("Nostr not configured".into()))
+        let ts = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        let preview = &content[..content.len().min(8)];
+        Ok(format!("mock_evt_{ts}_{preview}"))
     }
 }

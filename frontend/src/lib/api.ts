@@ -43,3 +43,15 @@ export const api = {
     publishNostrNote: (participantId: string, content: string, nsec: string) =>
         request('/nostr/publish', { method: 'POST', body: JSON.stringify({ participant_id: participantId, content, nsec }) }),
 }
+export async function fetchParticipant(id: string) {
+    return api.getParticipant(id)
+}
+
+export async function fetchSessionProgress(sessionId: string) {
+    const participants = await api.listParticipants(sessionId)
+    return { participants }
+}
+
+export async function completePhase({ participantId, missionId, phase }: { participantId: string, missionId: number, phase: string }) {
+    return api.completeMission(participantId, missionId, phase)
+}

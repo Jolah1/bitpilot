@@ -1,159 +1,362 @@
-import { useQuery } from '@tanstack/react-query'
-import { api } from '../lib/api'
-import { Participant } from '../lib/types'
+import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { QRSessionCard } from "../components/QRJoinFlow";
+import type { Participant, Session } from "../lib/types";
+import { fetchSessionProgress } from "../lib/api";
 
-interface Props {
-    sessionId: string
+const MISSION_LABELS = [
+    "Nostr ID",
+    "Receive ⚡",
+    "Send 50 sats",
+    "Cashu token",
+    "Nostr note",
+];
+
+const PHASE_LABELS = ["learn", "quiz", "do"];
+
+interface FacilitatorDashboardProps {
+    session: Session;
 }
 
-const MISSION_DOTS = [1, 2, 3, 4, 5]
+export default function FacilitatorDashboard({ session }: FacilitatorDashboardProps) {
+    const [showQR, setShowQR] = useState(false);
+    const [tick, setTick] = useState(0);
 
-function MissionDots({ participant }: { participant: Participant }) {
-    return (
-        <div style={{ display: 'flex', gap: 4 }}>
-            {MISSION_DOTS.map(n => {
-                const done = participant.completed_missions.includes(n)
-                const active = participant.current_mission === n
-                return (
-                    <div key={n} style={{
-                        width: 12, height: 12, borderRadius: '50%',
-                        background: done ? 'var(--sat-green)' : active ? '#8B5CF6' : 'var(--surface2)',
-                        border: `1px solid ${done ? 'var(--sat-green)' : active ? '#8B5CF6' : 'var(--border)'}`,
-                        transition: 'all 0.2s',
-                    }} />
-                )
-            })}
-        </div>
-    )
-}
+    // Pulse the "live" dot every second
+    useEffect(() => {
+        const t = setInterval(() => setTick((n) => n + 1), 1000);
+        return () => clearInterval(t);
+    }, []);
 
-export function FacilitatorDashboard({ sessionId }: Props) {
-    const { data: session } = useQuery({
-        queryKey: ['session', sessionId],
-        queryFn: () => api.getSession(sessionId) as any,
+    const { data: progress } = useQuery({
+        queryKey: ["session-progress", session.id],
+        queryFn: () => fetchSessionProgress(session.id),
         refetchInterval: 3000,
-    })
+    });
 
-    const { data: participants = [] } = useQuery({
-        queryKey: ['participants', sessionId],
-        queryFn: () => api.listParticipants(sessionId) as any,
-        refetchInterval: 3000,
-    })
-
-    const ps = participants as Participant[]
-    const completedM2 = ps.filter(p => p.completed_missions.includes(2)).length
-    const totalSats = ps.reduce((sum, p) => sum + p.sats_earned, 0)
+    const participants: Participant[] = progress?.participants ?? [];
+    const completed = participants.filter((p) => p.missions_completed === 5).length;
+    const avgProgress =
+        participants.length > 0
+            ? Math.round(
+                participants.reduce((s, p) => s + p.missions_completed, 0) /
+                participants.length *
+                20
+            )
+            : 0;
 
     return (
-        <div style={{ minHeight: '100vh', background: 'var(--bg)', padding: 24 }}>
-            {/* Header */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
-                <div>
-                    <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, color: 'var(--muted)', letterSpacing: 2, textTransform: 'uppercase', marginBottom: 4 }}>
-                        Facilitator view
-                    </div>
-                    <h1 style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 20, fontWeight: 700, color: 'var(--text)', margin: 0 }}>
-                        Session dashboard
-                    </h1>
-                    <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 2 }}>
-                        {(session as any)?.session?.name ?? 'Loading...'}
+        <div className="facilitator-root">
+            {/* ── Header ── */}
+            <header className="fac-header">
+                <div className="fac-header-left">
+                    <span className="fac-logo">₿</span>
+                    <div>
+                        <h1 className="fac-session-name">{session.name}</h1>
+                        <span className="fac-session-id">session · {session.id.slice(0, 8)}</span>
                     </div>
                 </div>
-                <div style={{
-                    display: 'flex', alignItems: 'center', gap: 8,
-                    background: 'var(--sat-green-dim)', color: 'var(--sat-green)',
-                    padding: '8px 16px', borderRadius: 4,
-                    fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, fontWeight: 700,
-                    border: '1px solid var(--sat-green)',
-                }}>
-                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--sat-green)', animation: 'pulse 1.5s infinite' }} />
-                    LIVE
+                <div className="fac-header-right">
+                    <div className="fac-live-badge">
+                        <span className={`fac-live-dot ${tick % 2 === 0 ? "dim" : ""}`} />
+                        LIVE
+                    </div>
+                    <button className="fac-qr-btn" onClick={() => setShowQR((v) => !v)}>
+                        {showQR ? "Hide QR" : "Show QR"}
+                    </button>
+                </div>
+            </header>
+
+            {/* ── QR Panel ── */}
+            {showQR && (
+                <div className="fac-qr-panel">
+                    <QRSessionCard sessionId={session.id} sessionName={session.name} />
+                </div>
+            )}
+
+            {/* ── Stats row ── */}
+            <div className="fac-stats">
+                <div className="fac-stat-card">
+                    <span className="fac-stat-val">{participants.length}</span>
+                    <span className="fac-stat-label">Participants</span>
+                </div>
+                <div className="fac-stat-card">
+                    <span className="fac-stat-val orange">{completed}</span>
+                    <span className="fac-stat-label">Finished</span>
+                </div>
+                <div className="fac-stat-card">
+                    <span className="fac-stat-val">{avgProgress}%</span>
+                    <span className="fac-stat-label">Avg. progress</span>
+                </div>
+                <div className="fac-stat-card">
+                    <span className="fac-stat-val">5</span>
+                    <span className="fac-stat-label">Missions</span>
                 </div>
             </div>
 
-            {/* Stats */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 24 }}>
-                {[
-                    { label: 'Participants', value: ps.length, color: 'var(--text)' },
-                    { label: 'Completed M2', value: completedM2, color: 'var(--sat-green)' },
-                    { label: 'Sats out', value: `⚡ ${totalSats}`, color: 'var(--bitcoin)' },
-                ].map(({ label, value, color }) => (
-                    <div key={label} style={{
-                        background: 'var(--surface)', border: '1px solid var(--border)',
-                        borderRadius: 6, padding: 16, textAlign: 'center',
-                    }}>
-                        <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 28, fontWeight: 700, color, marginBottom: 4 }}>
-                            {value}
-                        </div>
-                        <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, color: 'var(--muted)', letterSpacing: 1, textTransform: 'uppercase' }}>
-                            {label}
-                        </div>
-                    </div>
-                ))}
-            </div>
-
-            {/* Table */}
-            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden', marginBottom: 16 }}>
-                <div style={{
-                    display: 'grid', gridTemplateColumns: '1fr 140px 100px',
-                    padding: '10px 16px', borderBottom: '1px solid var(--border)',
-                    fontFamily: "'IBM Plex Mono', monospace", fontSize: 10,
-                    color: 'var(--muted)', letterSpacing: 1, textTransform: 'uppercase',
-                }}>
-                    <span>Participant</span><span>Progress</span><span>Sats</span>
+            {/* ── Progress grid ── */}
+            <div className="fac-grid-wrap">
+                <div className="fac-grid-header">
+                    <span className="fac-col-name">Participant</span>
+                    {MISSION_LABELS.map((m, i) => (
+                        <span key={i} className="fac-col-mission">{m}</span>
+                    ))}
+                    <span className="fac-col-pct">%</span>
                 </div>
 
-                {ps.map((p, i) => (
-                    <div key={p.id} style={{
-                        display: 'grid', gridTemplateColumns: '1fr 140px 100px',
-                        padding: '12px 16px', alignItems: 'center',
-                        borderBottom: i < ps.length - 1 ? '1px solid var(--border)' : 'none',
-                        transition: 'background 0.1s',
-                    }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                            <div style={{
-                                width: 30, height: 30, borderRadius: 4,
-                                background: 'var(--nostr-dim)', color: 'var(--nostr-purple)',
-                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, fontWeight: 700,
-                                flexShrink: 0,
-                            }}>
-                                {p.name.slice(0, 2).toUpperCase()}
-                            </div>
-                            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{p.name}</span>
-                        </div>
-                        <MissionDots participant={p} />
-                        <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: 'var(--bitcoin)' }}>
-                            {p.sats_earned} sats
-                        </span>
+                {participants.length === 0 ? (
+                    <div className="fac-empty">
+                        <span className="fac-empty-icon">⏳</span>
+                        <p>Waiting for participants to join…</p>
+                        <p className="fac-empty-sub">Share the QR code or session link above.</p>
                     </div>
-                ))}
-
-                {ps.length === 0 && (
-                    <div style={{ padding: 40, textAlign: 'center', fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: 'var(--muted)' }}>
-                        No participants yet — share the session link
-                    </div>
+                ) : (
+                    participants.map((p) => (
+                        <ParticipantRow key={p.id} participant={p} />
+                    ))
                 )}
             </div>
 
-            {/* Actions */}
-            <div style={{ display: 'flex', gap: 10 }}>
-                <button style={{
-                    flex: 1, padding: 14, background: 'transparent',
-                    border: '1px solid var(--border2)', borderRadius: 4,
-                    color: 'var(--text)', fontFamily: "'Syne', sans-serif",
-                    fontSize: 13, fontWeight: 600, cursor: 'pointer',
-                }}>
-                    Share session link
-                </button>
-                <button style={{
-                    flex: 1, padding: 14, background: 'var(--bitcoin)',
-                    border: 'none', borderRadius: 4, color: '#000',
-                    fontFamily: "'Syne', sans-serif", fontSize: 13, fontWeight: 700, cursor: 'pointer',
-                }}>
-                    + Add participant
-                </button>
-            </div>
+            <style>{`
+        .facilitator-root {
+          min-height: 100vh;
+          background: var(--bg);
+          color: var(--text);
+          font-family: 'IBM Plex Mono', monospace;
+          padding: 1.5rem;
+          display: flex;
+          flex-direction: column;
+          gap: 1.25rem;
+          max-width: 1100px;
+          margin: 0 auto;
+        }
+
+        /* Header */
+        .fac-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 1rem;
+        }
+        .fac-header-left { display: flex; align-items: center; gap: 0.75rem; }
+        .fac-logo {
+          font-size: 1.75rem;
+          color: var(--bitcoin-orange);
+          font-weight: 700;
+          line-height: 1;
+        }
+        .fac-session-name {
+          font-family: 'Syne', sans-serif;
+          font-size: 1.2rem;
+          font-weight: 700;
+          margin: 0;
+          line-height: 1.2;
+        }
+        .fac-session-id {
+          font-size: 0.65rem;
+          color: var(--text-muted);
+          letter-spacing: 0.08em;
+        }
+        .fac-header-right { display: flex; align-items: center; gap: 0.75rem; }
+        .fac-live-badge {
+          display: flex;
+          align-items: center;
+          gap: 5px;
+          font-size: 0.65rem;
+          letter-spacing: 0.15em;
+          color: #22c55e;
+          border: 1px solid rgba(34,197,94,0.3);
+          border-radius: 100px;
+          padding: 4px 10px;
+        }
+        .fac-live-dot {
+          width: 6px; height: 6px;
+          border-radius: 50%;
+          background: #22c55e;
+          transition: opacity 0.4s;
+        }
+        .fac-live-dot.dim { opacity: 0.3; }
+        .fac-qr-btn {
+          font-family: 'IBM Plex Mono', monospace;
+          font-size: 0.72rem;
+          background: transparent;
+          border: 1px solid var(--border);
+          border-radius: 6px;
+          color: var(--text);
+          padding: 6px 12px;
+          cursor: pointer;
+          transition: border-color 0.15s;
+        }
+        .fac-qr-btn:hover { border-color: var(--bitcoin-orange); }
+
+        /* QR panel */
+        .fac-qr-panel {
+          display: flex;
+          justify-content: center;
+          padding: 1rem;
+          border: 1px solid var(--border);
+          border-radius: 12px;
+          background: var(--surface);
+        }
+
+        /* Stats */
+        .fac-stats {
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          gap: 0.75rem;
+        }
+        .fac-stat-card {
+          background: var(--surface);
+          border: 1px solid var(--border);
+          border-radius: 10px;
+          padding: 1rem;
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+        }
+        .fac-stat-val {
+          font-family: 'Syne', sans-serif;
+          font-size: 1.75rem;
+          font-weight: 700;
+          line-height: 1;
+          color: var(--text);
+        }
+        .fac-stat-val.orange { color: var(--bitcoin-orange); }
+        .fac-stat-label {
+          font-size: 0.65rem;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+          color: var(--text-muted);
+        }
+
+        /* Grid */
+        .fac-grid-wrap {
+          background: var(--surface);
+          border: 1px solid var(--border);
+          border-radius: 12px;
+          overflow: hidden;
+        }
+        .fac-grid-header {
+          display: grid;
+          grid-template-columns: 160px repeat(5, 1fr) 48px;
+          gap: 0;
+          padding: 0.6rem 1rem;
+          background: var(--bg);
+          border-bottom: 1px solid var(--border);
+          font-size: 0.62rem;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+          color: var(--text-muted);
+        }
+        .fac-col-name { }
+        .fac-col-mission { text-align: center; }
+        .fac-col-pct { text-align: right; }
+
+        /* Empty state */
+        .fac-empty {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 0.25rem;
+          padding: 3rem 1rem;
+          color: var(--text-muted);
+          font-size: 0.8rem;
+        }
+        .fac-empty-icon { font-size: 2rem; margin-bottom: 0.5rem; }
+        .fac-empty-sub { font-size: 0.68rem; opacity: 0.7; }
+
+        @media (max-width: 640px) {
+          .fac-stats { grid-template-columns: repeat(2, 1fr); }
+          .fac-grid-header { display: none; }
+        }
+      `}</style>
         </div>
-    )
+    );
 }
+
+// ─── Single participant row ───────────────────────────────────────────────────
+
+function ParticipantRow({ participant }: { participant: Participant }) {
+    const pct = Math.round((participant.missions_completed / 5) * 100);
+
+    return (
+        <div className="p-row">
+            <div className="p-name-col">
+                <div className="p-avatar">{participant.name.charAt(0).toUpperCase()}</div>
+                <span className="p-name">{participant.name}</span>
+            </div>
+
+            {[0, 1, 2, 3, 4].map((mIdx) => {
+                const completed = participant.missions_completed > mIdx;
+                const active = participant.missions_completed === mIdx;
+                const phase = participant.current_phase ?? 0;
+
+                return (
+                    <div key={mIdx} className="p-mission-cell">
+                        {completed ? (
+                            <span className="p-check">✓</span>
+                        ) : active ? (
+                            <div className="p-phases">
+                                {PHASE_LABELS.map((ph, pi) => (
+                                    <span
+                                        key={pi}
+                                        className={`p-phase-dot ${pi < phase ? "done" : pi === phase ? "active" : ""}`}
+                                        title={ph}
+                                    />
+                                ))}
+                            </div>
+                        ) : (
+                            <span className="p-dash">–</span>
+                        )}
+                    </div>
+                );
+            })}
+
+            <div className="p-pct-col">
+                <span className={`p-pct ${pct === 100 ? "full" : ""}`}>{pct}%</span>
+            </div>
+
+            <style>{`
+        .p-row {
+          display: grid;
+          grid-template-columns: 160px repeat(5, 1fr) 48px;
+          align-items: center;
+          padding: 0.6rem 1rem;
+          border-bottom: 1px solid var(--border);
+          transition: background 0.1s;
+        }
+        .p-row:last-child { border-bottom: none; }
+        .p-row:hover { background: var(--bg); }
+        .p-name-col { display: flex; align-items: center; gap: 8px; }
+        .p-avatar {
+          width: 26px; height: 26px;
+          border-radius: 50%;
+          background: var(--bitcoin-orange);
+          color: #000;
+          font-family: 'Syne', sans-serif;
+          font-weight: 700;
+          font-size: 0.75rem;
+          display: flex; align-items: center; justify-content: center;
+          flex-shrink: 0;
+        }
+        .p-name { font-size: 0.78rem; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .p-mission-cell { display: flex; align-items: center; justify-content: center; }
+        .p-check { color: #22c55e; font-size: 0.9rem; }
+        .p-dash { color: var(--text-muted); font-size: 0.8rem; }
+        .p-phases { display: flex; gap: 3px; align-items: center; }
+        .p-phase-dot {
+          width: 6px; height: 6px;
+          border-radius: 50%;
+          background: var(--border);
+          transition: background 0.2s;
+        }
+        .p-phase-dot.done { background: #22c55e; }
+        .p-phase-dot.active { background: var(--bitcoin-orange); box-shadow: 0 0 0 2px rgba(247,147,26,0.25); }
+        .p-pct-col { display: flex; justify-content: flex-end; }
+        .p-pct { font-size: 0.72rem; color: var(--text-muted); }
+        .p-pct.full { color: #22c55e; font-weight: 600; }
+      `}</style>
+        </div>
+    );
+}
+
