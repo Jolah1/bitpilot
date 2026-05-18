@@ -17,10 +17,10 @@ export const api = {
         request('/sessions', { method: 'POST', body: JSON.stringify({ name }) }),
 
     getSession: (id: string) =>
-        request(`/participants/sessions/${id}`),
+        request(`/sessions/${id}`),
 
     listParticipants: (sessionId: string) =>
-        request(`/participants/sessions/${sessionId}/participants`),
+        request(`/sessions/${sessionId}/participants`),
 
     joinSession: (name: string, sessionId: string) =>
         request('/participants', { method: 'POST', body: JSON.stringify({ name, session_id: sessionId }) }),
@@ -43,15 +43,23 @@ export const api = {
     publishNostrNote: (participantId: string, content: string, nsec: string) =>
         request('/nostr/publish', { method: 'POST', body: JSON.stringify({ participant_id: participantId, content, nsec }) }),
 }
+
 export async function fetchParticipant(id: string) {
     return api.getParticipant(id)
 }
 
 export async function fetchSessionProgress(sessionId: string) {
-    const participants = await api.listParticipants(sessionId)
-    return { participants }
+    const [sessionData, participants] = await Promise.all([
+        api.getSession(sessionId),
+        api.listParticipants(sessionId),
+    ])
+    return { session: (sessionData as any).session, participants }
 }
 
-export async function completePhase({ participantId, missionId, phase }: { participantId: string, missionId: number, phase: string }) {
+export async function completePhase({ participantId, missionId, phase }: {
+    participantId: string
+    missionId: number
+    phase: string
+}) {
     return api.completeMission(participantId, missionId, phase)
 }
