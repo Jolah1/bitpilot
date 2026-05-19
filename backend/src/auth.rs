@@ -46,11 +46,10 @@ pub async fn require_participant(
     }
 
     // O(log n) indexed lookup. The `auth_token` column has a UNIQUE index.
-    let row: Option<(String,)> =
-        sqlx::query_as("SELECT id FROM participants WHERE auth_token = ?")
-            .bind(&token)
-            .fetch_optional(&state.db)
-            .await?;
+    let row: Option<(String,)> = sqlx::query_as("SELECT id FROM participants WHERE auth_token = ?")
+        .bind(&token)
+        .fetch_optional(&state.db)
+        .await?;
 
     let participant_id = row.ok_or(AppError::Unauthorized)?.0;
 
@@ -94,12 +93,11 @@ pub async fn require_facilitator(
     }
 
     // 2. Per-session facilitator token in the DB.
-    let row: Option<(String,)> = sqlx::query_as(
-        "SELECT id FROM sessions WHERE facilitator_token = ?",
-    )
-    .bind(&provided)
-    .fetch_optional(&state.db)
-    .await?;
+    let row: Option<(String,)> =
+        sqlx::query_as("SELECT id FROM sessions WHERE facilitator_token = ?")
+            .bind(&provided)
+            .fetch_optional(&state.db)
+            .await?;
 
     if row.is_some() {
         Ok(next.run(req).await)

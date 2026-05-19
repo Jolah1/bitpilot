@@ -60,11 +60,12 @@ impl NostrService {
     /// Returns the hex event id.
     pub async fn publish_note(&self, nsec: &str, content: &str) -> Result<String, AppError> {
         if content.trim().is_empty() {
-            return Err(AppError::BadRequest("note content must not be empty".into()));
+            return Err(AppError::BadRequest(
+                "note content must not be empty".into(),
+            ));
         }
 
-        let keys = Keys::parse(nsec)
-            .map_err(|e| AppError::Nostr(format!("invalid nsec: {e}")))?;
+        let keys = Keys::parse(nsec).map_err(|e| AppError::Nostr(format!("invalid nsec: {e}")))?;
 
         let client = Client::new(keys);
         for relay in &self.relays {

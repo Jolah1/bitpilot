@@ -84,7 +84,13 @@ async fn complete_mission(
     }
 
     // ── Verify the proof against the appropriate server-side ledger ─────
-    verify_proof(&state, &authed.participant_id, body.mission, body.proof.trim()).await?;
+    verify_proof(
+        &state,
+        &authed.participant_id,
+        body.mission,
+        body.proof.trim(),
+    )
+    .await?;
 
     let reward = Mission::reward(body.mission);
 
@@ -153,17 +159,18 @@ async fn verify_proof(
         // Nostr identity creation: proof must equal the npub the server
         // issued and stored on this participant.
         3 => {
-            let row: Option<(Option<String>,)> = sqlx::query_as(
-                "SELECT nostr_pubkey FROM participants WHERE id = ?",
-            )
-            .bind(participant_id)
-            .fetch_optional(&state.db)
-            .await?;
+            let row: Option<(Option<String>,)> =
+                sqlx::query_as("SELECT nostr_pubkey FROM participants WHERE id = ?")
+                    .bind(participant_id)
+                    .fetch_optional(&state.db)
+                    .await?;
             let stored = row
                 .and_then(|(v,)| v)
                 .ok_or_else(|| AppError::BadRequest("no nostr identity created yet".into()))?;
             if stored != proof {
-                return Err(AppError::BadRequest("proof does not match issued npub".into()));
+                return Err(AppError::BadRequest(
+                    "proof does not match issued npub".into(),
+                ));
             }
         }
         // Lightning receive: bolt11 invoice we issued.
