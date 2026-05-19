@@ -1,10 +1,35 @@
+import { getAuthToken, getFacilitatorToken } from './auth'
+import type { Participant, Session } from './types'
+
 const BASE = '/api'
 
-async function request<T>(path: string, options?: RequestInit): Promise<T> {
+interface RequestOpts extends Omit<RequestInit, 'body'> {
+    body?: unknown
+    /** Which credential to attach to the request, if any. */
+    auth?: 'participant' | 'facilitator' | 'none'
+}
+
+async function request<T>(path: string, opts: RequestOpts = {}): Promise<T> {
+    const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        ...(opts.headers as Record<string, string> | undefined),
+    }
+
+    const auth = opts.auth ?? 'none'
+    if (auth === 'participant') {
+        const t = getAuthToken()
+        if (t) headers['Authorization'] = `Bearer ${t}`
+    } else if (auth === 'facilitator') {
+        const t = getFacilitatorToken()
+        if (t) headers['X-Facilitator-Key'] = t
+    }
+
     const res = await fetch(`${BASE}${path}`, {
-        headers: { 'Content-Type': 'application/json' },
-        ...options,
+        ...opts,
+        headers,
+        body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
     })
+
     if (!res.ok) {
         const err = await res.json().catch(() => ({ error: 'Unknown error' }))
         throw new Error(err.error ?? 'Request failed')
@@ -12,12 +37,22 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     return res.json() as Promise<T>
 }
 
-import type { Participant, Session } from './types'
+// ── Response shapes ──────────────────────────────────────────────────────
+
+export interface CreateSessionResponse {
+    session: Session
+    facilitator_token: string
+}
 
 export interface SessionResponse {
     session: Session
     participant_count: number
     total_sats_distributed: number
+}
+
+export interface JoinSessionResponse {
+    participant: Participant
+    auth_token: string
 }
 
 export interface InvoiceResponse {
@@ -51,43 +86,75 @@ export interface CompleteMissionResponse {
     next_mission: number | null
 }
 
+export interface RuntimeInfo {
+    lightning_real: boolean
+    ecash_real: boolean
+    nostr_real: boolean
+}
+
+// ── API surface ──────────────────────────────────────────────────────────
+
 export const api = {
+    runtime: () =>
+        request<RuntimeInfo>('/runtime'),
+
     createSession: (name: string) =>
-        request<Session>('/sessions', { method: 'POST', body: JSON.stringify({ name }) }),
+        request<CreateSessionResponse>('/sessions', { method: 'POST', body: { name } }),
 
     getSession: (id: string) =>
-        request<SessionResponse>(`/sessions/${id}`),
+        request<SessionResponse>(`/sessions/${id}`, { auth: 'facilitator' }),
 
     listParticipants: (sessionId: string) =>
-        request<Participant[]>(`/sessions/${sessionId}/participants`),
+        request<Participant[]>(`/sessions/${sessionId}/participants`, { auth: 'facilitator' }),
 
     joinSession: (name: string, sessionId: string) =>
-        request<Participant>('/participants', { method: 'POST', body: JSON.stringify({ name, session_id: sessionId }) }),
+        request<JoinSessionResponse>('/participants', {
+            method: 'POST',
+            body: { name, session_id: sessionId },
+        }),
 
-    getParticipant: (id: string) =>
-        request<Participant>(`/participants/${id}`),
+    getSelf: () =>
+        request<Participant>('/participants/me', { auth: 'participant' }),
 
-    completeMission: (participantId: string, mission: number, proof?: string) =>
-        request<CompleteMissionResponse>(`/missions/${participantId}/complete`, { method: 'POST', body: JSON.stringify({ mission, proof }) }),
+    completeMission: (mission: number, proof: string) =>
+        request<CompleteMissionResponse>('/missions/complete', {
+            method: 'POST',
+            body: { mission, proof },
+            auth: 'participant',
+        }),
 
-    createInvoice: (participantId: string, amountSats: number, description: string) =>
-        request<InvoiceResponse>('/invoice', { method: 'POST', body: JSON.stringify({ participant_id: participantId, amount_sats: amountSats, description }) }),
+    createInvoice: (amountSats: number, description: string) =>
+        request<InvoiceResponse>('/invoice', {
+            method: 'POST',
+            body: { amount_sats: amountSats, description },
+            auth: 'participant',
+        }),
 
-    payInvoice: (participantId: string, invoice: string) =>
-        request<PaymentResponse>('/pay', { method: 'POST', body: JSON.stringify({ participant_id: participantId, invoice }) }),
+    payInvoice: (invoice: string) =>
+        request<PaymentResponse>('/pay', {
+            method: 'POST',
+            body: { invoice },
+            auth: 'participant',
+        }),
 
-    createNostrIdentity: (participantId: string) =>
-        request<NostrIdentityResponse>('/nostr/identity', { method: 'POST', body: JSON.stringify({ participant_id: participantId }) }),
+    createNostrIdentity: () =>
+        request<NostrIdentityResponse>('/nostr/identity', {
+            method: 'POST',
+            body: {},
+            auth: 'participant',
+        }),
 
-    publishNostrNote: (participantId: string, content: string, nsec: string) =>
-        request<NostrPublishResponse>('/nostr/publish', { method: 'POST', body: JSON.stringify({ participant_id: participantId, content, nsec }) }),
+    publishNostrNote: (content: string, nsec: string) =>
+        request<NostrPublishResponse>('/nostr/publish', {
+            method: 'POST',
+            body: { content, nsec },
+            auth: 'participant',
+        }),
 }
 
-export async function fetchParticipant(id: string): Promise<Participant> {
-    return api.getParticipant(id)
-}
-
-export async function fetchSessionProgress(sessionId: string): Promise<{ session: Session; participants: Participant[] }> {
+export async function fetchSessionProgress(
+    sessionId: string,
+): Promise<{ session: Session; participants: Participant[] }> {
     const [sessionData, participants] = await Promise.all([
         api.getSession(sessionId),
         api.listParticipants(sessionId),

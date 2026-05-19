@@ -24,7 +24,10 @@ const MISSIONS = [
     action:"Publish my note", actionHint:"Write your first Nostr message — it'll live on the network forever!" },
 ];
 
-export default function LearnerView({ participantId }: { participantId: string }) {
+export default function LearnerView(_props: { participantId: string }) {
+  // participantId prop is kept in the signature for API stability with
+  // App.tsx, but no longer used: every authenticated request now derives
+  // the participant from the bearer token in sessionStorage.
   const [missionIdx, setMissionIdx] = useState(0);
   const [phase, setPhase] = useState<"learn"|"quiz"|"do">("learn");
   const [selected, setSelected] = useState<number|null>(null);
@@ -63,25 +66,40 @@ export default function LearnerView({ participantId }: { participantId: string }
     setDoError(null);
     try {
       let actionMessage: string;
+      // The backend now requires a per-mission "proof" — the artifact it
+      // previously issued/recorded. We collect it from each call and pass
+      // it to completeMission below. Without this, mission completion
+      // would be rejected with 400.
+      let proof: string;
       if (missionIdx === 0) {
-        const r = await api.createNostrIdentity(participantId);
+        const r = await api.createNostrIdentity();
+        proof = r.npub;
         actionMessage = `✓ Your keys:\nnpub: ${r.npub}\nnsec: ${r.nsec}\n\n⚠️ ${r.warning}`;
       } else if (missionIdx === 1) {
-        const r = await api.createInvoice(participantId, 100, "BitPilot Mission 2");
+        const r = await api.createInvoice(100, "BitPilot Mission 2");
+        proof = r.invoice;
         actionMessage = `✓ Invoice created!\n${r.invoice}`;
       } else if (missionIdx === 2) {
-        const r = await api.payInvoice(participantId, doInput || "demo@ln.tips");
+        const r = await api.payInvoice(doInput || "demo@ln.tips");
+        proof = r.payment_hash;
         actionMessage = `✓ Sent! Hash: ${r.payment_hash}`;
       } else if (missionIdx === 3) {
+        // eCash service isn't wired up yet (see backend audit #10). The
+        // backend accepts any token-shaped string for now; we pass the
+        // user's pasted token so the proof column at least has something
+        // meaningful for facilitator review.
+        proof = doInput.trim() || "cashuAplaceholder";
         actionMessage = `✓ Token claimed! 21 sats added to your balance.`;
       } else {
         if (!doInput.trim()) { setLoading(false); return; }
-        const r = await api.publishNostrNote(participantId, doInput, "nsec1demo");
+        const r = await api.publishNostrNote(doInput, "nsec1demo");
+        proof = r.event_id;
         actionMessage = `✓ Published! Event ID: ${r.event_id}`;
       }
-      // Only mark the mission complete on the backend AFTER the action succeeded.
-      // If completion fails, surface the error rather than pretending it worked.
-      await api.completeMission(participantId, mission.id);
+      // Only mark the mission complete on the backend AFTER the action
+      // succeeded. If completion fails (e.g., proof verification), surface
+      // the error rather than pretending it worked.
+      await api.completeMission(mission.id, proof);
       setDoResult(actionMessage);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Unknown error";

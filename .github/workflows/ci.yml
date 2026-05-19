@@ -1,0 +1,118 @@
+# CI for BitPilot.
+#
+# Runs on every PR and every push to main. Three jobs in parallel:
+#
+#   1. secret-scan   — gitleaks against the full PR diff. The repo also has
+#                      local pre-commit and pre-push hooks (scripts/), but
+#                      those can be bypassed with --no-verify, so this is the
+#                      real gate.
+#   2. backend       — cargo build (release, --locked), cargo-audit for RustSec.
+#   3. frontend      — npm ci, npm run build (which also runs tsc).
+#
+# Hardening notes:
+# - `permissions: read-all` at the workflow level. Each job re-grants only the
+#   minimum it needs; nothing has `write` on contents/PRs/packages.
+# - Actions are pinned by major-version tag. Before going to production,
+#   replace each `@v4`-style tag with the exact commit SHA (`@<sha>`) so a
+#   compromised action can't silently push malicious code. See
+#   https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions#using-third-party-actions
+# - No secrets are referenced. If a future job needs one (deploy, etc.),
+#   add it to that job alone and never echo it.
+
+name: ci
+
+on:
+    push:
+        branches: [main]
+    pull_request:
+        branches: [main]
+
+permissions: read-all
+
+concurrency:
+    group: ci-${{ github.ref }}
+    cancel-in-progress: true
+
+jobs:
+    secret-scan:
+        name: gitleaks
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  # gitleaks needs the full history on a push event so it can
+                  # diff every commit being introduced. fetch-depth: 0 disables
+                  # the default shallow clone.
+                  fetch-depth: 0
+            - name: Run gitleaks
+              uses: gitleaks/gitleaks-action@v2
+              env:
+                  # No paid license needed for public repos; this var just
+                  # silences a "no license" warning. Remove for private repos
+                  # if you have a license, or leave as-is for the OSS path.
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              with:
+                  config-path: .gitleaks.toml
+
+    backend:
+        name: backend (cargo)
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+        defaults:
+            run:
+                working-directory: backend
+        steps:
+            - uses: actions/checkout@v4
+            - uses: dtolnay/rust-toolchain@stable
+            - uses: Swatinem/rust-cache@v2
+              with:
+                  workspaces: backend
+            # --locked: refuse to update Cargo.lock during build. Catches
+            # accidental drift between committed lockfile and Cargo.toml,
+            # and matches what we want production builds to do.
+            #
+            # NOTE on sqlx: this project uses the untyped sqlx::query[_as]
+            # APIs (not the query!/query_as! compile-time-checked macros),
+            # so no DB is needed at build time and SQLX_OFFLINE / .sqlx
+            # cache aren't required. If anyone migrates to the macros,
+            # they'll need to either run `cargo sqlx prepare` and commit
+            # `.sqlx/`, or set up a step that spins up SQLite and runs
+            # migrations before `cargo build`.
+            - name: cargo build --release --locked
+              run: cargo build --release --locked
+            - name: cargo audit
+              # cargo-audit checks Cargo.lock against the RustSec advisory
+              # database. Fails the build on any known vuln; downgrade to
+              # `|| true` if you want it informational while triaging.
+              run: |
+                  cargo install --locked cargo-audit
+                  cargo audit
+
+    frontend:
+        name: frontend (vite + tsc)
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+        defaults:
+            run:
+                working-directory: frontend
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: '20'
+                  cache: npm
+                  cache-dependency-path: frontend/package-lock.json
+            # `npm ci` requires package-lock.json and refuses to modify it.
+            # It's strictly stricter than `npm install` and is what we want
+            # for reproducible builds.
+            - run: npm ci
+            - name: Audit npm dependencies
+              # Don't fail the build on audit findings (npm advisories churn);
+              # surface them in the log so they're noticed.
+              run: npm audit --audit-level=high || true
+            - name: Build (tsc + vite)
+              run: npm run build

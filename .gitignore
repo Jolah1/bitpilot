@@ -2,12 +2,15 @@
 target/
 **/*.rs.bk
 
-# ─── ldk-node data (never commit private keys!) ──────────────────────────────
+# ─── ldk-node + SQLite data (never commit private keys or learner data!) ────
 ldk-data/
 ldk_data/
 *.sqlite
 *.sqlite-shm
 *.sqlite-wal
+*.db
+*.db-shm
+*.db-wal
 
 # ─── Node / Frontend ──────────────────────────────────────────────────────────
 node_modules/
@@ -20,6 +23,11 @@ dist/
 .env.local
 .env.*.local
 .env.production
+
+# ─── Internal security docs (never publish until issues are fixed) ───────────
+SECURITY-AUDIT.md
+SECURITY-AUDIT-*.md
+/security/
 
 # ─── Editor / OS ──────────────────────────────────────────────────────────────
 .DS_Store

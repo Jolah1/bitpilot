@@ -4,6 +4,8 @@ import LearnerView from './views/LearnerView'
 import FacilitatorDashboard from './views/FacilitatorDashboard'
 import { ThemeToggle } from './components/ThemeToggle'
 import { Theme, applyTheme, getSavedTheme, saveTheme } from './lib/theme'
+import { api } from './lib/api'
+import { setAuthToken, setFacilitatorToken, clearAuthToken, clearFacilitatorToken } from './lib/auth'
 import './index.css'
 
 const queryClient = new QueryClient()
@@ -35,22 +37,28 @@ export default function App() {
     if (!participantName.trim()) return
     setLoading(true); setError('')
     try {
+      // Fresh start: drop any tokens left over from a previous session in
+      // this tab. Without this, a stale auth_token would cause every API
+      // call to 401 until the user reloads the tab.
+      clearAuthToken()
+      clearFacilitatorToken()
+
       const sName = sessionName.trim() || 'BitPilot Session'
-      const session: any = await fetch('/api/sessions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: sName })
-      }).then(r => { if (!r.ok) throw new Error(); return r.json() })
-      const participant: any = await fetch('/api/participants', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: participantName.trim(), session_id: session.id })
-      }).then(r => { if (!r.ok) throw new Error(); return r.json() })
+      const { session, facilitator_token } = await api.createSession(sName)
+      // The facilitator token only matters if the user is running a
+      // session (will switch to facilitator view), but we always store it
+      // since the creator might toggle into that view later.
+      setFacilitatorToken(facilitator_token)
+
+      const { participant, auth_token } = await api.joinSession(participantName.trim(), session.id)
+      setAuthToken(auth_token)
+
       setSessionId(session.id)
       setParticipantId(participant.id)
       setScreen('app')
-    } catch {
-      setError('Backend not reachable. Make sure cargo run is running in another terminal.')
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Backend not reachable. Make sure cargo run is running in another terminal.'
+      setError(msg)
     }
     setLoading(false)
   }

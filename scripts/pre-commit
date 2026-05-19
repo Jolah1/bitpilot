@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+# Pre-commit hook: refuse to commit if gitleaks detects a secret in the staged
+# diff. Lives in the repo (scripts/pre-commit) so it survives `git clone`; the
+# matching .git/hooks/pre-commit just execs this file.
+#
+# Install once per clone:
+#   ./scripts/install-hooks.sh
+#
+# Bypass in genuine emergencies (and only if you understand the risk):
+#   git commit --no-verify
+#
+# Requires gitleaks on PATH. Install: https://github.com/gitleaks/gitleaks
+
+set -euo pipefail
+
+if ! command -v gitleaks >/dev/null 2>&1; then
+    cat >&2 <<'EOF'
+[pre-commit] gitleaks not found on PATH.
+
+Install it before committing:
+  Linux x86_64:
+    curl -sSL https://github.com/gitleaks/gitleaks/releases/download/v8.21.2/gitleaks_8.21.2_linux_x64.tar.gz \
+      | tar -xz -C ~/.local/bin gitleaks
+  macOS:
+    brew install gitleaks
+
+Or skip this commit (NOT recommended) with: git commit --no-verify
+EOF
+    exit 1
+fi
+
+# `gitleaks git --staged` scans only what's about to be committed (gitleaks v8+).
+# --redact replaces secret values in output so they never echo to the terminal.
+# --no-banner keeps the commit output tight on success.
+gitleaks git --staged --redact --no-banner \
+    --config "$(git rev-parse --show-toplevel)/.gitleaks.toml"

@@ -1,0 +1,35 @@
+# Dependabot keeps Cargo.toml, package.json, and our GitHub Actions versions
+# patched against known-vulnerable releases. PRs land in your inbox; you
+# still control merging.
+#
+# Frequency is weekly to keep noise manageable. Crank to `daily` if you have
+# enough collaborators that weekly batches feel risky.
+
+version: 2
+updates:
+    - package-ecosystem: cargo
+      directory: /backend
+      schedule:
+          interval: weekly
+      open-pull-requests-limit: 5
+      labels:
+          - dependencies
+          - rust
+
+    - package-ecosystem: npm
+      directory: /frontend
+      schedule:
+          interval: weekly
+      open-pull-requests-limit: 5
+      labels:
+          - dependencies
+          - javascript
+
+    - package-ecosystem: github-actions
+      directory: /
+      schedule:
+          interval: weekly
+      open-pull-requests-limit: 5
+      labels:
+          - dependencies
+          - ci
