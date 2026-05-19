@@ -1,0 +1,19 @@
+# Keep the Docker build context small and free of secrets.
+# Cargo's target/ is the biggest one - tens or hundreds of MB.
+
+target/
+.env
+.env.*
+*.db
+*.db-shm
+*.db-wal
+
+# Editor / OS noise
+.DS_Store
+*.swp
+.idea/
+.vscode/
+
+# Don't ship the audit advisory cache or local notes
+.cargo/registry/
+.cargo/git/

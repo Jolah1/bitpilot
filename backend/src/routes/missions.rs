@@ -205,25 +205,9 @@ async fn verify_proof(
                 ));
             }
         }
-        // eCash claim (mission 8): token that was redeemed into the
-        // participant's wallet — i.e. they received it.
+        // eCash claim (mission 8): the server minted a token and handed it
+        // to the learner. The frontend submits the minted token as proof.
         8 => {
-            let row: Option<(String,)> = sqlx::query_as(
-                "SELECT artifact FROM ecash_log \
-                 WHERE participant_id = ? AND kind = 'redeem' AND artifact = ?",
-            )
-            .bind(participant_id)
-            .bind(proof)
-            .fetch_optional(&state.db)
-            .await?;
-            if row.is_none() {
-                return Err(AppError::BadRequest(
-                    "no redeemed cashu token with that string for you".into(),
-                ));
-            }
-        }
-        // eCash spend (mission 9): token the participant *minted* to send.
-        9 => {
             let row: Option<(String,)> = sqlx::query_as(
                 "SELECT artifact FROM ecash_log \
                  WHERE participant_id = ? AND kind = 'mint' AND artifact = ?",
@@ -235,6 +219,23 @@ async fn verify_proof(
             if row.is_none() {
                 return Err(AppError::BadRequest(
                     "no minted cashu token with that string for you".into(),
+                ));
+            }
+        }
+        // eCash spend (mission 9): the learner pasted a token, server
+        // redeemed it. Proof is the redeemed token string.
+        9 => {
+            let row: Option<(String,)> = sqlx::query_as(
+                "SELECT artifact FROM ecash_log \
+                 WHERE participant_id = ? AND kind = 'redeem' AND artifact = ?",
+            )
+            .bind(participant_id)
+            .bind(proof)
+            .fetch_optional(&state.db)
+            .await?;
+            if row.is_none() {
+                return Err(AppError::BadRequest(
+                    "no redeemed cashu token with that string for you".into(),
                 ));
             }
         }

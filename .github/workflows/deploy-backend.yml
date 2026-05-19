@@ -1,0 +1,49 @@
+# Auto-deploy the backend to Fly.io on every push to main.
+#
+# Setup (one-time, from your laptop):
+#   1. `flyctl auth login`
+#   2. `flyctl apps create bitpilot-api` (or whatever name you used in fly.toml)
+#   3. `flyctl volumes create bitpilot_data --region lhr --size 1`
+#   4. `flyctl secrets set CORS_ALLOWED_ORIGINS=https://<your-pages-host>.pages.dev`
+#   5. `flyctl auth token` — copy the output
+#   6. On GitHub: Settings → Secrets and variables → Actions → New
+#      repository secret named `FLY_API_TOKEN`, paste the value
+#
+# After that, every push to main triggers this workflow and Fly redeploys.
+# To deploy manually instead, run `flyctl deploy` from backend/.
+
+name: deploy-backend
+
+on:
+    push:
+        branches: [main]
+        # Only run when backend files actually change. Saves CI minutes.
+        paths:
+            - 'backend/**'
+            - '.github/workflows/deploy-backend.yml'
+    # Manual trigger from the GitHub UI.
+    workflow_dispatch:
+
+# Cancel a deploy in flight if a newer push lands.
+concurrency:
+    group: deploy-backend
+    cancel-in-progress: true
+
+jobs:
+    deploy:
+        name: fly deploy
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+        defaults:
+            run:
+                working-directory: backend
+        steps:
+            - uses: actions/checkout@v4
+            - uses: superfly/flyctl-actions/setup-flyctl@master
+            - name: fly deploy --remote-only
+              # --remote-only: build on Fly's builders instead of locally.
+              # Means we don't need to set up Docker on the runner.
+              run: flyctl deploy --remote-only
+              env:
+                  FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}

@@ -1,0 +1,18 @@
+# Cloudflare Pages redirects + rewrites.
+# https://developers.cloudflare.com/pages/configuration/redirects/
+#
+# Format: source  destination  status
+# Status 200 = transparent rewrite (URL in browser stays the same).
+# Status 301/302/307 = redirect (URL in browser changes).
+#
+# The single rule below proxies every /api/* request to the Fly backend.
+# This is why the frontend can call fetch('/api/...') without knowing the
+# backend URL - the rewrite happens at Cloudflare's edge.
+#
+# If you rename the Fly app, change the URL on the right.
+
+/api/*  https://bitpilot-api.fly.dev/api/:splat  200
+
+# SPA fallback. Any path that isn't a real file goes to index.html so
+# React Router (or just direct-link navigation) keeps working.
+/*  /index.html  200

@@ -5,6 +5,14 @@ import FacilitatorDashboard from './views/FacilitatorDashboard'
 import { ThemeToggle } from './components/ThemeToggle'
 import { applyTheme, getSavedTheme, saveTheme, type Theme } from './lib/theme'
 import { api, ApiError } from './lib/api'
+import {
+    clearAllTokens,
+    getAuthToken,
+    getParticipantId,
+    getSessionId,
+    setParticipantId as persistParticipantId,
+    setSessionId as persistSessionId,
+} from './lib/auth'
 import { RuntimeProvider, useRuntime } from './lib/runtime'
 import { MISSIONS, MISSION_COUNT } from './lib/types'
 import {
@@ -25,12 +33,30 @@ const queryClient = new QueryClient({
 type View = 'learner' | 'facilitator'
 type Screen = 'landing' | 'setup' | 'app'
 
+// On first mount, rehydrate from localStorage if a previous run left
+// credentials behind. We only consider it valid if we have BOTH the auth
+// token and the participant id; the api client also re-reads the token
+// from localStorage on every request, so a refresh stays authenticated.
+function rehydrate(): { sessionId: string | null; participantId: string | null; restored: boolean } {
+    const token = getAuthToken()
+    const sid = getSessionId()
+    const pid = getParticipantId()
+    if (token && pid && sid) {
+        return { sessionId: sid, participantId: pid, restored: true }
+    }
+    return { sessionId: null, participantId: null, restored: false }
+}
+
 export default function App() {
+    const initial = rehydrate()
+
     const [view, setView] = useState<View>('learner')
     const [theme, setTheme] = useState<Theme>(getSavedTheme)
-    const [screen, setScreen] = useState<Screen>('landing')
-    const [sessionId, setSessionId] = useState<string | null>(null)
-    const [participantId, setParticipantId] = useState<string | null>(null)
+    // If we successfully rehydrated, jump straight to the app screen so
+    // refresh = continue. Otherwise show the landing page.
+    const [screen, setScreen] = useState<Screen>(initial.restored ? 'app' : 'landing')
+    const [sessionId, setSessionId] = useState<string | null>(initial.sessionId)
+    const [participantId, setParticipantId] = useState<string | null>(initial.participantId)
     const [sessionName, setSessionName] = useState('')
     const [participantName, setParticipantName] = useState('')
     const [loading, setLoading] = useState(false)
@@ -49,10 +75,16 @@ export default function App() {
         setLoading(true)
         setError('')
         try {
+            // Wipe anything left over from a previous run before issuing
+            // fresh credentials. Otherwise a stale Authorization header
+            // could leak from one run into the next.
+            clearAllTokens()
             const session = await api.createSession(sessionName.trim() || 'BitPilot Session')
             const participant = await api.joinSession(name, session.id)
             setSessionId(session.id)
             setParticipantId(participant.id)
+            persistSessionId(session.id)
+            persistParticipantId(participant.id)
             setScreen('app')
         } catch (e) {
             if (e instanceof ApiError) {
@@ -62,6 +94,16 @@ export default function App() {
             }
         }
         setLoading(false)
+    }
+
+    /** "Exit" button — drop back to landing AND wipe credentials. */
+    const onExitToLanding = () => {
+        clearAllTokens()
+        setSessionId(null)
+        setParticipantId(null)
+        setParticipantName('')
+        setSessionName('')
+        setScreen('landing')
     }
 
     return (
@@ -104,7 +146,7 @@ export default function App() {
                         setView={setView}
                         theme={theme}
                         onToggleTheme={toggleTheme}
-                        onExit={() => setScreen('landing')}
+                        onExit={onExitToLanding}
                         participantId={participantId}
                         sessionId={sessionId}
                     />

@@ -65,6 +65,40 @@ export default function LearnerView({ participantId }: { participantId: string }
         }
     }, [doOutcome])
 
+    // On first mount, rehydrate progress from the server. The backend is
+    // the source of truth: even if local state was wiped by a refresh, the
+    // participant's `current_mission` and `completed_missions` are stored
+    // in SQLite and come back via /api/participants/me.
+    //
+    // We pass `participantId` as an arg only to satisfy the older api
+    // signature; api.getParticipant actually calls /participants/me with
+    // the bearer token from localStorage and ignores the id.
+    useEffect(() => {
+        let cancelled = false
+        ;(async () => {
+            try {
+                const p = await api.getParticipant(participantId)
+                if (cancelled) return
+                setCompletedMissions(p.completed_missions ?? [])
+                // current_mission is 1-indexed in the backend; missionIdx
+                // is 0-indexed here. Clamp to a valid range in case the
+                // mission catalogue changed under the participant.
+                const idx = Math.max(0, Math.min(MISSION_COUNT - 1, (p.current_mission ?? 1) - 1))
+                setMissionIdx(idx)
+            } catch {
+                // If the fetch fails (network down, token rejected), just
+                // start at mission 1. The Do action will fail loudly if
+                // the token is bad, which is the right place to surface it.
+            }
+        })()
+        return () => {
+            cancelled = true
+        }
+        // participantId only changes when the user starts a fresh session,
+        // at which point we want to re-fetch anyway.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [participantId])
+
     const resetForNext = () => {
         setPhase('learn')
         setSelected(null)
@@ -97,9 +131,17 @@ export default function LearnerView({ participantId }: { participantId: string }
         setDoError(null)
         try {
             let outcome: DoOutcome
+            // proof gets sent to the backend on completeMission. For knowledge
+            // missions there's no server-issued artifact, so we send a
+            // non-empty placeholder; the backend accepts any non-empty string
+            // for missions 1/2/4/7. For technical missions, proof is the
+            // artifact the server just issued (npub, invoice, payment_hash,
+            // token, event_id) so the proof-ledger lookup succeeds.
+            let proof: string
 
             switch (mission.do.kind) {
                 case 'knowledge': {
+                    proof = 'acknowledged'
                     outcome = {
                         summary: 'Knowledge unlocked.',
                         simulated: false,
@@ -109,6 +151,7 @@ export default function LearnerView({ participantId }: { participantId: string }
                 case 'nostr-identity': {
                     const r = await api.createNostrIdentity(participantId)
                     setStoredNsec(r.nsec)
+                    proof = r.npub
                     outcome = {
                         summary: 'Your real Nostr keypair is ready.',
                         details: [
@@ -122,6 +165,7 @@ export default function LearnerView({ participantId }: { participantId: string }
                 }
                 case 'invoice': {
                     const r = await api.createInvoice(participantId, 100, 'BitPilot mission')
+                    proof = r.invoice
                     outcome = {
                         summary: `Invoice for ${r.amount_sats} sats created.`,
                         details: [{ label: 'invoice', value: r.invoice }],
@@ -136,6 +180,7 @@ export default function LearnerView({ participantId }: { participantId: string }
                         return
                     }
                     const r = await api.payInvoice(participantId, doInput.trim())
+                    proof = r.payment_hash
                     outcome = {
                         summary: '50 sats sent.',
                         details: [
@@ -148,6 +193,7 @@ export default function LearnerView({ participantId }: { participantId: string }
                 }
                 case 'ecash-claim': {
                     const r = await api.mintEcash(participantId, 50)
+                    proof = r.token
                     outcome = {
                         summary: `Token minted — ${r.amount_sats} sats inside.`,
                         details: [{ label: 'token', value: r.token }],
@@ -162,6 +208,7 @@ export default function LearnerView({ participantId }: { participantId: string }
                         return
                     }
                     const r = await api.redeemEcash(participantId, doInput.trim())
+                    proof = doInput.trim()
                     outcome = {
                         summary: `Token redeemed for ${r.amount_sats} sats.`,
                         details: [{ label: 'status', value: r.status }],
@@ -181,6 +228,7 @@ export default function LearnerView({ participantId }: { participantId: string }
                         return
                     }
                     const r = await api.publishNostrNote(participantId, doInput.trim(), storedNsec)
+                    proof = r.event_id
                     outcome = {
                         summary: 'Note signed and broadcast to public Nostr relays.',
                         details: [
@@ -194,7 +242,7 @@ export default function LearnerView({ participantId }: { participantId: string }
             }
 
             // Only credit the mission after the action succeeded.
-            await api.completeMission(participantId, mission.id)
+            await api.completeMission(participantId, mission.id, proof)
             setDoOutcome(outcome)
         } catch (e) {
             const msg = e instanceof ApiError ? e.message : e instanceof Error ? e.message : 'Unknown error'
