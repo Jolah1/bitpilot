@@ -21,3 +21,13 @@ sqlx              = { version = "0.8", default-features = false, features = ["ru
 rand              = "0.8"
 chrono            = { version = "0.4", features = ["serde"] }
 hex               = "0.4"
+
+# ── Real-mode service backends ───────────────────────────────────────────────
+# Real Nostr support: bech32 keys + signed events + relay publishing.
+nostr-sdk         = { version = "0.44", default-features = false, features = ["all-nips"] }
+# Real Cashu eCash via the canonical Rust CDK (wallet-side only).
+cdk               = { version = "0.16", default-features = false, features = ["wallet"] }
+# Storage backend for the CDK wallet (server-side hot wallet for the testmint).
+cdk-sqlite        = { version = "0.16", default-features = false, features = ["wallet"] }
+# HTTP client for talking to LNbits (signet/testnet) when LNBITS_URL is set.
+reqwest           = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }

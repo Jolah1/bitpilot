@@ -1,259 +1,904 @@
-import { useState } from "react";
-import { api } from "../lib/api";
+import { useEffect, useRef, useState, Fragment, type CSSProperties } from 'react'
+import { api, ApiError } from '../lib/api'
+import { useIsTechReal } from '../lib/runtime'
+import { MISSIONS, MISSION_COUNT, type MissionDef } from '../lib/types'
+import {
+    callout,
+    card,
+    chip,
+    ghostButton,
+    input,
+    inputMono,
+    label as labelStyle,
+    primaryButton,
+    techGradient,
+    techTone,
+} from '../lib/ui'
 
-const MISSIONS = [
-  { id:1, emoji:"🪪", name:"Get your Bitcoin ID", tagline:"Like a username — nobody can take it away",
-    learn:{ heading:"What is a Nostr identity?", body:"Think of it like creating a Gmail account — but YOU own it forever. No company can delete it.\n\nYou'll get two keys:\n🔑 PUBLIC key (npub) — share freely, like your phone number\n🔒 PRIVATE key (nsec) — NEVER share this, like your PIN.", tip:"💡 Write your private key on paper — it can never be recovered if lost!" },
-    quiz:{ question:"Your private key (nsec) is like your PIN. What should you do with it?", options:[{text:"Post it online so people can find me",correct:false},{text:"Keep it secret — never share with anyone",correct:true},{text:"Send it to a friend for safekeeping",correct:false}] },
-    action:"Generate my Bitcoin ID", actionHint:"Tap the button — your identity is created in under a second!" },
-  { id:2, emoji:"📥", name:"Receive real Bitcoin", tagline:"Get actual sats sent straight to you",
-    learn:{ heading:"What is a Lightning invoice?", body:"Lightning is a super-fast lane on the Bitcoin highway. Instead of waiting 10 minutes, it settles in under a second.\n\nAn invoice is like a payment request — similar to asking someone to pay you on PayPal, but for Bitcoin.", tip:"💡 The amount is tiny (a few pennies) — just to learn the flow!" },
-    quiz:{ question:"How fast does a Lightning Bitcoin payment settle?", options:[{text:"About 10 minutes",correct:false},{text:"Instantly — under a second",correct:true},{text:"1–2 business days",correct:false}] },
-    action:"Create my payment request", actionHint:"We'll generate an invoice. Show it to your facilitator to pay!" },
-  { id:3, emoji:"📤", name:"Send 50 sats", tagline:"Pay someone — as easy as sending an email",
-    learn:{ heading:"What is a Lightning Address?", body:"A Lightning Address looks just like an email address (e.g. alice@ln.tips) — but it's actually a Bitcoin payment address.\n\n50 sats is less than 1 penny. Think of it as a practice payment!", tip:"💡 50 sats ≈ $0.00003. Tiny amount, big skill!" },
-    quiz:{ question:"What does a Lightning Address look like?", options:[{text:"A long random code like 1A2B3C…",correct:false},{text:"An email address like alice@wallet.com",correct:true},{text:"A QR code",correct:false}] },
-    action:"Send 50 sats", actionHint:"Type a Lightning address (like demo@ln.tips) and send!" },
-  { id:4, emoji:"🎟️", name:"Claim a secret token", tagline:"Private digital cash — no bank, no trace",
-    learn:{ heading:"What is Cashu eCash?", body:"When you pay by card, your bank tracks everything. Not great!\n\nCashu eCash is like handing someone a £10 note — nobody tracks it. Real Bitcoin value, completely private.", tip:"💡 Think of it like a gift card code over WhatsApp — paste it and the sats are yours!" },
-    quiz:{ question:"What makes eCash different from paying by card?", options:[{text:"It's faster than Lightning",correct:false},{text:"Your spending is completely private",correct:true},{text:"You can spend more than you have",correct:false}] },
-    action:"Claim my token", actionHint:"Paste the Cashu token your facilitator sent you." },
-  { id:5, emoji:"📢", name:"Post your first note", tagline:"Send a message no one can ever delete",
-    learn:{ heading:"What is Nostr?", body:"Twitter can delete your account. Facebook can ban you. Nostr is different — nobody's in charge.\n\nYour posts are signed with YOUR private key. Only you can post as you, and no company can remove it.", tip:"💡 Keep it friendly — it really is permanent!" },
-    quiz:{ question:"On Nostr, who can delete your posts?", options:[{text:"The company that runs Nostr",correct:false},{text:"Your internet provider",correct:false},{text:"Nobody — there is no company in charge",correct:true}] },
-    action:"Publish my note", actionHint:"Write your first Nostr message — it'll live on the network forever!" },
-];
+type Phase = 'learn' | 'quiz' | 'do'
 
-export default function LearnerView(_props: { participantId: string }) {
-  // participantId prop is kept in the signature for API stability with
-  // App.tsx, but no longer used: every authenticated request now derives
-  // the participant from the bearer token in sessionStorage.
-  const [missionIdx, setMissionIdx] = useState(0);
-  const [phase, setPhase] = useState<"learn"|"quiz"|"do">("learn");
-  const [selected, setSelected] = useState<number|null>(null);
-  const [quizResult, setQuizResult] = useState<"correct"|"wrong"|null>(null);
-  const [doInput, setDoInput] = useState("");
-  const [doResult, setDoResult] = useState<string|null>(null);
-  const [doError, setDoError] = useState<string|null>(null);
-  const [loading, setLoading] = useState(false);
-  const [completedMissions, setCompletedMissions] = useState<number[]>([]);
+interface DoOutcome {
+    summary: string
+    /** Optional structured details printed in a mono block. */
+    details?: { label: string; value: string }[]
+    /** Display "Simulated" badge in the result block? */
+    simulated: boolean
+}
 
-  const mission = MISSIONS[missionIdx];
-  const allDone = completedMissions.length === 5;
+/**
+ * The learner experience. One mission at a time, three phases per mission
+ * (Learn → Quiz → Do). Progress is local state — the backend only stores
+ * `completed_missions` and `current_mission` for the participant.
+ *
+ * Accessibility notes:
+ *   - phase tabs are real <button>s with aria-current, not divs
+ *   - quiz options are <button>s with aria-pressed and disabled correctly
+ *   - results blocks are aria-live="polite" so screen readers announce them
+ *   - focus is moved to the result heading when a quiz/do step resolves
+ */
+export default function LearnerView({ participantId }: { participantId: string }) {
+    const [missionIdx, setMissionIdx] = useState(0)
+    const [phase, setPhase] = useState<Phase>('learn')
 
-  const goNextMission = () => {
-    setCompletedMissions(prev => [...prev, missionIdx]);
-    if (missionIdx < 4) {
-      setMissionIdx(missionIdx + 1);
-      setPhase("learn");
-      setSelected(null);
-      setQuizResult(null);
-      setDoInput("");
-      setDoResult(null);
-      setDoError(null);
+    const [selected, setSelected] = useState<number | null>(null)
+    const [quizResult, setQuizResult] = useState<'correct' | 'wrong' | null>(null)
+
+    const [doInput, setDoInput] = useState('')
+    const [doOutcome, setDoOutcome] = useState<DoOutcome | null>(null)
+    const [doError, setDoError] = useState<string | null>(null)
+    const [loading, setLoading] = useState(false)
+
+    const [completedMissions, setCompletedMissions] = useState<number[]>([])
+    /** nsec generated in mission 3, reused by mission 10's publish step. */
+    const [storedNsec, setStoredNsec] = useState<string | null>(null)
+
+    const mission: MissionDef = MISSIONS[missionIdx]
+    const isLast = missionIdx === MISSION_COUNT - 1
+    const allDone = completedMissions.length === MISSION_COUNT
+    const tone = techTone(mission.tech)
+
+    // Move focus to the live result region whenever it appears.
+    const resultRef = useRef<HTMLDivElement | null>(null)
+    useEffect(() => {
+        if (doOutcome && resultRef.current) {
+            resultRef.current.focus()
+        }
+    }, [doOutcome])
+
+    const resetForNext = () => {
+        setPhase('learn')
+        setSelected(null)
+        setQuizResult(null)
+        setDoInput('')
+        setDoOutcome(null)
+        setDoError(null)
     }
-  };
 
-  const handleQuizSubmit = () => {
-    if (selected === null) return;
-    const correct = mission.quiz.options[selected].correct;
-    setQuizResult(correct ? "correct" : "wrong");
-    if (correct) setTimeout(() => setPhase("do"), 900);
-  };
-
-  const handleDo = async () => {
-    setLoading(true);
-    setDoError(null);
-    try {
-      let actionMessage: string;
-      // The backend now requires a per-mission "proof" — the artifact it
-      // previously issued/recorded. We collect it from each call and pass
-      // it to completeMission below. Without this, mission completion
-      // would be rejected with 400.
-      let proof: string;
-      if (missionIdx === 0) {
-        const r = await api.createNostrIdentity();
-        proof = r.npub;
-        actionMessage = `✓ Your keys:\nnpub: ${r.npub}\nnsec: ${r.nsec}\n\n⚠️ ${r.warning}`;
-      } else if (missionIdx === 1) {
-        const r = await api.createInvoice(100, "BitPilot Mission 2");
-        proof = r.invoice;
-        actionMessage = `✓ Invoice created!\n${r.invoice}`;
-      } else if (missionIdx === 2) {
-        const r = await api.payInvoice(doInput || "demo@ln.tips");
-        proof = r.payment_hash;
-        actionMessage = `✓ Sent! Hash: ${r.payment_hash}`;
-      } else if (missionIdx === 3) {
-        // eCash service isn't wired up yet (see backend audit #10). The
-        // backend accepts any token-shaped string for now; we pass the
-        // user's pasted token so the proof column at least has something
-        // meaningful for facilitator review.
-        proof = doInput.trim() || "cashuAplaceholder";
-        actionMessage = `✓ Token claimed! 21 sats added to your balance.`;
-      } else {
-        if (!doInput.trim()) { setLoading(false); return; }
-        const r = await api.publishNostrNote(doInput, "nsec1demo");
-        proof = r.event_id;
-        actionMessage = `✓ Published! Event ID: ${r.event_id}`;
-      }
-      // Only mark the mission complete on the backend AFTER the action
-      // succeeded. If completion fails (e.g., proof verification), surface
-      // the error rather than pretending it worked.
-      await api.completeMission(mission.id, proof);
-      setDoResult(actionMessage);
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : "Unknown error";
-      setDoError(`Something went wrong: ${msg}`);
+    const goNextMission = () => {
+        setCompletedMissions((prev) => [...new Set([...prev, missionIdx])])
+        if (missionIdx < MISSION_COUNT - 1) {
+            setMissionIdx(missionIdx + 1)
+            resetForNext()
+        }
     }
-    setLoading(false);
-  };
 
-  // ── Done screen ──
-  if (allDone && missionIdx === 4 && doResult) return (
-    <div style={{ maxWidth:560, margin:"0 auto", padding:"3rem 1rem", textAlign:"center", display:"flex", flexDirection:"column", alignItems:"center", gap:"1rem" }}>
-      <div style={{ fontSize:"4rem" }}>🎉</div>
-      <h1 style={{ fontSize:28, fontWeight:800, margin:0 }}>You did it!</h1>
-      <p style={{ fontSize:15, color:"var(--muted)", lineHeight:1.6, margin:0 }}>You just used real Bitcoin. Lightning. Nostr. eCash.<br/>Welcome to the future of money.</p>
-      <div style={{ display:"flex", flexDirection:"column", gap:6, width:"100%", maxWidth:300 }}>
-        {MISSIONS.map((m,i) => (
-          <div key={i} style={{ display:"flex", alignItems:"center", gap:8, fontSize:13, color:"var(--muted)" }}>
-            <span style={{ color:"#22c55e" }}>✓</span><span>{m.emoji}</span><span style={{ flex:1, textAlign:"left" }}>{m.name}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
+    const handleQuizSubmit = () => {
+        if (selected === null) return
+        const correct = mission.quiz.options[selected].correct
+        setQuizResult(correct ? 'correct' : 'wrong')
+        if (correct) {
+            // Slight delay so the user can register the green flash.
+            setTimeout(() => setPhase('do'), 700)
+        }
+    }
 
-  const s = { // shared styles
-    card: { background:"var(--surface)", border:"1px solid var(--border)", borderRadius:16, overflow:"hidden", maxWidth:560, margin:"0 auto" } as React.CSSProperties,
-    btn: { background:"#F7931A", color:"#000", border:"none", borderRadius:10, padding:"13px 20px", fontWeight:700, fontSize:15, cursor:"pointer", width:"100%", display:"flex", alignItems:"center", justifyContent:"center", gap:7 } as React.CSSProperties,
-    ghostBtn: { background:"transparent", border:"1px solid var(--border)", borderRadius:8, padding:"8px 14px", fontSize:13, color:"var(--muted)", cursor:"pointer" } as React.CSSProperties,
-    input: { width:"100%", padding:"11px 14px", border:"1px solid var(--border)", borderRadius:10, background:"var(--bg)", color:"var(--text)", fontSize:14, outline:"none", boxSizing:"border-box" as const, fontFamily:"inherit" },
-    tip: { background:"rgba(247,147,26,0.08)", border:"1px solid rgba(247,147,26,0.2)", borderRadius:10, padding:"10px 14px", fontSize:13, color:"var(--text)", lineHeight:1.5 } as React.CSSProperties,
-    result: { background:"rgba(34,197,94,0.08)", border:"1px solid rgba(34,197,94,0.25)", borderRadius:10, padding:"12px 14px", fontSize:12, fontFamily:"monospace", whiteSpace:"pre-wrap" as const, color:"var(--text)", lineHeight:1.6 } as React.CSSProperties,
-  };
+    const handleDo = async () => {
+        setLoading(true)
+        setDoError(null)
+        try {
+            let outcome: DoOutcome
 
-  return (
-    <div style={{ padding:"1.5rem 1rem 4rem", fontFamily:"inherit" }}>
-
-      {/* Progress steps */}
-      <div style={{ display:"flex", gap:4, marginBottom:20, maxWidth:560, margin:"0 auto 20px" }}>
-        {MISSIONS.map((m,i) => {
-          const done = completedMissions.includes(i);
-          const active = i === missionIdx;
-          return (
-            <div key={i} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:4, opacity: done?0.7:active?1:0.3 }}>
-              <div style={{ width:32, height:32, borderRadius:"50%", background: done?"rgba(34,197,94,0.15)":active?"#F7931A":"var(--surface)", border:`1px solid ${done?"#22c55e":active?"#F7931A":"var(--border)"}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:13, color: active?"#000":"inherit" }}>
-                {done ? "✓" : m.emoji}
-              </div>
-              <span style={{ fontSize:9, textAlign:"center", color:"var(--muted)", lineHeight:1.2 }}>{m.name}</span>
-            </div>
-          );
-        })}
-      </div>
-
-      <div style={s.card}>
-        {/* Mission header */}
-        <div style={{ padding:"1.25rem 1.25rem 0", display:"flex", alignItems:"flex-start", gap:12 }}>
-          <span style={{ fontSize:"2rem", lineHeight:1 }}>{mission.emoji}</span>
-          <div>
-            <div style={{ fontSize:11, color:"var(--muted)", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:2 }}>Mission {missionIdx+1} of 5</div>
-            <h2 style={{ fontSize:20, fontWeight:700, margin:"0 0 2px" }}>{mission.name}</h2>
-            <p style={{ fontSize:13, color:"var(--muted)", margin:0 }}>{mission.tagline}</p>
-          </div>
-        </div>
-
-        {/* Phase tabs */}
-        <div style={{ display:"flex", margin:"1rem 1.25rem 0", border:"1px solid var(--border)", borderRadius:8, overflow:"hidden" }}>
-          {(["learn","quiz","do"] as const).map((p,i) => {
-            const isDone = (p==="learn" && (phase==="quiz"||phase==="do")) || (p==="quiz" && phase==="do");
-            return (
-              <div key={p} style={{ flex:1, padding:"8px 4px", textAlign:"center", fontSize:12, background: phase===p?"var(--bg)":"var(--surface)", color: phase===p?"var(--text)":"var(--muted)", fontWeight: phase===p?600:400, borderRight: p!=="do"?"1px solid var(--border)":"none", display:"flex", alignItems:"center", justifyContent:"center", gap:5 }}>
-                <span style={{ width:16, height:16, borderRadius:"50%", background: isDone?"#22c55e":phase===p?"#F7931A":"var(--border)", color: (isDone||phase===p)?"#000":"var(--muted)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:9, fontWeight:700, flexShrink:0 }}>
-                  {isDone?"✓":i+1}
-                </span>
-                {p==="learn"?"Read":p==="quiz"?"Quiz":"Do it!"}
-              </div>
-            );
-          })}
-        </div>
-
-        <div style={{ padding:"1.25rem", display:"flex", flexDirection:"column", gap:"1rem" }}>
-
-          {/* LEARN */}
-          {phase==="learn" && <>
-            <h3 style={{ fontSize:17, fontWeight:600, margin:0 }}>{mission.learn.heading}</h3>
-            {mission.learn.body.split("\n\n").map((para,i) => (
-              <p key={i} style={{ fontSize:15, lineHeight:1.7, margin:0, whiteSpace:"pre-line" }}>{para}</p>
-            ))}
-            <div style={s.tip}>💡 {mission.learn.tip}</div>
-            <button style={s.btn} onClick={() => setPhase("quiz")}>Got it — take the quiz →</button>
-          </>}
-
-          {/* QUIZ */}
-          {phase==="quiz" && <>
-            <p style={{ fontSize:16, fontWeight:600, lineHeight:1.4, margin:0 }}>{mission.quiz.question}</p>
-            <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-              {mission.quiz.options.map((opt,i) => (
-                <button key={i}
-                  onClick={() => { if (!quizResult) setSelected(i); }}
-                  disabled={!!quizResult}
-                  style={{ display:"flex", alignItems:"center", gap:10, padding:"12px 14px", border:`1px solid ${quizResult==="correct"&&opt.correct?"#22c55e":quizResult==="wrong"&&selected===i?"#ef4444":selected===i?"#F7931A":"var(--border)"}`, borderRadius:10, background: quizResult==="correct"&&opt.correct?"rgba(34,197,94,0.1)":quizResult==="wrong"&&selected===i?"rgba(239,68,68,0.08)":selected===i?"rgba(247,147,26,0.08)":"var(--surface)", cursor:quizResult?"default":"pointer", textAlign:"left", fontSize:14, color:"var(--text)", width:"100%" }}>
-                  <span style={{ width:24, height:24, borderRadius:"50%", background:"var(--bg)", border:"1px solid var(--border)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, fontWeight:600, flexShrink:0 }}>{["A","B","C"][i]}</span>
-                  {opt.text}
-                </button>
-              ))}
-            </div>
-            {quizResult==="wrong" && (
-              <div style={{ background:"rgba(239,68,68,0.08)", border:"1px solid rgba(239,68,68,0.25)", borderRadius:10, padding:"10px 14px", fontSize:13, color:"#ef4444" }}>
-                Not quite! Read the lesson again.
-                <div style={{ marginTop:8 }}>
-                  <button style={s.ghostBtn} onClick={() => { setSelected(null); setQuizResult(null); setPhase("learn"); }}>← Back to lesson</button>
-                </div>
-              </div>
-            )}
-            {quizResult==="correct" && <div style={{ background:"rgba(34,197,94,0.08)", border:"1px solid rgba(34,197,94,0.25)", borderRadius:10, padding:"10px 14px", fontSize:13, color:"#22c55e" }}>Correct! Opening next step… ✓</div>}
-            {!quizResult && <button style={{ ...s.btn, opacity:selected===null?0.5:1 }} onClick={handleQuizSubmit} disabled={selected===null}>Submit answer</button>}
-          </>}
-
-          {/* DO */}
-          {phase==="do" && <>
-            <p style={{ fontSize:14, color:"var(--muted)", lineHeight:1.5, margin:0 }}>👇 {mission.actionHint}</p>
-
-            {(missionIdx===2||missionIdx===3||missionIdx===4) && !doResult && (
-              <div style={{ display:"flex", flexDirection:"column", gap:5 }}>
-                <label style={{ fontSize:11, textTransform:"uppercase", letterSpacing:"0.07em", color:"var(--muted)", fontWeight:600 }}>
-                  {missionIdx===2?"Lightning address":missionIdx===3?"Cashu token":"Your note"}
-                </label>
-                {missionIdx===4
-                  ? <textarea value={doInput} onChange={e=>setDoInput(e.target.value)} placeholder="I just sent my first Bitcoin on Lightning! ⚡" style={{ ...s.input, minHeight:80, resize:"vertical" }} rows={3} maxLength={280} />
-                  : <input value={doInput} onChange={e=>setDoInput(e.target.value)} placeholder={missionIdx===2?"demo@ln.tips":"cashuA..."} style={s.input} />
+            switch (mission.do.kind) {
+                case 'knowledge': {
+                    outcome = {
+                        summary: 'Knowledge unlocked.',
+                        simulated: false,
+                    }
+                    break
                 }
-              </div>
+                case 'nostr-identity': {
+                    const r = await api.createNostrIdentity(participantId)
+                    setStoredNsec(r.nsec)
+                    outcome = {
+                        summary: 'Your real Nostr keypair is ready.',
+                        details: [
+                            { label: 'npub (share)', value: r.npub },
+                            { label: 'nsec (NEVER share)', value: r.nsec },
+                            { label: 'warning', value: r.warning },
+                        ],
+                        simulated: r.simulated,
+                    }
+                    break
+                }
+                case 'invoice': {
+                    const r = await api.createInvoice(participantId, 100, 'BitPilot mission')
+                    outcome = {
+                        summary: `Invoice for ${r.amount_sats} sats created.`,
+                        details: [{ label: 'invoice', value: r.invoice }],
+                        simulated: r.simulated,
+                    }
+                    break
+                }
+                case 'pay': {
+                    if (!doInput.trim()) {
+                        setDoError('Type a Lightning address first.')
+                        setLoading(false)
+                        return
+                    }
+                    const r = await api.payInvoice(participantId, doInput.trim())
+                    outcome = {
+                        summary: '50 sats sent.',
+                        details: [
+                            { label: 'to', value: doInput.trim() },
+                            { label: 'payment_hash', value: r.payment_hash },
+                        ],
+                        simulated: r.simulated,
+                    }
+                    break
+                }
+                case 'ecash-claim': {
+                    const r = await api.mintEcash(participantId, 50)
+                    outcome = {
+                        summary: `Token minted — ${r.amount_sats} sats inside.`,
+                        details: [{ label: 'token', value: r.token }],
+                        simulated: r.simulated,
+                    }
+                    break
+                }
+                case 'ecash-spend': {
+                    if (!doInput.trim()) {
+                        setDoError('Paste a token (starts with cashuA).')
+                        setLoading(false)
+                        return
+                    }
+                    const r = await api.redeemEcash(participantId, doInput.trim())
+                    outcome = {
+                        summary: `Token redeemed for ${r.amount_sats} sats.`,
+                        details: [{ label: 'status', value: r.status }],
+                        simulated: r.simulated,
+                    }
+                    break
+                }
+                case 'nostr-publish': {
+                    if (!doInput.trim()) {
+                        setDoError("Your note can't be empty.")
+                        setLoading(false)
+                        return
+                    }
+                    if (!storedNsec) {
+                        setDoError('Generate your Nostr identity first (mission 3).')
+                        setLoading(false)
+                        return
+                    }
+                    const r = await api.publishNostrNote(participantId, doInput.trim(), storedNsec)
+                    outcome = {
+                        summary: 'Note signed and broadcast to public Nostr relays.',
+                        details: [
+                            { label: 'event_id', value: r.event_id },
+                            { label: 'relays', value: r.relays.join(', ') },
+                        ],
+                        simulated: r.simulated,
+                    }
+                    break
+                }
+            }
+
+            // Only credit the mission after the action succeeded.
+            await api.completeMission(participantId, mission.id)
+            setDoOutcome(outcome)
+        } catch (e) {
+            const msg = e instanceof ApiError ? e.message : e instanceof Error ? e.message : 'Unknown error'
+            setDoError(msg)
+        }
+        setLoading(false)
+    }
+
+    // ── Final celebration screen ──
+    if (allDone && isLast && doOutcome) {
+        return <FinishedScreen />
+    }
+
+    return (
+        <main
+            id="learner-main"
+            style={{ padding: '1.5rem 1rem 4rem', maxWidth: 720, margin: '0 auto' }}
+            aria-label={`Mission ${mission.id} of ${MISSION_COUNT}: ${mission.name}`}
+        >
+            <ProgressRail missionIdx={missionIdx} completed={completedMissions} />
+
+            <article style={{ ...card, overflow: 'hidden', marginTop: 24 }}>
+                <MissionHeader mission={mission} index={missionIdx} />
+
+                <PhaseTabs phase={phase} onChange={(p) => setPhase(p)} quizPassed={quizResult === 'correct'} />
+
+                <div
+                    style={{
+                        padding: '20px 22px 24px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 16,
+                        background: 'var(--gradient-surface)',
+                    }}
+                >
+                    {phase === 'learn' && (
+                        <LearnPanel
+                            mission={mission}
+                            onAdvance={() => {
+                                setPhase('quiz')
+                                setSelected(null)
+                                setQuizResult(null)
+                            }}
+                        />
+                    )}
+
+                    {phase === 'quiz' && (
+                        <QuizPanel
+                            mission={mission}
+                            selected={selected}
+                            quizResult={quizResult}
+                            onSelect={(i) => !quizResult && setSelected(i)}
+                            onSubmit={handleQuizSubmit}
+                            onRetry={() => {
+                                setSelected(null)
+                                setQuizResult(null)
+                                setPhase('learn')
+                            }}
+                        />
+                    )}
+
+                    {phase === 'do' && (
+                        <DoPanel
+                            mission={mission}
+                            tone={tone}
+                            doInput={doInput}
+                            setDoInput={setDoInput}
+                            loading={loading}
+                            outcome={doOutcome}
+                            error={doError}
+                            onSubmit={handleDo}
+                            onNext={goNextMission}
+                            isLast={isLast}
+                            resultRef={resultRef}
+                            nextMissionName={isLast ? null : MISSIONS[missionIdx + 1].name}
+                        />
+                    )}
+                </div>
+            </article>
+        </main>
+    )
+}
+
+// ─── Sub-components ──────────────────────────────────────────────────────────
+
+function ProgressRail({ missionIdx, completed }: { missionIdx: number; completed: number[] }) {
+    return (
+        <nav aria-label="Mission progress">
+            <ol
+                style={{
+                    listStyle: 'none',
+                    margin: 0,
+                    padding: 0,
+                    display: 'grid',
+                    gridTemplateColumns: `repeat(${MISSION_COUNT}, 1fr)`,
+                    gap: 4,
+                }}
+            >
+                {MISSIONS.map((m, i) => {
+                    const done = completed.includes(i)
+                    const active = i === missionIdx
+                    const tone = techTone(m.tech)
+                    return (
+                        <li key={m.id} aria-current={active ? 'step' : undefined}>
+                            <div
+                                title={`Mission ${m.id}: ${m.name}`}
+                                style={{
+                                    height: 6,
+                                    borderRadius: 'var(--radius-pill)',
+                                    background: done
+                                        ? techGradient(m.tech)
+                                        : active
+                                            ? techGradient(m.tech)
+                                            : 'var(--border)',
+                                    opacity: done ? 1 : active ? 1 : 0.6,
+                                    transition: 'opacity 0.15s ease',
+                                }}
+                            />
+                            <span
+                                aria-hidden="true"
+                                style={{
+                                    display: 'block',
+                                    textAlign: 'center',
+                                    marginTop: 4,
+                                    fontSize: 10,
+                                    color: active ? `var(--${tone === 'orange' ? 'bitcoin' : tone === 'purple' ? 'nostr-purple' : 'ecash-cyan'})` : 'var(--muted)',
+                                    fontWeight: active ? 700 : 500,
+                                    letterSpacing: '0.04em',
+                                }}
+                            >
+                                {done ? '✓' : m.id}
+                            </span>
+                        </li>
+                    )
+                })}
+            </ol>
+        </nav>
+    )
+}
+
+function MissionHeader({ mission, index }: { mission: MissionDef; index: number }) {
+    // The runtime decides whether the tech is really live or simulated.
+    // mission.simulated is the *default expectation* from the catalogue, but
+    // we honour what the backend actually reports.
+    const techReal = useIsTechReal(mission.tech)
+    const isSimulated = !techReal
+    const statusChip =
+        mission.tech === 'lightning'
+            ? techReal
+                ? { label: 'Testnet', tone: 'green' as const }
+                : { label: 'Simulated', tone: 'neutral' as const }
+            : mission.tech === 'ecash'
+              ? techReal
+                  ? { label: 'Testmint', tone: 'green' as const }
+                  : { label: 'Simulated', tone: 'neutral' as const }
+              : mission.do.kind === 'nostr-publish'
+                ? { label: 'Live relays', tone: 'green' as const }
+                : null
+    void isSimulated
+    return (
+        <header
+            style={{
+                padding: '22px 22px 16px',
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: 14,
+                borderBottom: '1px solid var(--border)',
+                background: 'var(--surface)',
+            }}
+        >
+            <div
+                aria-hidden="true"
+                style={{
+                    width: 52,
+                    height: 52,
+                    borderRadius: 'var(--radius-3)',
+                    background: techGradient(mission.tech),
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: 26,
+                    flexShrink: 0,
+                    boxShadow: 'var(--shadow-1)',
+                }}
+            >
+                <span style={{ filter: 'drop-shadow(0 1px 1px rgba(0,0,0,0.2))' }}>{mission.emoji}</span>
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
+                    <span style={labelStyle}>
+                        Mission {index + 1} of {MISSION_COUNT}
+                    </span>
+                    <span style={chip(techTone(mission.tech))}>{mission.topic}</span>
+                    {statusChip && (
+                        <span
+                            style={chip(statusChip.tone)}
+                            title={
+                                statusChip.label === 'Simulated'
+                                    ? "This mission's action is simulated — no real value moves."
+                                    : statusChip.label === 'Testnet'
+                                      ? 'Real Lightning, but on the signet/testnet network — no mainnet sats.'
+                                      : statusChip.label === 'Testmint'
+                                        ? 'Real Cashu protocol against a public testmint — fake sats, real tokens.'
+                                        : 'Real signed Nostr events to public relays.'
+                            }
+                        >
+                            {statusChip.label}
+                        </span>
+                    )}
+                </div>
+                <h2 style={{ fontSize: 22, fontWeight: 700, margin: '0 0 4px', letterSpacing: '-0.02em' }}>{mission.name}</h2>
+                <p style={{ fontSize: 14, color: 'var(--muted)', margin: 0, lineHeight: 1.5 }}>{mission.tagline}</p>
+            </div>
+        </header>
+    )
+}
+
+function PhaseTabs({
+    phase,
+    onChange,
+    quizPassed,
+}: {
+    phase: Phase
+    onChange: (p: Phase) => void
+    quizPassed: boolean
+}) {
+    const order: Phase[] = ['learn', 'quiz', 'do']
+    const labels: Record<Phase, string> = { learn: 'Read', quiz: 'Quiz', do: 'Do it' }
+    return (
+        <div
+            role="tablist"
+            aria-label="Mission phase"
+            style={{
+                display: 'flex',
+                margin: '16px 22px 0',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-2)',
+                overflow: 'hidden',
+            }}
+        >
+            {order.map((p, i) => {
+                const isActive = phase === p
+                const isPast =
+                    (p === 'learn' && (phase === 'quiz' || phase === 'do')) ||
+                    (p === 'quiz' && phase === 'do' && quizPassed)
+                // We don't allow tab clicks to skip ahead — the only way forward
+                // is to pass the quiz / complete the mission. Past phases can be
+                // revisited though.
+                const clickable = isActive || isPast
+                return (
+                    <button
+                        key={p}
+                        role="tab"
+                        aria-selected={isActive}
+                        aria-current={isActive ? 'step' : undefined}
+                        disabled={!clickable}
+                        onClick={() => clickable && onChange(p)}
+                        style={{
+                            flex: 1,
+                            padding: '10px 8px',
+                            background: isActive ? 'var(--bg-elevated)' : 'transparent',
+                            color: isActive ? 'var(--text)' : 'var(--muted)',
+                            fontWeight: isActive ? 700 : 500,
+                            fontSize: 13,
+                            border: 'none',
+                            borderRight: i < order.length - 1 ? '1px solid var(--border)' : 'none',
+                            cursor: clickable ? 'pointer' : 'not-allowed',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: 6,
+                            fontFamily: 'var(--font-sans)',
+                        }}
+                    >
+                        <span
+                            aria-hidden="true"
+                            style={{
+                                width: 18,
+                                height: 18,
+                                borderRadius: '50%',
+                                background: isPast ? 'var(--success)' : isActive ? 'var(--bitcoin)' : 'var(--border)',
+                                color: isPast || isActive ? '#0A0A0B' : 'var(--muted)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: 10,
+                                fontWeight: 700,
+                            }}
+                        >
+                            {isPast ? '✓' : i + 1}
+                        </span>
+                        {labels[p]}
+                    </button>
+                )
+            })}
+        </div>
+    )
+}
+
+function LearnPanel({ mission, onAdvance }: { mission: MissionDef; onAdvance: () => void }) {
+    return (
+        <>
+            <h3 style={{ fontSize: 18, fontWeight: 700, margin: 0, letterSpacing: '-0.01em' }}>{mission.learn.heading}</h3>
+            {mission.learn.body.split('\n\n').map((para, i) => (
+                <p
+                    key={i}
+                    style={{
+                        fontSize: 15,
+                        lineHeight: 1.7,
+                        margin: 0,
+                        color: 'var(--text-soft)',
+                        whiteSpace: 'pre-line',
+                    }}
+                >
+                    {para}
+                </p>
+            ))}
+            <div style={callout('info')}>
+                <strong style={{ marginRight: 6 }}>Tip:</strong> {mission.learn.tip}
+            </div>
+            <button style={{ ...primaryButton(), width: '100%' }} onClick={onAdvance}>
+                Got it — take the quiz →
+            </button>
+        </>
+    )
+}
+
+function QuizPanel({
+    mission,
+    selected,
+    quizResult,
+    onSelect,
+    onSubmit,
+    onRetry,
+}: {
+    mission: MissionDef
+    selected: number | null
+    quizResult: 'correct' | 'wrong' | null
+    onSelect: (i: number) => void
+    onSubmit: () => void
+    onRetry: () => void
+}) {
+    return (
+        <>
+            <p style={{ fontSize: 17, fontWeight: 600, lineHeight: 1.4, margin: 0 }}>{mission.quiz.question}</p>
+            <ul
+                role="radiogroup"
+                aria-label="Quiz options"
+                style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 8 }}
+            >
+                {mission.quiz.options.map((opt, i) => {
+                    const isChosen = selected === i
+                    const isCorrect = quizResult === 'correct' && opt.correct
+                    const isWrong = quizResult === 'wrong' && isChosen
+                    const borderColor = isCorrect
+                        ? 'var(--success)'
+                        : isWrong
+                            ? 'var(--danger)'
+                            : isChosen
+                                ? 'var(--bitcoin)'
+                                : 'var(--border)'
+                    const bg = isCorrect
+                        ? 'rgba(16, 197, 126, 0.1)'
+                        : isWrong
+                            ? 'rgba(248, 113, 113, 0.08)'
+                            : isChosen
+                                ? 'rgba(247, 147, 26, 0.08)'
+                                : 'var(--bg)'
+                    return (
+                        <li key={i}>
+                            <button
+                                type="button"
+                                role="radio"
+                                aria-checked={isChosen}
+                                disabled={!!quizResult}
+                                onClick={() => onSelect(i)}
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 12,
+                                    width: '100%',
+                                    padding: '14px 16px',
+                                    border: `1.5px solid ${borderColor}`,
+                                    borderRadius: 'var(--radius-2)',
+                                    background: bg,
+                                    cursor: quizResult ? 'default' : 'pointer',
+                                    textAlign: 'left',
+                                    fontSize: 14,
+                                    fontFamily: 'var(--font-sans)',
+                                    color: 'var(--text)',
+                                    transition: 'border-color 0.12s, background 0.12s',
+                                }}
+                            >
+                                <span
+                                    aria-hidden="true"
+                                    style={{
+                                        width: 24,
+                                        height: 24,
+                                        borderRadius: '50%',
+                                        background: 'var(--surface)',
+                                        border: `1.5px solid ${borderColor}`,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        fontSize: 11,
+                                        fontWeight: 700,
+                                        flexShrink: 0,
+                                        color: 'var(--muted)',
+                                        fontFamily: 'var(--font-mono)',
+                                    }}
+                                >
+                                    {['A', 'B', 'C', 'D'][i]}
+                                </span>
+                                <span style={{ flex: 1, lineHeight: 1.45 }}>{opt.text}</span>
+                            </button>
+                        </li>
+                    )
+                })}
+            </ul>
+
+            <div aria-live="polite">
+                {quizResult === 'wrong' && (
+                    <div style={callout('danger')}>
+                        <strong>Not quite.</strong>
+                        {selected !== null && mission.quiz.options[selected].why && (
+                            <> {mission.quiz.options[selected].why}</>
+                        )}
+                        <div style={{ marginTop: 10 }}>
+                            <button style={ghostButton} onClick={onRetry}>
+                                ← Back to the lesson
+                            </button>
+                        </div>
+                    </div>
+                )}
+                {quizResult === 'correct' && (
+                    <div style={callout('success')}>
+                        <strong>Correct.</strong> Opening the next step…
+                    </div>
+                )}
+            </div>
+
+            {!quizResult && (
+                <button
+                    style={{ ...primaryButton(selected === null), width: '100%' }}
+                    onClick={onSubmit}
+                    disabled={selected === null}
+                >
+                    Submit answer
+                </button>
+            )}
+        </>
+    )
+}
+
+function DoPanel({
+    mission,
+    tone,
+    doInput,
+    setDoInput,
+    loading,
+    outcome,
+    error,
+    onSubmit,
+    onNext,
+    isLast,
+    resultRef,
+    nextMissionName,
+}: {
+    mission: MissionDef
+    tone: 'orange' | 'purple' | 'cyan'
+    doInput: string
+    setDoInput: (v: string) => void
+    loading: boolean
+    outcome: DoOutcome | null
+    error: string | null
+    onSubmit: () => void
+    onNext: () => void
+    isLast: boolean
+    resultRef: React.RefObject<HTMLDivElement>
+    nextMissionName: string | null
+}) {
+    const needsTextInput = mission.do.kind === 'pay' || mission.do.kind === 'ecash-spend'
+    const needsTextarea = mission.do.kind === 'nostr-publish'
+
+    return (
+        <>
+            <p style={{ fontSize: 14, color: 'var(--muted)', lineHeight: 1.6, margin: 0 }}>{mission.do.helper}</p>
+
+            {!outcome && needsTextInput && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <label htmlFor={`do-input-${mission.id}`} style={labelStyle}>
+                        {mission.do.kind === 'pay' ? 'Lightning address' : 'Cashu token'}
+                    </label>
+                    <input
+                        id={`do-input-${mission.id}`}
+                        style={inputMono}
+                        value={doInput}
+                        onChange={(e) => setDoInput(e.target.value)}
+                        placeholder={mission.do.placeholder}
+                        maxLength={mission.do.maxLength}
+                        autoComplete="off"
+                        autoCapitalize="none"
+                        spellCheck={false}
+                    />
+                </div>
             )}
 
-            {doResult
-              ? <>
-                  <div style={s.result}>{doResult}</div>
-                  <button style={s.btn} onClick={missionIdx===4 ? goNextMission : goNextMission}>
-                    {missionIdx===4 ? "🎉 Complete BitPilot!" : `Next: ${MISSIONS[missionIdx+1].name} →`}
-                  </button>
-                </>
-              : <>
-                  {doError && (
-                    <div style={{ background:"rgba(239,68,68,0.08)", border:"1px solid rgba(239,68,68,0.25)", borderRadius:10, padding:"10px 14px", fontSize:13, color:"#ef4444", lineHeight:1.5 }}>
-                      ⚠️ {doError}
-                    </div>
-                  )}
-                  <button style={{ ...s.btn, opacity:loading?0.6:1 }} onClick={handleDo} disabled={loading || (missionIdx===4&&!doInput.trim())}>
-                    {loading ? <>⏳ Working…</> : <>{mission.emoji} {doError ? "Try again" : mission.action}</>}
-                  </button>
-                </>
-            }
-          </>}
+            {!outcome && needsTextarea && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <label htmlFor={`do-input-${mission.id}`} style={labelStyle}>
+                        Your Nostr note
+                    </label>
+                    <textarea
+                        id={`do-input-${mission.id}`}
+                        value={doInput}
+                        onChange={(e) => setDoInput(e.target.value)}
+                        placeholder={mission.do.placeholder}
+                        maxLength={mission.do.maxLength}
+                        rows={4}
+                        style={{ ...input, minHeight: 100, resize: 'vertical', lineHeight: 1.5 }}
+                    />
+                    <span
+                        style={{
+                            fontSize: 11,
+                            color: 'var(--muted)',
+                            alignSelf: 'flex-end',
+                            fontFamily: 'var(--font-mono)',
+                        }}
+                    >
+                        {doInput.length} / {mission.do.maxLength}
+                    </span>
+                </div>
+            )}
 
+            {outcome ? (
+                <ResultBlock outcome={outcome} resultRef={resultRef} tone={tone} />
+            ) : (
+                error && (
+                    <div style={callout('danger')} role="alert">
+                        <strong>Something went wrong.</strong> {error}
+                    </div>
+                )
+            )}
+
+            {outcome ? (
+                <button style={{ ...primaryButton(), width: '100%' }} onClick={onNext}>
+                    {isLast ? '🎉 Finish BitPilot' : `Next: ${nextMissionName} →`}
+                </button>
+            ) : (
+                <button
+                    style={{ ...primaryButton(loading), width: '100%' }}
+                    onClick={onSubmit}
+                    disabled={loading}
+                    aria-busy={loading}
+                >
+                    {loading ? 'Working…' : `${mission.emoji}  ${mission.do.actionLabel}`}
+                </button>
+            )}
+        </>
+    )
+}
+
+function ResultBlock({
+    outcome,
+    resultRef,
+    tone,
+}: {
+    outcome: DoOutcome
+    resultRef: React.RefObject<HTMLDivElement>
+    tone: 'orange' | 'purple' | 'cyan'
+}) {
+    const detailStyle: CSSProperties = {
+        display: 'grid',
+        gridTemplateColumns: 'auto 1fr',
+        gap: '4px 12px',
+        marginTop: 12,
+        fontFamily: 'var(--font-mono)',
+        fontSize: 12,
+        wordBreak: 'break-all',
+    }
+    return (
+        <div
+            ref={resultRef}
+            tabIndex={-1}
+            role="status"
+            aria-live="polite"
+            style={{
+                ...callout('success'),
+                outline: 'none',
+            }}
+        >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                <span aria-hidden="true" style={{ fontSize: 18 }}>
+                    ✓
+                </span>
+                <strong style={{ fontSize: 14 }}>{outcome.summary}</strong>
+                {outcome.simulated ? (
+                    <span style={{ ...chip('neutral'), marginLeft: 'auto' }} title="No real network call — this action was simulated.">
+                        Simulated
+                    </span>
+                ) : (
+                    <span style={{ ...chip('green'), marginLeft: 'auto' }} title="This really happened — on a real network (Nostr relays, testnet, or testmint).">
+                        Real
+                    </span>
+                )}
+            </div>
+            {outcome.details && outcome.details.length > 0 && (
+                <div style={detailStyle}>
+                    {outcome.details.map((d) => (
+                        <Fragment key={d.label}>
+                            <span style={{ color: 'var(--muted)' }}>{d.label}:</span>
+                            <span style={{ color: 'var(--text)' }}>{d.value}</span>
+                        </Fragment>
+                    ))}
+                </div>
+            )}
+            {/* tone is currently unused in the result block, but kept as a prop
+              so we can later tint the check icon to match the mission. */}
+            <span style={{ display: 'none' }}>{tone}</span>
         </div>
-      </div>
-    </div>
-  );
+    )
+}
+
+function FinishedScreen() {
+    return (
+        <main
+            id="learner-main"
+            style={{
+                maxWidth: 640,
+                margin: '0 auto',
+                padding: '4rem 1rem',
+                textAlign: 'center',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: 18,
+            }}
+            aria-label="BitPilot complete"
+        >
+            <div
+                aria-hidden="true"
+                style={{
+                    width: 96,
+                    height: 96,
+                    borderRadius: '50%',
+                    background: 'var(--gradient-hero)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: 44,
+                    boxShadow: 'var(--shadow-2)',
+                }}
+            >
+                🎉
+            </div>
+            <h1 style={{ fontSize: 32, fontWeight: 800, margin: 0, letterSpacing: '-0.025em' }}>
+                <span className="gradient-text">You did it.</span>
+            </h1>
+            <p style={{ fontSize: 16, color: 'var(--muted)', lineHeight: 1.6, margin: 0, maxWidth: 480 }}>
+                You just used <strong style={{ color: 'var(--text)' }}>Bitcoin</strong>,{' '}
+                <strong style={{ color: 'var(--text)' }}>Lightning</strong>,{' '}
+                <strong style={{ color: 'var(--text)' }}>Nostr</strong>, and{' '}
+                <strong style={{ color: 'var(--text)' }}>eCash</strong> — and you actually understand what each one
+                does. That puts you ahead of about 99% of people on earth.
+            </p>
+            <ul
+                style={{
+                    listStyle: 'none',
+                    padding: '20px 24px',
+                    margin: 0,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 8,
+                    width: '100%',
+                    maxWidth: 420,
+                    background: 'var(--surface)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius-3)',
+                    textAlign: 'left',
+                }}
+            >
+                {MISSIONS.map((m) => (
+                    <li
+                        key={m.id}
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 10,
+                            fontSize: 14,
+                            color: 'var(--text-soft)',
+                        }}
+                    >
+                        <span aria-hidden="true" style={{ color: 'var(--success)', fontWeight: 700 }}>
+                            ✓
+                        </span>
+                        <span aria-hidden="true">{m.emoji}</span>
+                        <span>{m.name}</span>
+                    </li>
+                ))}
+            </ul>
+            <p style={{ fontSize: 13, color: 'var(--muted)', margin: 0 }}>
+                Your Nostr note from mission 10 is now live on public relays — open any Nostr client and paste your{' '}
+                <code style={{ fontFamily: 'var(--font-mono)' }}>npub</code> to find it.
+            </p>
+        </main>
+    )
 }

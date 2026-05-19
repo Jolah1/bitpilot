@@ -1,3 +1,4 @@
+// ─── Backend-shape types ─────────────────────────────────────────────────────
 export interface Participant {
     id: string
     name: string
@@ -15,214 +16,372 @@ export interface Session {
     created_at: number
 }
 
-export type MissionPhase = 'learn' | 'quiz' | 'do'
+export type Tech = 'bitcoin' | 'lightning' | 'nostr' | 'ecash'
 
-export type Tech = 'nostr' | 'lightning' | 'ecash' | 'bitcoin'
+// ─── Frontend mission catalogue ──────────────────────────────────────────────
+// Numbers MUST line up with `Mission::all()` in backend/src/models/mission.rs.
+// The backend is source of truth for `id`, `tech`, `reward`, and `simulated`.
+// The frontend owns the *teaching* copy: learn body, quiz, do-step prompt.
 
-export interface LearnBlock {
-    label: string
+export interface QuizOption {
     text: string
+    correct: boolean
+    /** Optional one-line nudge shown when the learner picks this answer. */
+    why?: string
 }
 
-export interface Quiz {
-    q: string
-    opts: string[]
-    correct: number
-    explain: string
+export interface MissionQuiz {
+    question: string
+    options: QuizOption[]
 }
 
-export interface Mission {
+export type DoKind =
+    | 'knowledge' /* no API call — user clicks "I get it" to claim reward */
+    | 'nostr-identity' /* POST /api/nostr/identity */
+    | 'invoice' /* POST /api/invoice */
+    | 'pay' /* POST /api/pay (needs lightning-address text input) */
+    | 'ecash-claim' /* POST /api/ecash/mint (we generate a token to receive) */
+    | 'ecash-spend' /* POST /api/ecash/redeem (user pastes token) */
+    | 'nostr-publish' /* POST /api/nostr/publish (needs note text + nsec) */
+
+export interface MissionDef {
+    /** Mission number, 1-indexed. Matches backend `Mission.number`. */
     id: number
-    tag: string
-    title: string
+    /** One-emoji shorthand. Used in the progress bar and cards. */
+    emoji: string
+    /** Short topical chip ("Bitcoin", "Lightning", …). */
+    topic: string
     tech: Tech
-    reward: number
-    desc: string
-    learn: LearnBlock[]
-    quiz: Quiz
-    doSteps: string[]
-    actionLabel: string
+    /** Card-level title. */
+    name: string
+    /** One-sentence tagline shown under the title. */
+    tagline: string
+    /**
+     * Documentation-only hint: `true` means this mission's `do` step *can* be
+     * simulated when the backend lacks credentials for the underlying service.
+     * The actual badge in the UI is driven by `useIsTechReal(tech)` (which
+     * polls `/api/runtime`), NOT by this field. Don't rely on it for runtime
+     * decisions.
+     */
+    simulated: boolean
+    learn: {
+        heading: string
+        /** Plain text. Newlines render as paragraph breaks. */
+        body: string
+        tip: string
+    }
+    quiz: MissionQuiz
+    /** What the user must do to earn the reward. */
+    do: {
+        kind: DoKind
+        actionLabel: string
+        helper: string
+        /** For text inputs: placeholder. */
+        placeholder?: string
+        /** For text inputs: max length. */
+        maxLength?: number
+    }
 }
 
-export const MISSIONS: Mission[] = [
+/**
+ * The ten BitPilot missions. Single source of truth on the frontend.
+ *
+ * Coverage:
+ *   Bitcoin   — missions 1, 2, 7  (what is it, sats, fees/mempool)
+ *   Nostr     — missions 3, 4, 10 (identity, keys quiz, real publish)
+ *   Lightning — missions 5, 6     (receive, send)
+ *   eCash     — missions 8, 9     (claim, spend)
+ */
+export const MISSIONS: MissionDef[] = [
     {
         id: 1,
-        tag: 'NOSTR IDENTITY',
-        title: 'Who are you?',
-        tech: 'nostr',
-        reward: 100,
-        desc: "In Bitcoin's world, you own your identity. No username, no email — just a cryptographic keypair that proves who you are.",
-        learn: [
-            {
-                label: 'What is a keypair?',
-                text: 'A keypair is two mathematically linked keys: a <strong>public key (npub)</strong> you share with everyone — like your username — and a <strong>secret key (nsec)</strong> you NEVER share. Anyone can verify your identity with your npub. Only you can prove you own it with your nsec.',
-            },
-            {
-                label: 'Why Nostr?',
-                text: "Nostr is a decentralized protocol where your identity lives on math, not on a company's server. Twitter can ban you. Nostr cannot. Your identity is permanent and portable — it works on every Nostr app.",
-            },
-        ],
-        quiz: {
-            q: 'What happens if someone gets your nsec (secret key)?',
-            opts: [
-                "Nothing, it's just for decoration",
-                'They can impersonate you and control your identity completely',
-                'You can reset it in settings',
-                'It becomes a public key',
-            ],
-            correct: 1,
-            explain: 'Your nsec IS you. Anyone with it can post as you, sign transactions, and take over your identity. Guard it like your house keys.',
+        emoji: '₿',
+        topic: 'Bitcoin',
+        tech: 'bitcoin',
+        name: 'What is Bitcoin, really?',
+        tagline: 'Money that no government, bank, or company can control',
+        simulated: false,
+        learn: {
+            heading: 'Bitcoin in one paragraph',
+            body:
+                "Bitcoin is digital money you can send to anyone, anywhere, without asking a bank for permission. Nobody owns the network — it runs on thousands of computers around the world that all keep the same shared ledger.\n\nIt was invented in 2009 by someone using the name Satoshi Nakamoto. Nobody knows who they really are, and that's part of the point: no single person or company can shut it down.\n\nThe rules are fixed in code: there will only ever be 21 million bitcoins. No CEO can print more.",
+            tip: "Bitcoin isn't owned by a company. It's a protocol — like email — that anyone can use.",
         },
-        doSteps: [
-            'Click "Generate my identity" below',
-            'Your npub (public key) will appear — this is your Nostr username',
-            'Your nsec (secret key) will appear — write it down somewhere safe',
-            'Never paste your nsec into any website or app you do not trust',
-        ],
-        actionLabel: 'Generate my identity',
+        quiz: {
+            question: 'Who decides how much Bitcoin gets created?',
+            options: [
+                { text: 'The Bitcoin Foundation board', correct: false, why: 'There is no central foundation that controls supply.' },
+                { text: 'Fixed rules in the code — 21 million total, forever', correct: true },
+                { text: "Whichever country's central bank prints the most", correct: false, why: 'Bitcoin is not issued by any central bank.' },
+            ],
+        },
+        do: {
+            kind: 'knowledge',
+            actionLabel: 'I get it — claim my sats',
+            helper: "No button to press here besides this one. Knowledge missions are about *understanding*, not *doing*.",
+        },
     },
     {
         id: 2,
-        tag: 'LIGHTNING NETWORK',
-        title: 'Get your first sats',
-        tech: 'lightning',
-        reward: 100,
-        desc: 'The Lightning Network lets you send Bitcoin instantly, anywhere in the world, for fractions of a cent. No bank, no waiting, no permission needed.',
-        learn: [
-            {
-                label: 'What are sats?',
-                text: '1 Bitcoin = 100,000,000 satoshis (sats). A sat is the smallest unit of Bitcoin. When you buy a coffee in a Bitcoin-native economy, you pay in sats — not full Bitcoins. <strong>100 sats ≈ $0.10</strong> at current prices.',
-            },
-            {
-                label: 'What is a Lightning invoice?',
-                text: 'A Lightning invoice is a payment request — like a QR code that says "send me exactly X sats." It expires after a set time. When paid, the money arrives in <strong>under 1 second</strong>, anywhere on earth.',
-            },
-        ],
-        quiz: {
-            q: 'What is the relationship between Bitcoin and satoshis?',
-            opts: [
-                '1 sat = 1 Bitcoin',
-                '1 Bitcoin = 1,000 sats',
-                '1 Bitcoin = 100,000,000 sats',
-                'They are different currencies',
-            ],
-            correct: 2,
-            explain: 'There are 100 million satoshis in one Bitcoin. This is why Lightning is great for small payments — you send 500 sats (a tiny fraction of 1 BTC) instantly.',
+        emoji: '🔢',
+        topic: 'Bitcoin',
+        tech: 'bitcoin',
+        name: 'Think in sats, not bitcoin',
+        tagline: '1 bitcoin = 100,000,000 satoshis. Sats are the real unit.',
+        simulated: false,
+        learn: {
+            heading: 'The sat is to bitcoin what the cent is to the dollar',
+            body:
+                "Most people who use Bitcoin every day don't say '0.00021 BTC' — they say '21,000 sats'. It's cleaner and it doesn't feel weird when the price moves.\n\nA satoshi (sat) is the smallest unit of bitcoin. There are 100 million sats in 1 BTC.\n\nA cup of coffee in a Bitcoin economy might cost 2,000-5,000 sats. A song on a Bitcoin-native streaming app might be 1 sat per second. Tiny amounts work because Bitcoin is divisible to 8 decimal places.",
+            tip: 'When you see "1 BTC", picture "100,000,000 sats". That mental switch unlocks everything else.',
         },
-        doSteps: [
-            'Click "Generate invoice" to create a Lightning payment request',
-            'A BOLT11 invoice string will be generated',
-            'Share it with your facilitator or scan with a Lightning wallet',
-            'The payment arrives instantly — no confirmation waiting',
-        ],
-        actionLabel: 'Generate invoice',
+        quiz: {
+            question: 'How many satoshis are in 1 bitcoin?',
+            options: [
+                { text: '1,000', correct: false },
+                { text: '1,000,000', correct: false, why: 'Close — but off by a factor of 100.' },
+                { text: '100,000,000', correct: true },
+            ],
+        },
+        do: {
+            kind: 'knowledge',
+            actionLabel: 'Got it — claim sats',
+            helper: 'Same as before: this is a knowledge mission. Tap to claim and move on.',
+        },
     },
     {
         id: 3,
-        tag: 'LIGHTNING PAYMENT',
-        title: 'Send it forward',
-        tech: 'lightning',
-        reward: 75,
-        desc: 'Sending Bitcoin over Lightning is as easy as a text message. No bank account needed. No ID required. Just a Lightning address.',
-        learn: [
-            {
-                label: 'Lightning addresses',
-                text: 'A Lightning address looks like an email: <strong>name@domain.com</strong>. Behind the scenes it generates a fresh invoice automatically. You can get one from apps like Wallet of Satoshi, Alby, or Zeus.',
-            },
-            {
-                label: 'Self-custody vs custodial',
-                text: 'A <strong>custodial wallet</strong> is like a bank — someone else holds your sats. A <strong>self-custody wallet</strong> means only YOU hold the keys. "Not your keys, not your coins" is the Bitcoin mantra.',
-            },
-        ],
-        quiz: {
-            q: 'What does "not your keys, not your coins" mean?',
-            opts: [
-                'You need physical keys to access Bitcoin',
-                'If someone else controls your private keys, they control your Bitcoin',
-                'Bitcoin comes with a physical key',
-                'Keys are optional for Bitcoin',
-            ],
-            correct: 1,
-            explain: 'If a company like an exchange holds your Bitcoin and shuts down or gets hacked, you lose everything. Self-custody means no one can take your coins — ever.',
+        emoji: '🪪',
+        topic: 'Nostr',
+        tech: 'nostr',
+        name: 'Generate your Nostr identity',
+        tagline: 'A username nobody can take away — it lives in math, not on a server',
+        simulated: false, // real bech32 keys
+        learn: {
+            heading: 'You are about to generate a real cryptographic identity',
+            body:
+                "Nostr is a protocol — like email or the web — for sending messages no platform can delete. To use it, you need an identity. That identity is a pair of keys generated by your device.\n\nWhen you click the button below, the backend will generate a real Nostr keypair just for you. The public half (npub) is your username. The private half (nsec) is your password — except it can never be reset.\n\nIf you lose your nsec, the identity is gone. If someone else gets it, they ARE you. Treat it like a house key.",
+            tip: 'After you generate keys, copy your nsec somewhere safe — a password manager, or pen and paper.',
         },
-        doSteps: [
-            'Enter a Lightning address (ask your facilitator for one)',
-            'Enter the amount: 50 sats',
-            'Confirm and send',
-            'Watch how fast it arrives — this is the future of money',
-        ],
-        actionLabel: 'Send 50 sats',
+        quiz: {
+            question: 'Your nsec (private key) is leaked. What can the attacker do?',
+            options: [
+                { text: 'Nothing — it expires automatically', correct: false, why: 'Nostr keys never expire. There is no reset.' },
+                { text: 'Post as you, sign things as you — they ARE you on Nostr', correct: true },
+                { text: 'Steal your bitcoin from your bank', correct: false, why: "Nostr keys aren't connected to your bank. They're an identity, not money — but losing them is still serious." },
+            ],
+        },
+        do: {
+            kind: 'nostr-identity',
+            actionLabel: 'Generate my Nostr identity',
+            helper: 'One tap. Your real keypair will appear below — copy your nsec before continuing.',
+        },
     },
     {
         id: 4,
-        tag: 'ECASH · CASHU',
-        title: 'Go private',
-        tech: 'ecash',
-        reward: 75,
-        desc: 'eCash combines Bitcoin value with cash-like privacy. No one can trace who sent what — not even the mint.',
-        learn: [
-            {
-                label: 'What is Cashu eCash?',
-                text: 'Cashu is a protocol that lets a mint issue <strong>bearer tokens</strong> backed by Bitcoin. Like physical cash — whoever holds the token owns the value. The mint uses blind signatures so it cannot link tokens to users.',
-            },
-            {
-                label: 'Why does privacy matter?',
-                text: 'When you pay with a credit card, your bank knows every purchase. On-chain Bitcoin is public — anyone can see your transaction history. eCash is <strong>private by default</strong>. The mint knows you deposited sats, but not what you spent them on.',
-            },
-        ],
-        quiz: {
-            q: 'What makes eCash private?',
-            opts: [
-                'It uses a secret password',
-                'Blind signatures mean the mint cannot link tokens to users',
-                'Transactions are deleted after 24 hours',
-                'Only the government can see transactions',
-            ],
-            correct: 1,
-            explain: "Blind signatures are a cryptographic technique where you ask the mint to sign something without it seeing what it's signing. This breaks the link between you and the token.",
+        emoji: '🔐',
+        topic: 'Nostr',
+        tech: 'nostr',
+        name: 'Public vs private key',
+        tagline: 'Get this wrong in real life and you lose everything',
+        simulated: false,
+        learn: {
+            heading: 'Two keys. One is a billboard, one is a vault.',
+            body:
+                "Your npub (public key) is meant to be shared. Put it on your business card. Tell your friends. People use it to find you and follow you.\n\nYour nsec (private key) is the opposite. It signs every message you post. If someone has it, they can post as you forever and there's no 'forgot password' button.\n\nRule of thumb: if a website or app asks you to paste your nsec, leave. Real Nostr apps let you sign locally — they never need to see your private key.",
+            tip: 'npub starts with "npub1…", nsec starts with "nsec1…". One letter, world of difference.',
         },
-        doSteps: [
-            'Your facilitator will send you a Cashu token (a long string starting with "cashu")',
-            'Paste the token in the field below',
-            'The backend will verify and redeem it',
-            'Your sats balance updates — privately',
-        ],
-        actionLabel: 'Receive eCash token',
+        quiz: {
+            question: 'Which key should you paste into a random website that asks for it?',
+            options: [
+                { text: 'Your npub (the public one)', correct: true, why: 'npub is meant to be public. Sharing it is fine.' },
+                { text: 'Your nsec (the private one)', correct: false, why: 'Never. A site asking for your nsec is either incompetent or malicious.' },
+                { text: 'Both — they need to verify you', correct: false, why: 'Anyone asking for both is a scam.' },
+            ],
+        },
+        do: {
+            kind: 'knowledge',
+            actionLabel: 'Locked in — claim sats',
+            helper: 'Knowledge mission. You only really learn this one by burning yourself once — try not to.',
+        },
     },
     {
         id: 5,
-        tag: 'NOSTR SOCIAL',
-        title: 'Tell the world',
-        tech: 'nostr',
-        reward: 50,
-        desc: 'Your first post on the censorship-resistant internet. No algorithm, no moderation, no takedowns. Just your words on a global protocol.',
-        learn: [
-            {
-                label: 'How Nostr posts work',
-                text: 'A Nostr note is a JSON object signed with your <strong>private key (nsec)</strong>. It gets broadcast to multiple relays — servers that store and forward notes. Even if one relay removes it, others keep it alive.',
-            },
-            {
-                label: 'Your digital sovereignty',
-                text: 'Every note you post is cryptographically signed by YOU. No company can delete your post and claim they did not. No algorithm decides who sees your words. Nostr gives you back your digital voice.',
-            },
-        ],
-        quiz: {
-            q: "Why can't Nostr posts be censored?",
-            opts: [
-                'They use military encryption',
-                'Notes are stored on many relays worldwide — removing one does not delete others',
-                'Nostr is owned by a powerful company',
-                'Posts automatically delete after 30 days',
-            ],
-            correct: 1,
-            explain: "Nostr's decentralization is its censorship-resistance. Your note lives on dozens of relays. Removing it from one changes nothing — it's still everywhere else.",
+        emoji: '⚡',
+        topic: 'Lightning',
+        tech: 'lightning',
+        name: 'Receive sats on Lightning',
+        tagline: "Bitcoin's fast lane: payments settle in under a second",
+        simulated: true,
+        learn: {
+            heading: 'Lightning is a layer on top of Bitcoin',
+            body:
+                "Bitcoin on its own confirms transactions every ~10 minutes. Great for big settlements, terrible for buying coffee.\n\nThe Lightning Network sits on top of Bitcoin: people open payment channels with each other, then route tiny payments back and forth instantly. Settlement to the underlying Bitcoin chain happens later, in bulk.\n\nTo receive on Lightning you create an 'invoice' — a string that starts with 'lnbc…' and encodes how much you want and where to send it.",
+            tip: "An invoice can only be paid once. Generate a new one each time you want to be paid.",
         },
-        doSteps: [
-            'Write your first Nostr note in the field below',
-            'Something like: "Just completed SatQuest! Learning Bitcoin in Lagos ⚡"',
-            'Click "Publish" to broadcast it to Nostr relays',
-            'Your note will be live on every Nostr client instantly',
-        ],
-        actionLabel: 'Publish to Nostr',
+        quiz: {
+            question: 'How fast does a Lightning payment settle?',
+            options: [
+                { text: '~10 minutes', correct: false, why: "That's on-chain Bitcoin. Lightning is much faster." },
+                { text: 'Instantly — under a second, usually', correct: true },
+                { text: '1-2 business days', correct: false },
+            ],
+        },
+        do: {
+            kind: 'invoice',
+            actionLabel: 'Create my Lightning invoice',
+            helper:
+                "We'll generate a 100-sat invoice. If LNbits is wired up on the backend, this hits a real testnet node; otherwise it's a placeholder string. Check the badge in the header to see which.",
+        },
+    },
+    {
+        id: 6,
+        emoji: '📤',
+        topic: 'Lightning',
+        tech: 'lightning',
+        name: 'Send 50 sats',
+        tagline: 'Lightning addresses look like emails — and work the same way',
+        simulated: true,
+        learn: {
+            heading: 'A Lightning address: alice@getalby.com',
+            body:
+                "Memorising a fresh invoice every time is annoying. Lightning Address solves that: it's an email-shaped string like 'alice@getalby.com'. Behind the scenes, your wallet asks Alice's server for a fresh invoice and pays it. You never see the invoice.\n\n50 sats is roughly $0.03 at most prices. Tiny enough that you can practice without worrying — but it's how real Lightning payments feel.",
+            tip: "You don't need an account anywhere to receive. You need an account to send (so the wallet has a balance to spend).",
+        },
+        quiz: {
+            question: 'A Lightning address looks like which of these?',
+            options: [
+                { text: 'A long string of random letters and digits', correct: false, why: "That's a raw invoice. Lightning addresses are friendlier." },
+                { text: 'alice@somewallet.com', correct: true },
+                { text: 'A QR code only', correct: false },
+            ],
+        },
+        do: {
+            kind: 'pay',
+            actionLabel: 'Send 50 sats',
+            helper:
+                'Type any Lightning address (e.g. demo@ln.tips). On a configured backend this sends real testnet sats; otherwise it returns a placeholder. Check the badge in the header.',
+            placeholder: 'demo@ln.tips',
+            maxLength: 80,
+        },
+    },
+    {
+        id: 7,
+        emoji: '🧾',
+        topic: 'Bitcoin',
+        tech: 'bitcoin',
+        name: 'Fees and the mempool',
+        tagline: 'Why some payments are free and others cost real money',
+        simulated: false,
+        learn: {
+            heading: 'On-chain Bitcoin has a queue called the mempool',
+            body:
+                "Every Bitcoin transaction has to be picked up by a miner and put into a block. Blocks are limited in size, so when lots of people want to transact at once, you have to bid for space by paying a higher fee.\n\nThat bidding queue is called the mempool. Pay more, get in sooner. Pay less, wait longer — sometimes hours, sometimes days.\n\nLightning has almost no fees per payment because routing a payment through existing channels is cheap. The fees only kick in when channels open or close (which is an on-chain transaction).",
+            tip: 'Buying coffee? Use Lightning. Moving life savings? Use on-chain, pay the fee, sleep well.',
+        },
+        quiz: {
+            question: 'Why are on-chain Bitcoin fees sometimes high?',
+            options: [
+                { text: 'Bitcoin charges a percentage like Visa', correct: false, why: "Bitcoin doesn't charge a percentage — fees are an open market." },
+                { text: "Block space is limited, so people bid for it", correct: true },
+                { text: 'Miners decide based on your wallet balance', correct: false },
+            ],
+        },
+        do: {
+            kind: 'knowledge',
+            actionLabel: 'Makes sense — claim sats',
+            helper: 'Knowledge mission. Knowing when to use Lightning vs on-chain saves real money.',
+        },
+    },
+    {
+        id: 8,
+        emoji: '🎟️',
+        topic: 'eCash',
+        tech: 'ecash',
+        name: 'Claim a Cashu eCash token',
+        tagline: 'Private digital cash — even the mint can\'t see what you spend',
+        simulated: false,
+        learn: {
+            heading: 'eCash is like a banknote, but digital',
+            body:
+                "When you pay with a card, your bank sees every purchase. Even on-chain Bitcoin is public — anyone can see your transaction history if they know your address.\n\neCash (Cashu is the most common protocol) is different. A 'mint' issues tokens backed by real sats. Once you hold a token, whoever holds the token holds the value — like a banknote. The mint can't trace what you do with it. That property is called 'bearer'.\n\nYou can think of a Cashu token as a long string of letters. Possessing it means owning the sats inside.",
+            tip: "Bearer money cuts both ways: if you lose the token string, the sats are gone. Treat tokens like cash.",
+        },
+        quiz: {
+            question: 'What makes eCash private?',
+            options: [
+                { text: 'It uses a longer password than Bitcoin', correct: false },
+                { text: "Blind signatures — the mint can't link tokens to who holds them", correct: true },
+                { text: 'The transactions auto-delete after 24h', correct: false },
+            ],
+        },
+        do: {
+            kind: 'ecash-claim',
+            actionLabel: 'Mint me a token',
+            helper:
+                "We'll mint a real Cashu V4 token (50 sats worth) at a public testmint. The token is real protocol; the sats are testmint-fake. Any Cashu wallet can read it.",
+        },
+    },
+    {
+        id: 9,
+        emoji: '🤝',
+        topic: 'eCash',
+        tech: 'ecash',
+        name: 'Spend (redeem) a token',
+        tagline: 'Whoever holds the string holds the sats',
+        simulated: false,
+        learn: {
+            heading: 'Redeeming a token = handing the bearer note to the mint',
+            body:
+                "Spending a Cashu token means giving the string to the recipient. They redeem it at the mint, the mint cancels the old token, and issues a new one to them.\n\nThe person you paid never finds out it came from you. The mint sees a redemption but can't tie it back to your original purchase. That's the magic of blind signatures.\n\nYou'll paste a token below — either one you saved from the last mission, or any string that starts with 'cashuA' will work (in this simulation).",
+            tip: "In real eCash, if you give someone the token AND keep a copy yourself, only the first redemption wins. So don't double-spend.",
+        },
+        quiz: {
+            question: 'You handed your Cashu token to a friend. What stops you from spending it again later?',
+            options: [
+                { text: 'A timer locks the token after 1 hour', correct: false },
+                { text: 'The mint only accepts each token once — first redemption wins', correct: true },
+                { text: 'Nothing — Cashu allows double-spending', correct: false, why: "Definitely not. Cashu mints reject already-redeemed tokens." },
+            ],
+        },
+        do: {
+            kind: 'ecash-spend',
+            actionLabel: 'Redeem this token',
+            helper: "Paste a real Cashu token (starts with 'cashuA' or 'cashuB'). The mint will verify it and tell you how many sats it carried.",
+            placeholder: 'cashuB…',
+            maxLength: 200,
+        },
+    },
+    {
+        id: 10,
+        emoji: '📢',
+        topic: 'Nostr',
+        tech: 'nostr',
+        name: 'Publish a real Nostr note',
+        tagline: 'A message no company can delete, signed only by you',
+        simulated: false, // REAL relay publish
+        learn: {
+            heading: "This one's real — your note will hit public Nostr relays",
+            body:
+                "When you click publish, the backend signs a note with the nsec from mission 3 and broadcasts it to public Nostr relays (relay.damus.io, nos.lol, relay.nostr.band).\n\nOnce a relay accepts it, your note is permanently part of Nostr. Anyone with a Nostr client (Damus, Amethyst, Snort, Primal…) can search your npub and see it.\n\nThis is the only mission where something *really* happens on a public network. Make it something you're happy to have out there.",
+            tip: "Want to find your note later? Open any Nostr client and paste your npub.",
+        },
+        quiz: {
+            question: 'Where will your note actually live after you publish it?',
+            options: [
+                { text: 'On bitpilot.app servers only', correct: false, why: "BitPilot doesn't store your notes — it relays them to public Nostr." },
+                { text: 'On every Nostr relay we successfully publish to', correct: true },
+                { text: 'In a private database only you can see', correct: false },
+            ],
+        },
+        do: {
+            kind: 'nostr-publish',
+            actionLabel: 'Sign and publish my note',
+            helper: "Write your first Nostr note. It'll be signed with your nsec and broadcast to public relays — for real.",
+            placeholder: "GM Nostr — I just finished BitPilot ⚡",
+            maxLength: 280,
+        },
     },
 ]
+
+export const MISSION_COUNT = MISSIONS.length

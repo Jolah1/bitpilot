@@ -5,7 +5,7 @@ use sqlx::{
 use std::str::FromStr;
 use std::time::Duration;
 
-use crate::services::{LightningService, NostrService};
+use crate::services::{EcashService, LightningService, NostrService};
 
 /// Process-wide state shared across handlers.
 ///
@@ -15,6 +15,7 @@ pub struct AppState {
     pub db: SqlitePool,
     pub lightning: LightningService,
     pub nostr: NostrService,
+    pub ecash: EcashService,
 }
 
 impl AppState {
@@ -52,6 +53,7 @@ impl AppState {
             db,
             lightning: LightningService::new(),
             nostr: NostrService::new(),
+            ecash: EcashService::new(),
         })
     }
 }

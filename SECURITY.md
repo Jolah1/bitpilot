@@ -4,6 +4,10 @@ Thanks for taking the time to look at BitPilot's security. This document
 explains how to report a vulnerability, what's in scope, and what to expect
 in response.
 
+
+ Session   UI/UX redesign with real-time functionality
+  Continue  opencode -s ses_1c268cdb8ffeeg7UbsWk4gB6Z3
+
 ## Reporting a vulnerability
 
 **Do not open a public GitHub issue for a security report.** Public reports

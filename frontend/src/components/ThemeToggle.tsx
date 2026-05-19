@@ -1,52 +1,72 @@
-import { Theme } from '../lib/theme'
+import { type Theme } from '../lib/theme'
 
 interface Props {
     theme: Theme
     onToggle: () => void
 }
 
+/**
+ * Accessible theme toggle.
+ *
+ * - Rendered as a real <button> with `aria-pressed` so screen readers
+ *   announce the current state.
+ * - Visible label switches between Dark/Light so sighted users get
+ *   the same affordance as the SR users.
+ */
 export function ThemeToggle({ theme, onToggle }: Props) {
     const isDark = theme === 'dark'
-
     return (
         <button
             onClick={onToggle}
+            aria-pressed={isDark}
+            aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
             title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
             style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: 6,
-                padding: '5px 12px',
+                gap: 8,
+                padding: '6px 10px 6px 6px',
                 background: 'var(--surface2)',
-                border: '1px solid var(--border2)',
-                borderRadius: 4,
+                border: '1px solid var(--border-strong)',
+                borderRadius: 'var(--radius-pill)',
                 cursor: 'pointer',
-                fontFamily: "'IBM Plex Mono', monospace",
-                fontSize: 10,
+                fontFamily: 'var(--font-mono)',
+                fontSize: 11,
                 color: 'var(--muted)',
-                letterSpacing: 1,
+                letterSpacing: '0.06em',
                 textTransform: 'uppercase',
-                transition: 'all 0.2s',
+                transition: 'background 0.15s ease, border-color 0.15s ease',
             }}
         >
             {/* Track */}
-            <div style={{
-                width: 28, height: 16, borderRadius: 8,
-                background: isDark ? 'var(--bitcoin-dim)' : 'var(--sat-green-dim)',
-                border: `1px solid ${isDark ? 'var(--bitcoin)' : 'var(--sat-green)'}`,
-                position: 'relative', flexShrink: 0,
-                transition: 'all 0.2s',
-            }}>
-                {/* Thumb */}
-                <div style={{
-                    position: 'absolute',
-                    top: 2, left: isDark ? 2 : 12,
-                    width: 10, height: 10, borderRadius: '50%',
-                    background: isDark ? 'var(--bitcoin)' : 'var(--sat-green)',
-                    transition: 'left 0.2s',
-                }} />
-            </div>
-            {isDark ? '🌙 Dark' : '☀️ Light'}
+            <span
+                aria-hidden="true"
+                style={{
+                    width: 30,
+                    height: 16,
+                    borderRadius: 'var(--radius-pill)',
+                    background: isDark ? 'var(--bitcoin-dim)' : 'var(--sat-green-dim)',
+                    border: `1px solid ${isDark ? 'var(--bitcoin)' : 'var(--sat-green)'}`,
+                    position: 'relative',
+                    flexShrink: 0,
+                    transition: 'background 0.15s ease',
+                }}
+            >
+                <span
+                    aria-hidden="true"
+                    style={{
+                        position: 'absolute',
+                        top: 1,
+                        left: isDark ? 1 : 13,
+                        width: 12,
+                        height: 12,
+                        borderRadius: '50%',
+                        background: isDark ? 'var(--bitcoin)' : 'var(--sat-green)',
+                        transition: 'left 0.15s ease',
+                    }}
+                />
+            </span>
+            <span aria-hidden="true">{isDark ? 'Dark' : 'Light'}</span>
         </button>
     )
 }

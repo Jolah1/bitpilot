@@ -1,21 +1,49 @@
-import { getAuthToken, getFacilitatorToken } from './auth'
+/**
+ * BitPilot API client.
+ *
+ * Two security tokens are issued by the backend and managed transparently
+ * by this module via sessionStorage:
+ *
+ * - Participant auth token: returned once from `joinSession()`, sent as
+ *   `Authorization: Bearer <token>` on every authenticated endpoint.
+ * - Facilitator token: returned once from `createSession()`, sent as
+ *   `X-Facilitator-Key` on the admin endpoints.
+ *
+ * The UI layer never touches these directly — it calls the api methods as
+ * if the backend were unauthenticated, and this module handles the rest.
+ * If you ever need to force-clear them (e.g. user logs out / starts over),
+ * call `clearAllTokens()` from `./auth`.
+ */
+
+import { getAuthToken, getFacilitatorToken, setAuthToken, setFacilitatorToken } from './auth'
 import type { Participant, Session } from './types'
 
 const BASE = '/api'
 
-interface RequestOpts extends Omit<RequestInit, 'body'> {
+export class ApiError extends Error {
+    status: number
+    constructor(message: string, status: number) {
+        super(message)
+        this.name = 'ApiError'
+        this.status = status
+    }
+}
+
+type AuthMode = 'participant' | 'facilitator' | 'none'
+
+interface RequestOpts extends Omit<RequestInit, 'body' | 'headers'> {
     body?: unknown
-    /** Which credential to attach to the request, if any. */
-    auth?: 'participant' | 'facilitator' | 'none'
+    auth?: AuthMode
+    headers?: Record<string, string>
 }
 
 async function request<T>(path: string, opts: RequestOpts = {}): Promise<T> {
     const headers: Record<string, string> = {
         'Content-Type': 'application/json',
-        ...(opts.headers as Record<string, string> | undefined),
+        ...(opts.headers ?? {}),
     }
 
-    const auth = opts.auth ?? 'none'
+    const auth: AuthMode = opts.auth ?? 'none'
     if (auth === 'participant') {
         const t = getAuthToken()
         if (t) headers['Authorization'] = `Bearer ${t}`
@@ -24,24 +52,38 @@ async function request<T>(path: string, opts: RequestOpts = {}): Promise<T> {
         if (t) headers['X-Facilitator-Key'] = t
     }
 
-    const res = await fetch(`${BASE}${path}`, {
-        ...opts,
-        headers,
-        body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
-    })
-
+    let res: Response
+    try {
+        res = await fetch(`${BASE}${path}`, {
+            ...opts,
+            headers,
+            body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+        })
+    } catch {
+        throw new ApiError(
+            "Can't reach the BitPilot backend. Is `cargo run` running in another terminal?",
+            0,
+        )
+    }
     if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: 'Unknown error' }))
-        throw new Error(err.error ?? 'Request failed')
+        const err = await res.json().catch(() => ({ error: 'Request failed' }))
+        throw new ApiError(err.error ?? 'Request failed', res.status)
     }
     return res.json() as Promise<T>
 }
 
 // ── Response shapes ──────────────────────────────────────────────────────
 
-export interface CreateSessionResponse {
+/** Backend response from POST /api/sessions. UI sees only the Session. */
+interface CreateSessionWire {
     session: Session
     facilitator_token: string
+}
+
+/** Backend response from POST /api/participants. UI sees only the Participant. */
+interface JoinSessionWire {
+    participant: Participant
+    auth_token: string
 }
 
 export interface SessionResponse {
@@ -50,21 +92,18 @@ export interface SessionResponse {
     total_sats_distributed: number
 }
 
-export interface JoinSessionResponse {
-    participant: Participant
-    auth_token: string
-}
-
 export interface InvoiceResponse {
     invoice: string
     participant_id: string
     amount_sats: number
+    simulated: boolean
 }
 
 export interface PaymentResponse {
     payment_hash: string
     participant_id: string
     status: string
+    simulated: boolean
 }
 
 export interface NostrIdentityResponse {
@@ -72,12 +111,29 @@ export interface NostrIdentityResponse {
     nsec: string
     participant_id: string
     warning: string
+    simulated: boolean
 }
 
 export interface NostrPublishResponse {
     event_id: string
     participant_id: string
     status: string
+    relays: string[]
+    simulated: boolean
+}
+
+export interface EcashMintResponse {
+    token: string
+    participant_id: string
+    amount_sats: number
+    simulated: boolean
+}
+
+export interface EcashRedeemResponse {
+    participant_id: string
+    amount_sats: number
+    status: string
+    simulated: boolean
 }
 
 export interface CompleteMissionResponse {
@@ -87,19 +143,31 @@ export interface CompleteMissionResponse {
 }
 
 export interface RuntimeInfo {
+    /** True when Lightning is talking to a real LN node (LNbits). */
     lightning_real: boolean
+    /** True when eCash is talking to a real Cashu mint. */
     ecash_real: boolean
-    nostr_real: boolean
+    /** Mint URL the eCash service is pointed at. */
+    ecash_mint_url: string
+    /** Public relays the Nostr service publishes to. */
+    nostr_relays: string[]
 }
 
 // ── API surface ──────────────────────────────────────────────────────────
 
 export const api = {
-    runtime: () =>
-        request<RuntimeInfo>('/runtime'),
+    runtime: () => request<RuntimeInfo>('/runtime'),
 
-    createSession: (name: string) =>
-        request<CreateSessionResponse>('/sessions', { method: 'POST', body: { name } }),
+    createSession: async (name: string): Promise<Session> => {
+        const wire = await request<CreateSessionWire>('/sessions', {
+            method: 'POST',
+            body: { name },
+        })
+        // Stash the facilitator token transparently. The UI gets back just
+        // the Session, exactly as the UI session expected.
+        setFacilitatorToken(wire.facilitator_token)
+        return wire.session
+    },
 
     getSession: (id: string) =>
         request<SessionResponse>(`/sessions/${id}`, { auth: 'facilitator' }),
@@ -107,47 +175,65 @@ export const api = {
     listParticipants: (sessionId: string) =>
         request<Participant[]>(`/sessions/${sessionId}/participants`, { auth: 'facilitator' }),
 
-    joinSession: (name: string, sessionId: string) =>
-        request<JoinSessionResponse>('/participants', {
+    joinSession: async (name: string, sessionId: string): Promise<Participant> => {
+        const wire = await request<JoinSessionWire>('/participants', {
             method: 'POST',
             body: { name, session_id: sessionId },
-        }),
+        })
+        setAuthToken(wire.auth_token)
+        return wire.participant
+    },
 
-    getSelf: () =>
+    /** Authenticated self-fetch. Replaces the old getParticipant(id). */
+    getParticipant: (_id?: string) =>
         request<Participant>('/participants/me', { auth: 'participant' }),
 
-    completeMission: (mission: number, proof: string) =>
+    completeMission: (_participantId: string, mission: number, proof?: string) =>
         request<CompleteMissionResponse>('/missions/complete', {
             method: 'POST',
-            body: { mission, proof },
+            body: { mission, proof: proof ?? '' },
             auth: 'participant',
         }),
 
-    createInvoice: (amountSats: number, description: string) =>
+    createInvoice: (_participantId: string, amountSats: number, description: string) =>
         request<InvoiceResponse>('/invoice', {
             method: 'POST',
             body: { amount_sats: amountSats, description },
             auth: 'participant',
         }),
 
-    payInvoice: (invoice: string) =>
+    payInvoice: (_participantId: string, invoice: string) =>
         request<PaymentResponse>('/pay', {
             method: 'POST',
             body: { invoice },
             auth: 'participant',
         }),
 
-    createNostrIdentity: () =>
+    createNostrIdentity: (_participantId: string) =>
         request<NostrIdentityResponse>('/nostr/identity', {
             method: 'POST',
             body: {},
             auth: 'participant',
         }),
 
-    publishNostrNote: (content: string, nsec: string) =>
+    publishNostrNote: (_participantId: string, content: string, nsec: string) =>
         request<NostrPublishResponse>('/nostr/publish', {
             method: 'POST',
             body: { content, nsec },
+            auth: 'participant',
+        }),
+
+    mintEcash: (_participantId: string, amountSats: number) =>
+        request<EcashMintResponse>('/ecash/mint', {
+            method: 'POST',
+            body: { amount_sats: amountSats },
+            auth: 'participant',
+        }),
+
+    redeemEcash: (_participantId: string, token: string) =>
+        request<EcashRedeemResponse>('/ecash/redeem', {
+            method: 'POST',
+            body: { token },
             auth: 'participant',
         }),
 }
