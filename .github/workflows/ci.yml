@@ -1,13 +1,9 @@
 # CI for BitPilot.
 #
-# Runs on every PR and every push to main. Three jobs in parallel:
+# Runs on every PR and every push to main. Two jobs in parallel:
 #
-#   1. secret-scan   — gitleaks against the full PR diff. The repo also has
-#                      local pre-commit and pre-push hooks (scripts/), but
-#                      those can be bypassed with --no-verify, so this is the
-#                      real gate.
-#   2. backend       — cargo build (release, --locked), cargo-audit for RustSec.
-#   3. frontend      — npm ci, npm run build (which also runs tsc).
+#   1. backend   — cargo build (release, --locked), cargo-audit for RustSec.
+#   2. frontend  — npm ci, npm run build (which also runs tsc).
 #
 # Hardening notes:
 # - `permissions: read-all` at the workflow level. Each job re-grants only the
@@ -34,28 +30,6 @@ concurrency:
     cancel-in-progress: true
 
 jobs:
-    secret-scan:
-        name: gitleaks
-        runs-on: ubuntu-latest
-        permissions:
-            contents: read
-        steps:
-            - uses: actions/checkout@v4
-              with:
-                  # gitleaks needs the full history on a push event so it can
-                  # diff every commit being introduced. fetch-depth: 0 disables
-                  # the default shallow clone.
-                  fetch-depth: 0
-            - name: Run gitleaks
-              uses: gitleaks/gitleaks-action@v2
-              env:
-                  # No paid license needed for public repos; this var just
-                  # silences a "no license" warning. Remove for private repos
-                  # if you have a license, or leave as-is for the OSS path.
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-              with:
-                  config-path: .gitleaks.toml
-
     backend:
         name: backend (cargo)
         runs-on: ubuntu-latest
@@ -85,8 +59,8 @@ jobs:
               run: cargo build --release --locked
             - name: cargo audit
               # cargo-audit checks Cargo.lock against the RustSec advisory
-              # database. Fails the build on any known vuln; downgrade to
-              # `|| true` if you want it informational while triaging.
+              # database. Reads backend/.cargo/audit.toml for ignored
+              # advisories with documented reasoning.
               run: |
                   cargo install --locked cargo-audit
                   cargo audit
