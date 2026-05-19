@@ -1,56 +1,222 @@
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;700&family=Syne:wght@400;600;700;800&display=swap');
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* Self-hosted variable fonts. Subset to the latin range we actually use. */
+@import '@fontsource-variable/inter/wght.css';
+@import '@fontsource-variable/jetbrains-mono/wght.css';
 
-/* Default dark theme tokens — overridden by applyTheme() */
+/* ─── Design tokens ──────────────────────────────────────────────────────────
+   Themed tokens live here as the *fallback*. JS (`applyTheme`) overrides them
+   on `document.documentElement` whenever the theme changes. Both states must
+   keep contrast ratios at WCAG AA (4.5:1) for text on backgrounds. */
 :root {
+    /* Dark theme defaults */
     --bitcoin: #F7931A;
+    --bitcoin-strong: #FFA940;
     --bitcoin-dim: #6B3D06;
-    --sat-green: #00C27B;
-    --sat-green-dim: #003D26;
-    --nostr-purple: #8B5CF6;
+    --sat-green: #10C57E;
+    --sat-green-dim: #0A3D2A;
+    --nostr-purple: #A78BFA;
     --nostr-dim: #2D1B6B;
-    --bg: #0A0A0A;
-    --surface: #111111;
-    --surface2: #1A1A1A;
-    --border: #2A2A2A;
-    --border2: #333333;
-    --text: #F0EDE8;
-    --muted: #888888;
-    --danger: #FF4444;
+    --ecash-cyan: #5EEAD4;
+    --ecash-dim: #0F3D38;
+
+    --bg: #0A0A0B;
+    --bg-elevated: #131316;
+    --surface: #18181C;
+    --surface2: #1F1F25;
+    --border: #2A2A33;
+    --border-strong: #3B3B47;
+
+    --text: #F4F2EE;
+    --text-soft: #CFCCC6;
+    --muted: #9A968F;
+    --danger: #F87171;
+    --success: #10C57E;
+    --warning: #FBBF24;
+
+    /* Gradients — used sparingly, only for accents/CTAs, never for body text. */
+    --gradient-bitcoin: linear-gradient(135deg, #F7931A 0%, #FFB74D 100%);
+    --gradient-lightning: linear-gradient(135deg, #F7931A 0%, #A78BFA 100%);
+    --gradient-nostr: linear-gradient(135deg, #A78BFA 0%, #5EEAD4 100%);
+    --gradient-ecash: linear-gradient(135deg, #5EEAD4 0%, #10C57E 100%);
+    --gradient-hero: linear-gradient(135deg, #F7931A 0%, #A78BFA 50%, #5EEAD4 100%);
+    --gradient-surface: linear-gradient(180deg, rgba(247, 147, 26, 0.04) 0%, rgba(167, 139, 250, 0.02) 100%);
+
+    /* Spacing scale (8px base) */
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 24px;
+    --space-6: 32px;
+    --space-7: 48px;
+    --space-8: 64px;
+
+    /* Radii */
+    --radius-1: 6px;
+    --radius-2: 10px;
+    --radius-3: 14px;
+    --radius-4: 20px;
+    --radius-pill: 999px;
+
+    /* Type scale */
+    --font-sans: 'Inter Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --font-mono: 'JetBrains Mono Variable', ui-monospace, 'SF Mono', 'Cascadia Mono', monospace;
+
+    /* Shadows */
+    --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow-2: 0 6px 24px rgba(0, 0, 0, 0.25);
+    --shadow-focus: 0 0 0 3px rgba(247, 147, 26, 0.45);
 }
 
-* {
-    box-sizing: border-box;
-}
-
-body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: 'Syne', sans-serif;
-    -webkit-font-smoothing: antialiased;
-    margin: 0;
-    transition: background 0.2s, color 0.2s;
-}
-
-/* Smooth theme transitions */
+/* ─── Reset ─────────────────────────────────────────────────────────────── */
 *,
 *::before,
 *::after {
-    transition: background-color 0.2s, border-color 0.2s, color 0.2s;
+    box-sizing: border-box;
 }
 
-/* Scrollbar */
+html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+}
+
+body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-sans);
+    font-size: 16px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    font-feature-settings: 'cv11', 'ss01', 'ss03';
+    /* Smooth-but-quick theme transitions; respected by reduced-motion below. */
+    transition: background-color 0.18s ease, color 0.18s ease;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    margin: 0;
+    font-family: var(--font-sans);
+    font-weight: 700;
+    letter-spacing: -0.018em;
+    line-height: 1.2;
+}
+
+p {
+    margin: 0;
+}
+
+code, pre, kbd, samp {
+    font-family: var(--font-mono);
+    font-feature-settings: 'calt' 0;
+}
+
+button {
+    font-family: inherit;
+    font-size: inherit;
+    color: inherit;
+}
+
+/* ─── Accessibility ─────────────────────────────────────────────────────── */
+
+/* Visible, high-contrast focus ring on every interactive element. Required
+   for keyboard users. We use `:focus-visible` so mouse clicks don't flash it. */
+:focus {
+    outline: none;
+}
+
+:focus-visible {
+    outline: 3px solid var(--bitcoin);
+    outline-offset: 2px;
+    border-radius: var(--radius-1);
+}
+
+/* Skip-to-content link — appears only when focused, lets keyboard users
+   jump past the nav. Mounted in App.tsx. */
+.skip-link {
+    position: absolute;
+    top: -100px;
+    left: var(--space-4);
+    background: var(--bitcoin);
+    color: #000;
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--radius-2);
+    font-weight: 700;
+    z-index: 9999;
+    text-decoration: none;
+    transition: top 0.15s ease;
+}
+.skip-link:focus {
+    top: var(--space-4);
+}
+
+/* Screen-reader-only utility — content visible to AT but not painted. */
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* Respect users who asked the OS to minimize motion. We keep instant state
+   changes; we drop transitions and any keyframe animation. */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+}
+
+/* Selection color */
+::selection {
+    background: rgba(247, 147, 26, 0.35);
+    color: var(--text);
+}
+
+/* Scrollbar (WebKit) */
 ::-webkit-scrollbar {
-    width: 4px;
+    width: 10px;
+    height: 10px;
 }
-
 ::-webkit-scrollbar-track {
     background: var(--bg);
 }
-
 ::-webkit-scrollbar-thumb {
-    background: var(--border2);
-    border-radius: 2px;
+    background: var(--border-strong);
+    border-radius: var(--radius-pill);
+    border: 2px solid var(--bg);
+}
+::-webkit-scrollbar-thumb:hover {
+    background: var(--muted);
+}
+
+/* Inputs inherit fonts everywhere */
+input, textarea, select {
+    font-family: inherit;
+    font-size: inherit;
+    color: inherit;
+}
+
+/* Gradient text utility — used for hero headlines */
+.gradient-text {
+    background: var(--gradient-hero);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+}
+
+/* Pulse used by the LIVE indicator. Capped, respects reduced motion. */
+@keyframes pulse-dot {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
 }

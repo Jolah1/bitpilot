@@ -1,0 +1,39 @@
+# cargo-audit configuration.
+#
+# This file is honoured by `cargo audit` (and its Github Action) when running
+# from the backend/ directory. It exists to acknowledge advisories that we
+# have investigated and accepted with explicit reasoning — never to hide
+# things we just don't want to deal with.
+#
+# Re-review every entry below at least every 90 days.
+
+[advisories]
+
+# Per-advisory ignore list.
+#
+# RUSTSEC-2023-0071  rsa "Marvin attack"
+#   --------------------------------------------------------------
+#   Pulled in transitively by sqlx-mysql 0.8.6, which is NOT built into our
+#   binary (we depend on sqlx with default-features = false and only the
+#   "sqlite" feature). cargo-audit reads Cargo.lock and flags every package
+#   in the lock graph, even those gated behind unselected features, so it
+#   flags rsa even though `cargo tree -p rsa` confirms it isn't reachable.
+#
+#   The vulnerability itself is a timing side-channel in RSA decryption,
+#   reachable only in TLS clients / cryptographic workloads that use the
+#   `rsa` crate with attacker-controlled ciphertext. We do neither.
+#
+#   No fix is available upstream as of the last review. Re-check when the
+#   `rsa` crate publishes a patched 0.9.x.
+#
+# RUSTSEC-2024-0384  instant unmaintained
+#   --------------------------------------------------------------
+#   Transitive dep of nostr 0.44.3 (via nostr-sdk). `instant` was a polyfill
+#   for `std::time::Instant` on wasm32 before `web_time` existed. The crate
+#   is unmaintained but has no known vulnerabilities. It is a warning, not
+#   a vulnerability — listed here only because our CI treats warnings as
+#   errors. Drop when nostr migrates to `web_time` (open upstream issue).
+ignore = [
+    "RUSTSEC-2023-0071",
+    "RUSTSEC-2024-0384",
+]

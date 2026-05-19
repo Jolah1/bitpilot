@@ -17,7 +17,19 @@ uuid              = { version = "1",   features = ["v4"] }
 thiserror         = "1"
 anyhow            = "1"
 dotenvy           = "0.15"
-sqlx              = { version = "0.8", default-features = false, features = ["runtime-tokio-rustls", "sqlite", "macros", "migrate", "chrono"] }
+sqlx              = { version = "0.8.6", default-features = false, features = ["runtime-tokio-rustls", "sqlite", "macros", "migrate", "chrono"] }
 rand              = "0.8"
 chrono            = { version = "0.4", features = ["serde"] }
 hex               = "0.4"
+
+# ── Real-mode service backends ───────────────────────────────────────────────
+# Real Nostr support: bech32 keys + signed events + relay publishing.
+nostr-sdk         = { version = "0.44", default-features = false, features = ["all-nips"] }
+# HTTP client for talking to LNbits (signet/testnet) when LNBITS_URL is set.
+reqwest           = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+# NOTE on eCash: the `cdk` / `cdk-sqlite` crates were dropped to resolve a
+# transitive `libsqlite3-sys` conflict with sqlx 0.8.6 (which fixes 5 RustSec
+# advisories). Missions 8 and 9 currently run in simulated mode — the
+# verifier accepts cashu-token-shaped strings without redeeming them against
+# a real mint. When cdk publishes a release that allows libsqlite3-sys 0.30,
+# re-add `cdk` and `cdk-sqlite` and restore EcashService.
