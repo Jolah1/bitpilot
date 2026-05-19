@@ -1,7 +1,6 @@
 # ─── Rust ─────────────────────────────────────────────────────────────────────
 target/
 **/*.rs.bk
-Cargo.lock          # remove this line if you want to pin deps in a library
 
 # ─── ldk-node data (never commit private keys!) ──────────────────────────────
 ldk-data/

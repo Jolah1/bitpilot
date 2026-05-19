@@ -25,7 +25,10 @@ impl NostrService {
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs();
-        let preview = &content[..content.len().min(8)];
+        // Take up to 8 *characters* (not bytes) to avoid panicking on multi-byte
+        // UTF-8 codepoints like emoji. Byte-slicing a &str at a non-boundary
+        // would panic.
+        let preview: String = content.chars().take(8).collect();
         Ok(format!("mock_evt_{ts}_{preview}"))
     }
 }

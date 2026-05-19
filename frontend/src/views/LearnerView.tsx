@@ -31,6 +31,7 @@ export default function LearnerView({ participantId }: { participantId: string }
   const [quizResult, setQuizResult] = useState<"correct"|"wrong"|null>(null);
   const [doInput, setDoInput] = useState("");
   const [doResult, setDoResult] = useState<string|null>(null);
+  const [doError, setDoError] = useState<string|null>(null);
   const [loading, setLoading] = useState(false);
   const [completedMissions, setCompletedMissions] = useState<number[]>([]);
 
@@ -46,6 +47,7 @@ export default function LearnerView({ participantId }: { participantId: string }
       setQuizResult(null);
       setDoInput("");
       setDoResult(null);
+      setDoError(null);
     }
   };
 
@@ -58,26 +60,32 @@ export default function LearnerView({ participantId }: { participantId: string }
 
   const handleDo = async () => {
     setLoading(true);
+    setDoError(null);
     try {
+      let actionMessage: string;
       if (missionIdx === 0) {
-        const r: any = await api.createNostrIdentity(participantId);
-        setDoResult(`✓ Your keys:\nnpub: ${r.npub}\nnsec: ${r.nsec}\n\n⚠️ ${r.warning}`);
+        const r = await api.createNostrIdentity(participantId);
+        actionMessage = `✓ Your keys:\nnpub: ${r.npub}\nnsec: ${r.nsec}\n\n⚠️ ${r.warning}`;
       } else if (missionIdx === 1) {
-        const r: any = await api.createInvoice(participantId, 100, "BitPilot Mission 2");
-        setDoResult(`✓ Invoice created!\n${r.invoice}`);
+        const r = await api.createInvoice(participantId, 100, "BitPilot Mission 2");
+        actionMessage = `✓ Invoice created!\n${r.invoice}`;
       } else if (missionIdx === 2) {
-        const r: any = await api.payInvoice(participantId, doInput || "demo@ln.tips");
-        setDoResult(`✓ Sent! Hash: ${r.payment_hash}`);
+        const r = await api.payInvoice(participantId, doInput || "demo@ln.tips");
+        actionMessage = `✓ Sent! Hash: ${r.payment_hash}`;
       } else if (missionIdx === 3) {
-        setDoResult(`✓ Token claimed! 21 sats added to your balance.`);
-      } else if (missionIdx === 4) {
+        actionMessage = `✓ Token claimed! 21 sats added to your balance.`;
+      } else {
         if (!doInput.trim()) { setLoading(false); return; }
-        const r: any = await api.publishNostrNote(participantId, doInput, "nsec1demo");
-        setDoResult(`✓ Published! Event ID: ${r.event_id}`);
+        const r = await api.publishNostrNote(participantId, doInput, "nsec1demo");
+        actionMessage = `✓ Published! Event ID: ${r.event_id}`;
       }
+      // Only mark the mission complete on the backend AFTER the action succeeded.
+      // If completion fails, surface the error rather than pretending it worked.
       await api.completeMission(participantId, mission.id);
+      setDoResult(actionMessage);
     } catch (e) {
-      setDoResult("✓ Done! (mock mode — connect real backend for live data)");
+      const msg = e instanceof Error ? e.message : "Unknown error";
+      setDoError(`Something went wrong: ${msg}`);
     }
     setLoading(false);
   };
@@ -213,9 +221,16 @@ export default function LearnerView({ participantId }: { participantId: string }
                     {missionIdx===4 ? "🎉 Complete BitPilot!" : `Next: ${MISSIONS[missionIdx+1].name} →`}
                   </button>
                 </>
-              : <button style={{ ...s.btn, opacity:loading?0.6:1 }} onClick={handleDo} disabled={loading || (missionIdx===4&&!doInput.trim())}>
-                  {loading ? <>⏳ Working…</> : <>{mission.emoji} {mission.action}</>}
-                </button>
+              : <>
+                  {doError && (
+                    <div style={{ background:"rgba(239,68,68,0.08)", border:"1px solid rgba(239,68,68,0.25)", borderRadius:10, padding:"10px 14px", fontSize:13, color:"#ef4444", lineHeight:1.5 }}>
+                      ⚠️ {doError}
+                    </div>
+                  )}
+                  <button style={{ ...s.btn, opacity:loading?0.6:1 }} onClick={handleDo} disabled={loading || (missionIdx===4&&!doInput.trim())}>
+                    {loading ? <>⏳ Working…</> : <>{mission.emoji} {doError ? "Try again" : mission.action}</>}
+                  </button>
+                </>
             }
           </>}
 

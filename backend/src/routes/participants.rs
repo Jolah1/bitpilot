@@ -82,18 +82,29 @@ async fn join_session(
     State(state): State<Arc<AppState>>,
     Json(body): Json<JoinSessionRequest>,
 ) -> Result<Json<Participant>, AppError> {
-    {
-        let sessions = state.sessions.lock().unwrap();
-        if !sessions.contains_key(&body.session_id) {
-            return Err(AppError::NotFound);
-        }
+    if body.name.trim().is_empty() {
+        return Err(AppError::BadRequest("name must not be empty".into()));
     }
+
     let participant = Participant::new(&body.name, &body.session_id);
-    state.sessions.lock().unwrap()
-        .get_mut(&body.session_id).unwrap()
-        .participant_ids.push(participant.id.clone());
-    state.participants.lock().unwrap()
+
+    // Hold the sessions lock for the entire check-then-mutate so the session
+    // can't disappear between verifying it exists and pushing the new
+    // participant id into it.
+    {
+        let mut sessions = state.sessions.lock().unwrap();
+        let session = sessions
+            .get_mut(&body.session_id)
+            .ok_or(AppError::NotFound)?;
+        session.participant_ids.push(participant.id.clone());
+    }
+
+    state
+        .participants
+        .lock()
+        .unwrap()
         .insert(participant.id.clone(), participant.clone());
+
     Ok(Json(participant))
 }
 

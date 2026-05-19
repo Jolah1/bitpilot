@@ -35,10 +35,22 @@ export function applyTheme(theme: Theme) {
     }
 }
 
+const THEME_KEY = 'bitpilot-theme'
+const LEGACY_THEME_KEY = 'satquest-theme'
+
 export function getSavedTheme(): Theme {
-    return (localStorage.getItem('satquest-theme') as Theme) ?? 'dark'
+    const current = localStorage.getItem(THEME_KEY)
+    if (current === 'dark' || current === 'light') return current
+    // Migrate from the legacy key if present.
+    const legacy = localStorage.getItem(LEGACY_THEME_KEY)
+    if (legacy === 'dark' || legacy === 'light') {
+        localStorage.setItem(THEME_KEY, legacy)
+        localStorage.removeItem(LEGACY_THEME_KEY)
+        return legacy
+    }
+    return 'dark'
 }
 
 export function saveTheme(theme: Theme) {
-    localStorage.setItem('satquest-theme', theme)
+    localStorage.setItem(THEME_KEY, theme)
 }

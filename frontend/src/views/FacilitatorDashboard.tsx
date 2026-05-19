@@ -23,9 +23,9 @@ export default function FacilitatorDashboard({ sessionId }: { sessionId: string 
 
   const session = progress?.session;
   const participants: Participant[] = progress?.participants ?? [];
-  const completed = participants.filter(p => p.missions_completed === 5).length;
+  const completed = participants.filter(p => p.completed_missions.length === 5).length;
   const avgProgress = participants.length > 0
-    ? Math.round(participants.reduce((s, p) => s + p.missions_completed, 0) / participants.length * 20)
+    ? Math.round(participants.reduce((s, p) => s + p.completed_missions.length, 0) / participants.length * 20)
     : 0;
 
   return (
@@ -96,7 +96,8 @@ export default function FacilitatorDashboard({ sessionId }: { sessionId: string 
 }
 
 function ParticipantRow({ participant }: { participant: Participant }) {
-  const pct = Math.round((participant.missions_completed / 5) * 100);
+  const doneCount = participant.completed_missions.length;
+  const pct = Math.round((doneCount / 5) * 100);
   return (
     <div style={{ display: "grid", gridTemplateColumns: "160px repeat(5, 1fr) 48px", alignItems: "center", padding: "0.6rem 1rem", borderBottom: "1px solid var(--border)" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -105,11 +106,11 @@ function ParticipantRow({ participant }: { participant: Participant }) {
         </div>
         <span style={{ fontSize: "0.78rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{participant.name}</span>
       </div>
-      {[0,1,2,3,4].map(i => (
-        <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
-          {participant.missions_completed > i
+      {[1,2,3,4,5].map(missionId => (
+        <div key={missionId} style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+          {participant.completed_missions.includes(missionId)
             ? <span style={{ color: "#22c55e" }}>✓</span>
-            : participant.missions_completed === i
+            : participant.current_mission === missionId
             ? <span style={{ color: "#F7931A", fontSize: "0.8rem" }}>●</span>
             : <span style={{ color: "var(--muted)", fontSize: "0.8rem" }}>–</span>
           }
