@@ -194,14 +194,12 @@ async fn publish_nostr_note(
     }
     let event_id = state.nostr.publish_note(&body.nsec, &body.content).await?;
 
-    sqlx::query(
-        "INSERT INTO nostr_log (event_id, participant_id, created_at) VALUES (?, ?, ?)",
-    )
-    .bind(&event_id)
-    .bind(&authed.participant_id)
-    .bind(now() as i64)
-    .execute(&state.db)
-    .await?;
+    sqlx::query("INSERT INTO nostr_log (event_id, participant_id, created_at) VALUES (?, ?, ?)")
+        .bind(&event_id)
+        .bind(&authed.participant_id)
+        .bind(now() as i64)
+        .execute(&state.db)
+        .await?;
 
     Ok(Json(PublishNoteResponse {
         event_id,

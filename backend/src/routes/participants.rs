@@ -135,7 +135,9 @@ async fn list_participants(
     if exists.is_none() {
         return Err(AppError::NotFound);
     }
-    Ok(Json(load_participants_by_session(&state, &session_id).await?))
+    Ok(Json(
+        load_participants_by_session(&state, &session_id).await?,
+    ))
 }
 
 #[derive(Deserialize)]
