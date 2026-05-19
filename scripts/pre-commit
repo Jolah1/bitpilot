@@ -9,20 +9,34 @@
 # Bypass in genuine emergencies (and only if you understand the risk):
 #   git commit --no-verify
 #
-# Requires gitleaks on PATH. Install: https://github.com/gitleaks/gitleaks
+# Requires gitleaks installed. Install: https://github.com/gitleaks/gitleaks
 
 set -euo pipefail
 
+# Git hooks inherit a stripped-down PATH that often misses user-local bin
+# directories. Augment PATH with the common install targets so the hook
+# works even when the user's interactive shell exports them via .bashrc
+# (which doesn't get sourced by git).
+export PATH="$HOME/.local/bin:$HOME/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
+
 if ! command -v gitleaks >/dev/null 2>&1; then
     cat >&2 <<'EOF'
-[pre-commit] gitleaks not found on PATH.
+[pre-commit] gitleaks not found.
+
+Searched: $HOME/.local/bin, $HOME/bin, /opt/homebrew/bin, /usr/local/bin, and $PATH.
 
 Install it before committing:
   Linux x86_64:
+    mkdir -p ~/.local/bin
     curl -sSL https://github.com/gitleaks/gitleaks/releases/download/v8.21.2/gitleaks_8.21.2_linux_x64.tar.gz \
       | tar -xz -C ~/.local/bin gitleaks
+    chmod +x ~/.local/bin/gitleaks
   macOS:
     brew install gitleaks
+
+If gitleaks is installed somewhere else, either symlink it into one of the
+searched directories or add its parent to your shell's PATH (and re-run
+./scripts/install-hooks.sh).
 
 Or skip this commit (NOT recommended) with: git commit --no-verify
 EOF
