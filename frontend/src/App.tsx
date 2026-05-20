@@ -212,6 +212,22 @@ export default function App() {
 }
 
 // ─── Landing ─────────────────────────────────────────────────────────────────
+//
+// Landing is intentionally outcome-driven, not curriculum-driven. The job of
+// each section, top to bottom:
+//
+//   1. Hero            — promise the transformation in two sentences.
+//   2. How It Works    — show the 4-step loop so the offer feels concrete.
+//   3. Your Journey    — five tiers in plain language (no NIP-05, no jargon).
+//   4. Why this works  — emotional section: name the failure mode of video-
+//                        based learning and contrast it.
+//   5. Safe by design  — checklist that defuses the "is this real money?"
+//                        fear before the user has to ask.
+//   6. Who it's for    — let the visitor self-identify.
+//   7. Footer CTA      — one last invitation, then the slim footer.
+//
+// Copy guideline: never name a protocol the visitor hasn't met yet.
+// "NIP-05", "secp256k1", "BIP39" all belong inside missions, not on the door.
 
 function Landing({
     theme,
@@ -241,164 +257,22 @@ function Landing({
             <TopNav theme={theme} onToggleTheme={onToggleTheme} onCta={onStart} />
 
             <main id="main-content" style={{ flex: 1 }}>
-                {/* Hero — clearly tells you what BitPilot is in one sentence. */}
-                <section
-                    aria-labelledby="hero-headline"
-                    style={{
-                        maxWidth: 760,
-                        margin: '0 auto',
-                        padding: 'clamp(2rem, 8vw, 4rem) clamp(1rem, 4vw, 1.5rem) clamp(2rem, 6vw, 3rem)',
-                        textAlign: 'center',
-                    }}
-                >
-                    <span style={{ ...chip('orange'), marginBottom: 20 }}>
-                        <span
-                            aria-hidden="true"
-                            style={{
-                                width: 7,
-                                height: 7,
-                                borderRadius: '50%',
-                                background: 'var(--bitcoin)',
-                                display: 'inline-block',
-                            }}
-                        />
-                        Free · no signup · no real money
-                    </span>
-
-                    <h1
-                        id="hero-headline"
-                        style={{
-                            fontSize: 'clamp(34px, 8.5vw, 64px)',
-                            fontWeight: 800,
-                            lineHeight: 1.05,
-                            letterSpacing: '-0.035em',
-                            marginBottom: 18,
-                        }}
-                    >
-                        Learn Bitcoin
-                        <br />
-                        by <span className="gradient-text">actually using it.</span>
-                    </h1>
-
-                    <p
-                        style={{
-                            fontSize: 'clamp(16px, 3.6vw, 19px)',
-                            color: 'var(--text-soft)',
-                            lineHeight: 1.55,
-                            maxWidth: 560,
-                            margin: '0 auto 14px',
-                        }}
-                    >
-                        BitPilot is a hands-on course. You'll do {MISSION_COUNT} short missions
-                        on Bitcoin, Lightning, Nostr and eCash — generating real keys, sending
-                        real (testnet) payments, and publishing real Nostr posts as you go.
-                    </p>
-                    <p
-                        style={{
-                            fontSize: 14,
-                            color: 'var(--muted)',
-                            lineHeight: 1.55,
-                            maxWidth: 520,
-                            margin: '0 auto 28px',
-                        }}
-                    >
-                        Every mission is <strong style={{ color: 'var(--text)' }}>Learn → Quiz → Do</strong>.
-                        Pass the quiz, do the action, claim sats inside the app, move on.
-                    </p>
-
-                    <div
-                        style={{
-                            display: 'flex',
-                            gap: 10,
-                            justifyContent: 'center',
-                            flexWrap: 'wrap',
-                        }}
-                    >
-                        {hasResumable && (
-                            <button
-                                style={{
-                                    ...primaryButton(),
-                                    padding: '14px 24px',
-                                    fontSize: 15,
-                                    minHeight: 48,
-                                }}
-                                onClick={onContinue}
-                            >
-                                ↻ Continue your missions
-                            </button>
-                        )}
-                        <button
-                            style={{
-                                ...(hasResumable ? ghostButton : primaryButton()),
-                                padding: '14px 24px',
-                                fontSize: 15,
-                                minHeight: 48,
-                            }}
-                            onClick={onStart}
-                        >
-                            {hasResumable ? 'Start fresh' : '⚡ Start my journey'}
-                        </button>
-                        <button
-                            style={{
-                                ...ghostButton,
-                                padding: '14px 22px',
-                                fontSize: 14,
-                                minHeight: 48,
-                            }}
-                            onClick={onFacilitator}
-                        >
-                            I'm running a session
-                        </button>
-                    </div>
-                </section>
-
-                {/* Tier preview — what you'll actually do. */}
-                <section
-                    aria-labelledby="tiers-headline"
-                    style={{
-                        maxWidth: 1080,
-                        margin: '0 auto',
-                        padding: '0 clamp(1rem, 4vw, 1.5rem) clamp(2rem, 6vw, 4rem)',
-                    }}
-                >
-                    <h2
-                        id="tiers-headline"
-                        style={{
-                            textAlign: 'center',
-                            fontSize: 'clamp(20px, 5vw, 28px)',
-                            fontWeight: 800,
-                            marginBottom: 6,
-                            letterSpacing: '-0.025em',
-                        }}
-                    >
-                        From novice to captain in five tiers
-                    </h2>
-                    <p
-                        style={{
-                            textAlign: 'center',
-                            color: 'var(--muted)',
-                            marginBottom: 24,
-                            fontSize: 14,
-                            paddingInline: 8,
-                        }}
-                    >
-                        Higher tiers ask more of you and pay more sats.
-                    </p>
-                    <ol
-                        style={{
-                            listStyle: 'none',
-                            padding: 0,
-                            margin: 0,
-                            display: 'grid',
-                            gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-                            gap: 12,
-                        }}
-                    >
-                        {TIERS.map((t) => (
-                            <TierCard key={t.key} tier={t} />
-                        ))}
-                    </ol>
-                </section>
+                <Hero
+                    hasResumable={hasResumable}
+                    onStart={onStart}
+                    onContinue={onContinue}
+                    onFacilitator={onFacilitator}
+                />
+                <HowItWorks />
+                <YourJourney />
+                <WhyThisWorks />
+                <SafeByDesign />
+                <WhoItsFor />
+                <FinalCTA
+                    hasResumable={hasResumable}
+                    onStart={onStart}
+                    onContinue={onContinue}
+                />
             </main>
 
             <SiteFooter />
@@ -406,57 +280,714 @@ function Landing({
     )
 }
 
-// ─── Tier card on the landing page ───────────────────────────────────────────
+// ─── Hero ────────────────────────────────────────────────────────────────────
 
-function TierCard({ tier: t }: { tier: (typeof TIERS)[number] }) {
-    const count = t.range[1] - t.range[0] + 1
+function Hero({
+    hasResumable,
+    onStart,
+    onContinue,
+    onFacilitator,
+}: {
+    hasResumable: boolean
+    onStart: () => void
+    onContinue: () => void
+    onFacilitator: () => void
+}) {
+    return (
+        <section
+            aria-labelledby="hero-headline"
+            style={{
+                maxWidth: 760,
+                margin: '0 auto',
+                padding: 'clamp(2rem, 8vw, 4rem) clamp(1rem, 4vw, 1.5rem) clamp(2rem, 6vw, 3rem)',
+                textAlign: 'center',
+            }}
+        >
+            <span style={{ ...chip('orange'), marginBottom: 20 }}>
+                <span
+                    aria-hidden="true"
+                    style={{
+                        width: 7,
+                        height: 7,
+                        borderRadius: '50%',
+                        background: 'var(--bitcoin)',
+                        display: 'inline-block',
+                    }}
+                />
+                Free · no signup · no real money
+            </span>
+
+            <h1
+                id="hero-headline"
+                style={{
+                    fontSize: 'clamp(34px, 8.5vw, 64px)',
+                    fontWeight: 800,
+                    lineHeight: 1.05,
+                    letterSpacing: '-0.035em',
+                    marginBottom: 18,
+                }}
+            >
+                Learn Bitcoin
+                <br />
+                by <span className="gradient-text">actually using it.</span>
+            </h1>
+
+            {/* Two sentences. The first names the problem we all know
+                (videos that go nowhere); the second names the cure. */}
+            <p
+                style={{
+                    fontSize: 'clamp(16px, 3.6vw, 19px)',
+                    color: 'var(--text-soft)',
+                    lineHeight: 1.55,
+                    maxWidth: 580,
+                    margin: '0 auto 28px',
+                }}
+            >
+                Most people watch videos about Bitcoin and still feel confused.
+                BitPilot teaches you by making you{' '}
+                <strong style={{ color: 'var(--text)' }}>do things for real</strong> — create
+                wallets, send payments, use Lightning, publish on Nostr, and earn sats as
+                you learn.
+            </p>
+
+            <div
+                style={{
+                    display: 'flex',
+                    gap: 10,
+                    justifyContent: 'center',
+                    flexWrap: 'wrap',
+                }}
+            >
+                {hasResumable && (
+                    <button
+                        style={{
+                            ...primaryButton(),
+                            padding: '14px 24px',
+                            fontSize: 15,
+                            minHeight: 48,
+                        }}
+                        onClick={onContinue}
+                    >
+                        ↻ Continue your missions
+                    </button>
+                )}
+                <button
+                    style={{
+                        ...(hasResumable ? ghostButton : primaryButton()),
+                        padding: '14px 24px',
+                        fontSize: 15,
+                        minHeight: 48,
+                    }}
+                    onClick={onStart}
+                >
+                    {hasResumable ? 'Start fresh' : '⚡ Start Learning Bitcoin'}
+                </button>
+                <button
+                    style={{
+                        ...ghostButton,
+                        padding: '14px 22px',
+                        fontSize: 14,
+                        minHeight: 48,
+                    }}
+                    onClick={onFacilitator}
+                >
+                    🎓 Run a Workshop
+                </button>
+            </div>
+
+            <p
+                style={{
+                    fontSize: 13,
+                    color: 'var(--muted)',
+                    marginTop: 18,
+                    marginBottom: 0,
+                }}
+            >
+                {MISSION_COUNT} missions · about 45 minutes · works on your phone
+            </p>
+        </section>
+    )
+}
+
+// ─── How It Works ────────────────────────────────────────────────────────────
+
+/** A 4-step "how" strip. Deliberately uses plain verbs, no jargon. */
+function HowItWorks() {
+    const steps: Array<{ n: string; title: string; body: string }> = [
+        {
+            n: '1',
+            title: 'Learn',
+            body: 'A short lesson that explains one concept at a time. No filler.',
+        },
+        {
+            n: '2',
+            title: 'Quiz',
+            body: 'A quick check to prove the idea actually landed.',
+        },
+        {
+            n: '3',
+            title: 'Do',
+            body: 'Use the real thing: create a wallet, send a payment, publish a Nostr note.',
+        },
+        {
+            n: '4',
+            title: 'Level Up',
+            body: 'Claim sats, unlock the next tier, take on harder challenges.',
+        },
+    ]
+    return (
+        <section
+            aria-labelledby="how-headline"
+            style={{
+                maxWidth: 1080,
+                margin: '0 auto',
+                padding: '0 clamp(1rem, 4vw, 1.5rem) clamp(2.5rem, 7vw, 4rem)',
+            }}
+        >
+            <SectionHeading id="how-headline" eyebrow="How it works" title="Four steps, every mission." />
+            <ol
+                style={{
+                    listStyle: 'none',
+                    padding: 0,
+                    margin: 0,
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                    gap: 12,
+                }}
+            >
+                {steps.map((s) => (
+                    <li
+                        key={s.n}
+                        style={{
+                            ...card,
+                            padding: 18,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 8,
+                        }}
+                    >
+                        <span
+                            aria-hidden="true"
+                            style={{
+                                width: 32,
+                                height: 32,
+                                borderRadius: 'var(--radius-1)',
+                                background: 'var(--gradient-bitcoin)',
+                                color: '#0A0A0B',
+                                fontWeight: 800,
+                                fontSize: 15,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                            }}
+                        >
+                            {s.n}
+                        </span>
+                        <h3
+                            style={{
+                                fontSize: 17,
+                                fontWeight: 800,
+                                letterSpacing: '-0.02em',
+                                margin: 0,
+                            }}
+                        >
+                            {s.title}
+                        </h3>
+                        <p
+                            style={{
+                                fontSize: 13.5,
+                                color: 'var(--text-soft)',
+                                lineHeight: 1.55,
+                                margin: 0,
+                            }}
+                        >
+                            {s.body}
+                        </p>
+                    </li>
+                ))}
+            </ol>
+        </section>
+    )
+}
+
+// ─── Your Journey ────────────────────────────────────────────────────────────
+
+/**
+ * Tier descriptions deliberately diverge from `TIERS[].tagline` (which is
+ * written for the in-app view, where the user already knows the jargon).
+ * Here we want outcome statements — what the visitor will *be able to do*.
+ *
+ * The mapping by `key` is intentional: if a tier is renamed or reordered
+ * in `types.ts`, the lookup just drops the missing one rather than
+ * crashing the landing page.
+ */
+const TIER_PITCH: Record<string, string> = {
+    novice: 'Learn the basics of Bitcoin. Why it exists, what a wallet is, how it actually works.',
+    apprentice: 'Create real wallets. Understand keys, addresses, and how money moves.',
+    pilot: 'Use Lightning and Nostr in real scenarios — send payments, publish your first note.',
+    navigator: 'Explore eCash, zaps and the wider Bitcoin ecosystem.',
+    captain: 'Master self-custody, on-chain transactions, and Bitcoin sovereignty.',
+}
+
+function YourJourney() {
+    return (
+        <section
+            aria-labelledby="journey-headline"
+            style={{
+                maxWidth: 1080,
+                margin: '0 auto',
+                padding: '0 clamp(1rem, 4vw, 1.5rem) clamp(2.5rem, 7vw, 4rem)',
+            }}
+        >
+            <SectionHeading
+                id="journey-headline"
+                eyebrow="Your journey"
+                title="From beginner to Bitcoin captain."
+            />
+            <ol
+                style={{
+                    listStyle: 'none',
+                    padding: 0,
+                    margin: 0,
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                    gap: 12,
+                }}
+            >
+                {TIERS.map((t) => (
+                    <TierCard key={t.key} tier={t} pitch={TIER_PITCH[t.key] ?? t.tagline} />
+                ))}
+            </ol>
+            <p
+                style={{
+                    textAlign: 'center',
+                    fontSize: 13,
+                    color: 'var(--muted)',
+                    marginTop: 18,
+                }}
+            >
+                {MISSION_COUNT} missions total · Earn sats as you progress
+            </p>
+        </section>
+    )
+}
+
+function TierCard({ tier: t, pitch }: { tier: (typeof TIERS)[number]; pitch: string }) {
     return (
         <li
             style={{
                 ...card,
-                padding: 16,
+                padding: 18,
                 display: 'flex',
                 flexDirection: 'column',
-                gap: 8,
+                gap: 10,
             }}
         >
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                 <span style={chip('orange')}>{t.label}</span>
-                <span style={{ ...chip('neutral'), fontSize: 10 }}>
-                    {count} missions · {t.reward} sats each
-                </span>
             </div>
-            <div
+            <p
                 style={{
-                    fontWeight: 700,
-                    fontSize: 14,
-                    color: 'var(--muted)',
-                    fontFamily: 'var(--font-mono)',
+                    fontSize: 13.5,
+                    color: 'var(--text-soft)',
+                    lineHeight: 1.55,
+                    margin: 0,
                 }}
             >
-                Missions {t.range[0]}–{t.range[1]}
-            </div>
-            <div style={{ fontSize: 13, color: 'var(--text-soft)', lineHeight: 1.5 }}>
-                {t.tagline}
-            </div>
+                {pitch}
+            </p>
         </li>
+    )
+}
+
+// ─── Why this works (emotional section) ──────────────────────────────────────
+
+function WhyThisWorks() {
+    return (
+        <section
+            aria-labelledby="why-headline"
+            style={{
+                background: 'var(--surface)',
+                borderTop: '1px solid var(--border)',
+                borderBottom: '1px solid var(--border)',
+            }}
+        >
+            <div
+                style={{
+                    maxWidth: 760,
+                    margin: '0 auto',
+                    padding: 'clamp(2.5rem, 7vw, 4rem) clamp(1rem, 4vw, 1.5rem)',
+                    textAlign: 'center',
+                }}
+            >
+                <h2
+                    id="why-headline"
+                    style={{
+                        fontSize: 'clamp(24px, 6vw, 36px)',
+                        fontWeight: 800,
+                        letterSpacing: '-0.03em',
+                        lineHeight: 1.15,
+                        margin: '0 0 16px',
+                    }}
+                >
+                    Most Bitcoin education fails.
+                </h2>
+                <p
+                    style={{
+                        fontSize: 'clamp(15px, 3.5vw, 17px)',
+                        color: 'var(--text-soft)',
+                        lineHeight: 1.65,
+                        maxWidth: 560,
+                        margin: '0 auto 20px',
+                    }}
+                >
+                    You watch videos. You read threads. You memorise terms. And you still
+                    never actually use Bitcoin.
+                </p>
+                <p
+                    style={{
+                        fontSize: 'clamp(16px, 3.6vw, 18px)',
+                        color: 'var(--text)',
+                        lineHeight: 1.55,
+                        maxWidth: 560,
+                        margin: '0 auto 24px',
+                        fontWeight: 600,
+                    }}
+                >
+                    BitPilot is different. Every mission is hands-on.
+                </p>
+                <ul
+                    style={{
+                        listStyle: 'none',
+                        padding: 0,
+                        margin: '0 auto',
+                        maxWidth: 380,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 8,
+                        textAlign: 'left',
+                    }}
+                >
+                    {[
+                        'Real wallets, generated in your browser',
+                        'Real cryptographic keys you control',
+                        'Real Lightning payment flows',
+                        'Real Nostr posts to public relays',
+                        'Real learning — without risking real money',
+                    ].map((line) => (
+                        <li
+                            key={line}
+                            style={{
+                                display: 'flex',
+                                gap: 10,
+                                alignItems: 'center',
+                                fontSize: 14.5,
+                                color: 'var(--text-soft)',
+                                lineHeight: 1.5,
+                            }}
+                        >
+                            <CheckDot />
+                            <span>{line}</span>
+                        </li>
+                    ))}
+                </ul>
+            </div>
+        </section>
+    )
+}
+
+// ─── Safe by design ──────────────────────────────────────────────────────────
+
+/**
+ * Defuses the "is this real money?" anxiety before it's asked. We also use
+ * the live runtime to add a single honest line about which integrations
+ * are currently simulated — without making it the centrepiece.
+ */
+function SafeByDesign() {
+    const runtime = useRuntime()
+    const lnReal = runtime?.lightning_real ?? false
+    const ecashReal = runtime?.ecash_real ?? false
+    const anySimulated = !lnReal || !ecashReal
+
+    const points = [
+        'No real money required',
+        'Uses testnet Bitcoin only — mainnet is never touched',
+        'Learn without financial risk',
+        'Open source and transparent',
+        'Real Nostr interactions for authentic learning',
+    ]
+    return (
+        <section
+            aria-labelledby="safe-headline"
+            style={{
+                maxWidth: 760,
+                margin: '0 auto',
+                padding: 'clamp(2.5rem, 7vw, 4rem) clamp(1rem, 4vw, 1.5rem)',
+            }}
+        >
+            <SectionHeading id="safe-headline" eyebrow="Safe by design" title="No real money. No risk." />
+            <ul
+                style={{
+                    listStyle: 'none',
+                    padding: 0,
+                    margin: '0 auto',
+                    maxWidth: 480,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 10,
+                }}
+            >
+                {points.map((p) => (
+                    <li
+                        key={p}
+                        style={{
+                            display: 'flex',
+                            gap: 12,
+                            alignItems: 'center',
+                            fontSize: 15,
+                            color: 'var(--text-soft)',
+                            lineHeight: 1.5,
+                        }}
+                    >
+                        <CheckDot />
+                        <span>{p}</span>
+                    </li>
+                ))}
+            </ul>
+            {anySimulated && (
+                <p
+                    style={{
+                        fontSize: 12.5,
+                        color: 'var(--muted)',
+                        marginTop: 20,
+                        textAlign: 'center',
+                        maxWidth: 480,
+                        marginLeft: 'auto',
+                        marginRight: 'auto',
+                        lineHeight: 1.55,
+                    }}
+                >
+                    {/* Tiny honest note — kept small on purpose. */}
+                    {!lnReal && !ecashReal
+                        ? 'Lightning and eCash are currently simulated while infrastructure is being finalised.'
+                        : !lnReal
+                          ? 'Lightning is currently simulated while infrastructure is being finalised.'
+                          : 'eCash is currently simulated while infrastructure is being finalised.'}
+                </p>
+            )}
+        </section>
+    )
+}
+
+// ─── Who it's for ────────────────────────────────────────────────────────────
+
+function WhoItsFor() {
+    // Ordered learner-first. Facilitators are a real audience (the hero
+    // has a "Run a Workshop" CTA for them) but they belong at the end,
+    // framed as a role someone takes — not as the primary identity this
+    // page speaks to.
+    const items = [
+        'Anyone curious about Bitcoin',
+        'People who tried videos and gave up',
+        'Students learning by doing',
+        'Communities and study groups',
+        'Workshop facilitators running sessions',
+    ]
+    return (
+        <section
+            aria-labelledby="who-headline"
+            style={{
+                background: 'var(--surface)',
+                borderTop: '1px solid var(--border)',
+                borderBottom: '1px solid var(--border)',
+            }}
+        >
+            <div
+                style={{
+                    maxWidth: 760,
+                    margin: '0 auto',
+                    padding: 'clamp(2.5rem, 7vw, 4rem) clamp(1rem, 4vw, 1.5rem)',
+                }}
+            >
+                <SectionHeading id="who-headline" eyebrow="Who it's for" title="Built for the curious." />
+                <ul
+                    style={{
+                        listStyle: 'none',
+                        padding: 0,
+                        margin: '0 auto',
+                        maxWidth: 480,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 10,
+                    }}
+                >
+                    {items.map((line) => (
+                        <li
+                            key={line}
+                            style={{
+                                display: 'flex',
+                                gap: 12,
+                                alignItems: 'center',
+                                fontSize: 15,
+                                color: 'var(--text-soft)',
+                                lineHeight: 1.5,
+                            }}
+                        >
+                            <CheckDot />
+                            <span>{line}</span>
+                        </li>
+                    ))}
+                </ul>
+            </div>
+        </section>
+    )
+}
+
+// ─── Final CTA ──────────────────────────────────────────────────────────────
+
+function FinalCTA({
+    hasResumable,
+    onStart,
+    onContinue,
+}: {
+    hasResumable: boolean
+    onStart: () => void
+    onContinue: () => void
+}) {
+    return (
+        <section
+            aria-labelledby="final-cta-headline"
+            style={{
+                maxWidth: 760,
+                margin: '0 auto',
+                padding: 'clamp(2.5rem, 7vw, 4rem) clamp(1rem, 4vw, 1.5rem)',
+                textAlign: 'center',
+            }}
+        >
+            <h2
+                id="final-cta-headline"
+                style={{
+                    fontSize: 'clamp(24px, 6vw, 36px)',
+                    fontWeight: 800,
+                    letterSpacing: '-0.03em',
+                    lineHeight: 1.15,
+                    margin: '0 0 12px',
+                }}
+            >
+                Ready to actually use Bitcoin?
+            </h2>
+            <p
+                style={{
+                    fontSize: 15,
+                    color: 'var(--text-soft)',
+                    lineHeight: 1.55,
+                    maxWidth: 480,
+                    margin: '0 auto 22px',
+                }}
+            >
+                It takes about 45 minutes. You'll come out the other side knowing more than
+                most people who've held Bitcoin for years.
+            </p>
+            <div
+                style={{
+                    display: 'flex',
+                    gap: 10,
+                    justifyContent: 'center',
+                    flexWrap: 'wrap',
+                }}
+            >
+                <button
+                    style={{
+                        ...primaryButton(),
+                        padding: '14px 24px',
+                        fontSize: 15,
+                        minHeight: 48,
+                    }}
+                    onClick={hasResumable ? onContinue : onStart}
+                >
+                    {hasResumable ? '↻ Continue your missions' : '⚡ Start Learning Bitcoin'}
+                </button>
+            </div>
+        </section>
+    )
+}
+
+// ─── Small shared bits ───────────────────────────────────────────────────────
+
+function SectionHeading({
+    id,
+    eyebrow,
+    title,
+}: {
+    id: string
+    eyebrow: string
+    title: string
+}) {
+    return (
+        <div style={{ textAlign: 'center', marginBottom: 24 }}>
+            <div
+                style={{
+                    fontSize: 11,
+                    fontWeight: 700,
+                    letterSpacing: '0.12em',
+                    textTransform: 'uppercase',
+                    color: 'var(--bitcoin)',
+                    marginBottom: 8,
+                }}
+            >
+                {eyebrow}
+            </div>
+            <h2
+                id={id}
+                style={{
+                    fontSize: 'clamp(22px, 5vw, 32px)',
+                    fontWeight: 800,
+                    letterSpacing: '-0.025em',
+                    lineHeight: 1.2,
+                    margin: 0,
+                }}
+            >
+                {title}
+            </h2>
+        </div>
+    )
+}
+
+function CheckDot() {
+    return (
+        <span
+            aria-hidden="true"
+            style={{
+                width: 22,
+                height: 22,
+                borderRadius: '50%',
+                background: 'var(--success)',
+                color: '#0A0A0B',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 12,
+                fontWeight: 800,
+                flexShrink: 0,
+            }}
+        >
+            ✓
+        </span>
     )
 }
 
 // ─── Footer ──────────────────────────────────────────────────────────────────
 
 /**
- * Three-column footer with brand, what-it-is, and links. Collapses to a
- * single stacked column on mobile.
+ * Slim two-column footer: brand on the left, project links on the right.
  *
- * The "Network honesty" row used to be a big card on the landing page; it
- * belongs down here as a small note so the hero stays focused on the pitch.
+ * The runtime-honesty checklist that used to live here moved up into the
+ * `SafeByDesign` section, so the footer can go back to being a footer —
+ * an exit, not a feature. We deliberately do NOT brag about the tech
+ * stack ("built with Rust, sqlx, ..."); visitors don't care, and it
+ * pulled the eye away from the actual sign-off line.
  */
 function SiteFooter() {
-    const runtime = useRuntime()
-    const lnReal = runtime?.lightning_real ?? false
-    const ecashReal = runtime?.ecash_real ?? false
-
     return (
         <footer
             style={{
@@ -471,10 +1002,11 @@ function SiteFooter() {
                 style={{
                     maxWidth: 1080,
                     margin: '0 auto',
-                    padding: 'clamp(2rem, 5vw, 3rem) clamp(1rem, 4vw, 1.5rem)',
+                    padding: 'clamp(1.75rem, 5vw, 2.5rem) clamp(1rem, 4vw, 1.5rem)',
                     display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
                     gap: 'clamp(1.25rem, 3vw, 2rem)',
+                    alignItems: 'start',
                 }}
             >
                 {/* Column 1 — brand + one-liner */}
@@ -516,55 +1048,12 @@ function SiteFooter() {
                         </span>
                     </div>
                     <p style={{ margin: 0 }}>
-                        Hands-on Bitcoin, Lightning, Nostr and eCash. Built to be
-                        finished in an afternoon and remembered for years.
+                        Learn Bitcoin by actually using it. Built to be finished in an
+                        afternoon and remembered for years.
                     </p>
                 </div>
 
-                {/* Column 2 — what's safe to do here */}
-                <div>
-                    <h3
-                        style={{
-                            color: 'var(--text)',
-                            fontSize: 12,
-                            fontWeight: 700,
-                            textTransform: 'uppercase',
-                            letterSpacing: '0.08em',
-                            margin: '0 0 10px',
-                        }}
-                    >
-                        Is this safe?
-                    </h3>
-                    <ul
-                        style={{
-                            listStyle: 'none',
-                            padding: 0,
-                            margin: 0,
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: 6,
-                        }}
-                    >
-                        <FooterFact ok label="Mainnet" detail="Never touched. Nothing here moves real money." />
-                        <FooterFact
-                            ok
-                            label="Nostr"
-                            detail="Real keys, real signed events to public relays."
-                        />
-                        <FooterFact
-                            ok={lnReal}
-                            label="Lightning"
-                            detail={lnReal ? 'Real signet via LNbits.' : 'Simulated until LNbits is wired.'}
-                        />
-                        <FooterFact
-                            ok={ecashReal}
-                            label="eCash"
-                            detail={ecashReal ? 'Real Cashu testmint.' : 'Simulated for now.'}
-                        />
-                    </ul>
-                </div>
-
-                {/* Column 3 — links */}
+                {/* Column 2 — links */}
                 <div>
                     <h3
                         style={{
@@ -609,18 +1098,13 @@ function SiteFooter() {
                             </a>
                         </li>
                         <li>
-                            <a href="https://nostr.com" target="_blank" rel="noreferrer" style={footerLinkStyle}>
-                                What is Nostr?
+                            <a href="https://bitcoin.org" target="_blank" rel="noreferrer" style={footerLinkStyle}>
+                                What is Bitcoin?
                             </a>
                         </li>
                         <li>
-                            <a
-                                href="https://bitcoin.org"
-                                target="_blank"
-                                rel="noreferrer"
-                                style={footerLinkStyle}
-                            >
-                                What is Bitcoin?
+                            <a href="https://nostr.com" target="_blank" rel="noreferrer" style={footerLinkStyle}>
+                                What is Nostr?
                             </a>
                         </li>
                     </ul>
@@ -633,27 +1117,11 @@ function SiteFooter() {
                     padding: '14px clamp(1rem, 4vw, 1.5rem)',
                     fontSize: 12,
                     color: 'var(--muted)',
-                    display: 'flex',
-                    flexWrap: 'wrap',
-                    justifyContent: 'space-between',
-                    gap: 8,
-                    maxWidth: 1080,
-                    margin: '0 auto',
+                    textAlign: 'center',
                 }}
             >
-                <span>© {new Date().getFullYear()} BitPilot · Open source (MIT)</span>
-                <span>
-                    Built with Rust, React, sqlx and{' '}
-                    <a
-                        href="https://github.com/nostr-protocol/nostr"
-                        target="_blank"
-                        rel="noreferrer"
-                        style={footerLinkStyle}
-                    >
-                        nostr-tools
-                    </a>
-                    .
-                </span>
+                Open source · MIT licensed · Built for Bitcoin education ·{' '}
+                © {new Date().getFullYear()} BitPilot
             </div>
         </footer>
     )
@@ -663,35 +1131,6 @@ const footerLinkStyle: CSSProperties = {
     color: 'var(--bitcoin)',
     textDecoration: 'none',
     fontWeight: 600,
-}
-
-function FooterFact({ ok, label, detail }: { ok: boolean; label: string; detail: string }) {
-    return (
-        <li style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-            <span
-                aria-hidden="true"
-                style={{
-                    width: 14,
-                    height: 14,
-                    borderRadius: '50%',
-                    background: ok ? 'var(--success)' : 'var(--muted)',
-                    color: '#0A0A0B',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: 9,
-                    fontWeight: 800,
-                    flexShrink: 0,
-                    marginTop: 3,
-                }}
-            >
-                {ok ? '✓' : '·'}
-            </span>
-            <span>
-                <strong style={{ color: 'var(--text)' }}>{label}.</strong> {detail}
-            </span>
-        </li>
-    )
 }
 
 function TopNav({
