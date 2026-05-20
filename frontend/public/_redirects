@@ -11,7 +11,7 @@
 #
 # If you rename the Fly app, change the URL on the right.
 
-/api/*  https://bitpilot-api.fly.dev/api/:splat  200
+/api/*  https://bitpilot.fly.dev/api/:splat  200
 
 # SPA fallback. Any path that isn't a real file goes to index.html so
 # React Router (or just direct-link navigation) keeps working.

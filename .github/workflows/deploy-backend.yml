@@ -2,9 +2,9 @@
 #
 # Setup (one-time, from your laptop):
 #   1. `flyctl auth login`
-#   2. `flyctl apps create bitpilot-api` (or whatever name you used in fly.toml)
-#   3. `flyctl volumes create bitpilot_data --region lhr --size 1`
-#   4. `flyctl secrets set CORS_ALLOWED_ORIGINS=https://<your-pages-host>.pages.dev`
+#   2. `flyctl apps create bitpilot` (or whatever name you used in fly.toml)
+#   3. `flyctl volumes create bitpilot_data --region ams --size 1`
+#   4. `flyctl secrets set CORS_ALLOWED_ORIGINS=https://bitpilot-app.vercel.app`
 #   5. `flyctl auth token` — copy the output
 #   6. On GitHub: Settings → Secrets and variables → Actions → New
 #      repository secret named `FLY_API_TOKEN`, paste the value

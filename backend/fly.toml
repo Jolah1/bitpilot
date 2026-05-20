@@ -13,8 +13,8 @@
 #   - .github/workflows/deploy-backend.yml (the `--app` flag, if pinned)
 #   - frontend/public/_redirects (the proxy target URL)
 
-app           = "bitpilot-api"
-primary_region = "lhr"
+app            = "bitpilot"
+primary_region = "ams"
 
 # ── Build via the Dockerfile in this directory ───────────────────────────
 [build]
