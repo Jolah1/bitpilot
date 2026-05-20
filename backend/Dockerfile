@@ -3,7 +3,7 @@
 # ──────────────────────────────────────────────────────────────────────────
 # Stage 1: build
 # ──────────────────────────────────────────────────────────────────────────
-FROM rust:1.85-bookworm AS builder
+FROM rust:1.86-bookworm AS builder
 
 # sqlx + libsqlite3-sys need pkg-config and a C toolchain. The Rust image
 # ships gcc but pkg-config and the OpenSSL headers (for reqwest's
