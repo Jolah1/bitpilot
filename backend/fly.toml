@@ -1,78 +1,49 @@
-# BitPilot backend - Fly.io configuration.
+# fly.toml app configuration file generated for bitpilot on 2026-05-20T14:23:58Z
 #
-# After running `fly launch --no-deploy --copy-config` (or `fly apps create
-# bitpilot-api`), this file tells Fly how to build, run, and route traffic
-# to the backend.
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
-# Deploy:    `fly deploy` from this directory (backend/).
-# Volume:    `fly volumes create bitpilot_data --region lhr --size 1`
-#            (one-time, before the first deploy).
-# Secrets:   `fly secrets set CORS_ALLOWED_ORIGINS=https://<your>.pages.dev`
-#
-# If you change the app name, also update:
-#   - .github/workflows/deploy-backend.yml (the `--app` flag, if pinned)
-#   - frontend/public/_redirects (the proxy target URL)
 
-app           = "bitpilot-api"
-primary_region = "lhr"
+app = 'bitpilot'
+primary_region = 'ams'
 
-# ── Build via the Dockerfile in this directory ───────────────────────────
 [build]
-    dockerfile = "Dockerfile"
+  dockerfile = 'Dockerfile'
 
-# ── Where SQLite lives ───────────────────────────────────────────────────
-# /data is a persistent volume that survives deploys and restarts.
-# DATABASE_URL in [env] points the binary at /data/bitpilot.db.
-[[mounts]]
-    source      = "bitpilot_data"
-    destination = "/data"
-
-# ── Non-secret env ───────────────────────────────────────────────────────
-# Anything sensitive (e.g. FACILITATOR_KEY, future LNBITS_ADMIN_KEY) goes
-# in `fly secrets set ...`, NOT here.
 [env]
-    PORT                 = "8080"
-    DATABASE_URL         = "sqlite:///data/bitpilot.db?mode=rwc"
-    RUST_LOG             = "bitpilot=info,tower_http=warn"
-    BODY_LIMIT_BYTES     = "65536"
-    REQUEST_TIMEOUT_SECS = "25"
-    RATE_LIMIT_PER_SEC   = "1"
-    RATE_LIMIT_BURST     = "30"
-    # CORS_ALLOWED_ORIGINS is set via `fly secrets set` so we can rotate
-    # it without committing the production hostname here.
+  BODY_LIMIT_BYTES = '65536'
+  DATABASE_URL = 'sqlite:///data/bitpilot.db?mode=rwc'
+  PORT = '8080'
+  RATE_LIMIT_BURST = '30'
+  RATE_LIMIT_PER_SEC = '1'
+  REQUEST_TIMEOUT_SECS = '25'
+  RUST_LOG = 'bitpilot=info,tower_http=warn'
 
-# ── HTTP service ─────────────────────────────────────────────────────────
-# Fly terminates TLS and forwards plain HTTP to the container on 8080.
-# auto_stop / auto_start_machines = "stop" lets the app spin down when
-# idle and resume on the first request (~1-2s cold start). Saves money
-# and is fine for a classroom-traffic app. Set min_machines_running=1 if
-# you ever need always-on.
+[[mounts]]
+  source = 'bitpilot_data'
+  destination = '/data'
+
 [http_service]
-    internal_port       = 8080
-    force_https         = true
-    auto_stop_machines  = "stop"
-    auto_start_machines = true
-    min_machines_running = 0
-    processes           = ["app"]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ['app']
 
-    [http_service.concurrency]
-        type       = "requests"
-        soft_limit = 200
-        hard_limit = 250
+  [http_service.concurrency]
+    type = 'requests'
+    hard_limit = 250
+    soft_limit = 200
 
-# ── Health check ─────────────────────────────────────────────────────────
-# Fly polls /api/health to know if the machine is alive.
-[[http_service.checks]]
-    grace_period  = "10s"
-    interval      = "30s"
-    method        = "GET"
-    path          = "/api/health"
-    protocol      = "http"
-    timeout       = "5s"
+  [[http_service.checks]]
+    interval = '30s'
+    timeout = '5s'
+    grace_period = '10s'
+    method = 'GET'
+    path = '/api/health'
+    protocol = 'http'
 
-# ── Resources ────────────────────────────────────────────────────────────
-# The smallest free VM. Bump when you have actual traffic.
 [[vm]]
-    cpu_kind  = "shared"
-    cpus      = 1
-    memory_mb = 256
+  cpu_kind = 'shared'
+  cpus = 1
+  memory_mb = 256
