@@ -4,14 +4,12 @@ use std::time::Duration;
 
 /// Real Nostr service.
 ///
-/// - `generate_keypair` produces a real secp256k1 keypair and returns the
-///   canonical bech32 `npub` / `nsec` strings.
-/// - `publish_note` signs a kind-1 text note with the supplied `nsec` and
-///   publishes it to a small pool of well-known public relays.
+/// Signs and publishes events on behalf of a participant given their nsec.
+/// The nsec is passed in per call — the service never persists it and the
+/// HTTP handlers above don't either (see security note in routes/lightning.rs).
 ///
-/// No mocks. If relays are unreachable the call fails honestly with
-/// `AppError::Nostr`. The caller (an HTTP handler) surfaces that as a 502
-/// so the UI can show a real error instead of pretending success.
+/// Key generation moved to the browser: the backend never sees an nsec it
+/// generated. The browser is the only place a private key originates.
 pub struct NostrService {
     relays: Vec<String>,
 }
@@ -42,20 +40,6 @@ impl NostrService {
         &self.relays
     }
 
-    /// Generate a real Nostr keypair. Returns `(npub, nsec)` as bech32 strings.
-    pub async fn generate_keypair(&self) -> Result<(String, String), AppError> {
-        let keys = Keys::generate();
-        let npub = keys
-            .public_key()
-            .to_bech32()
-            .map_err(|e| AppError::Nostr(format!("encode npub: {e}")))?;
-        let nsec = keys
-            .secret_key()
-            .to_bech32()
-            .map_err(|e| AppError::Nostr(format!("encode nsec: {e}")))?;
-        Ok((npub, nsec))
-    }
-
     /// Publish a kind-1 text note signed with the caller's `nsec`.
     /// Returns the hex event id.
     pub async fn publish_note(&self, nsec: &str, content: &str) -> Result<String, AppError> {
@@ -64,36 +48,73 @@ impl NostrService {
                 "note content must not be empty".into(),
             ));
         }
+        self.publish_event(nsec, EventBuilder::text_note(content))
+            .await
+    }
 
-        let keys = Keys::parse(nsec).map_err(|e| AppError::Nostr(format!("invalid nsec: {e}")))?;
+    /// Publish a kind-0 profile metadata event. `about` is optional.
+    pub async fn publish_profile(
+        &self,
+        nsec: &str,
+        name: &str,
+        about: Option<&str>,
+    ) -> Result<String, AppError> {
+        // Construct the standard NIP-01 metadata JSON. We use a fresh
+        // `Metadata` builder so any future NIP-01 fields (picture, nip05,
+        // lud16, …) become a one-liner.
+        let mut metadata = Metadata::new().name(name);
+        if let Some(a) = about {
+            metadata = metadata.about(a);
+        }
+        self.publish_event(nsec, EventBuilder::metadata(&metadata))
+            .await
+    }
+
+    /// Publish a kind-3 contact list with exactly one followee. We could
+    /// support multiple in future; for the curriculum's "follow one famous
+    /// person" mission, one is enough.
+    pub async fn publish_follow(&self, nsec: &str, followed_npub: &str) -> Result<String, AppError> {
+        // Decode the npub into a `PublicKey` so we can tag it correctly.
+        let pk = PublicKey::from_bech32(followed_npub)
+            .map_err(|e| AppError::BadRequest(format!("invalid followed npub: {e}")))?;
+        let contact = Contact::new(pk);
+        self.publish_event(nsec, EventBuilder::contact_list(vec![contact]))
+            .await
+    }
+
+    /// Internal: sign + broadcast any EventBuilder to all configured relays.
+    /// Returns the event_id (hex) on success. Errors if not a single relay
+    /// accepts — we'd rather fail loudly than pretend the event landed.
+    async fn publish_event(
+        &self,
+        nsec: &str,
+        builder: EventBuilder,
+    ) -> Result<String, AppError> {
+        let keys =
+            Keys::parse(nsec).map_err(|e| AppError::Nostr(format!("invalid nsec: {e}")))?;
 
         let client = Client::new(keys);
         for relay in &self.relays {
-            // Failing to add a single relay is non-fatal — we'll try the rest.
             if let Err(e) = client.add_relay(relay).await {
                 tracing::warn!(relay = %relay, error = %e, "could not add relay");
             }
         }
         client.connect().await;
 
-        // Best-effort: wait briefly for relay connections to establish so the
-        // first publish doesn't race ahead of the websocket handshake.
+        // Brief settle time so the first publish doesn't race the WS handshake.
         tokio::time::sleep(Duration::from_millis(400)).await;
 
-        let builder = EventBuilder::text_note(content);
         let output = client
             .send_event_builder(builder)
             .await
             .map_err(|e| AppError::Nostr(format!("publish failed: {e}")))?;
 
         let event_id = output.val.to_hex();
-
-        // Disconnect cleanly so we don't leak websocket tasks.
         let _ = client.disconnect().await;
 
         if output.success.is_empty() {
             return Err(AppError::Nostr(format!(
-                "no relays accepted the note (tried {})",
+                "no relays accepted the event (tried {})",
                 self.relays.len()
             )));
         }

@@ -2,7 +2,7 @@
  * BitPilot API client.
  *
  * Two security tokens are issued by the backend and managed transparently
- * by this module via sessionStorage:
+ * by this module via localStorage:
  *
  * - Participant auth token: returned once from `joinSession()`, sent as
  *   `Authorization: Bearer <token>` on every authenticated endpoint.
@@ -13,6 +13,11 @@
  * if the backend were unauthenticated, and this module handles the rest.
  * If you ever need to force-clear them (e.g. user logs out / starts over),
  * call `clearAllTokens()` from `./auth`.
+ *
+ * Identity material (nsec, BIP39 mnemonic) is *not* in this module — it
+ * never crosses the wire except where a specific mission requires sending
+ * the nsec for one-shot signing. See ./crypto.ts for client-side
+ * generation and ./auth.ts for storage.
  */
 
 import { getAuthToken, getFacilitatorToken, setAuthToken, setFacilitatorToken } from './auth'
@@ -106,11 +111,14 @@ export interface PaymentResponse {
     simulated: boolean
 }
 
-export interface NostrIdentityResponse {
+/**
+ * Returned by `registerNostrIdentity`. The backend only stores the npub —
+ * the nsec stays in the browser. `simulated: false` because the keypair is
+ * real secp256k1 generated client-side.
+ */
+export interface NostrRegisterResponse {
     npub: string
-    nsec: string
     participant_id: string
-    warning: string
     simulated: boolean
 }
 
@@ -119,6 +127,14 @@ export interface NostrPublishResponse {
     participant_id: string
     status: string
     relays: string[]
+    simulated: boolean
+}
+
+export interface NostrZapResponse {
+    event_id: string
+    participant_id: string
+    amount_sats: number
+    status: string
     simulated: boolean
 }
 
@@ -184,53 +200,80 @@ export const api = {
         return wire.participant
     },
 
-    /** Authenticated self-fetch. Replaces the old getParticipant(id). */
-    getParticipant: (_id?: string) =>
+    /** Authenticated self-fetch. */
+    getParticipant: () =>
         request<Participant>('/participants/me', { auth: 'participant' }),
 
-    completeMission: (_participantId: string, mission: number, proof?: string) =>
+    completeMission: (mission: number, proof: string) =>
         request<CompleteMissionResponse>('/missions/complete', {
             method: 'POST',
-            body: { mission, proof: proof ?? '' },
+            body: { mission, proof },
             auth: 'participant',
         }),
 
-    createInvoice: (_participantId: string, amountSats: number, description: string) =>
+    createInvoice: (amountSats: number, description: string) =>
         request<InvoiceResponse>('/invoice', {
             method: 'POST',
             body: { amount_sats: amountSats, description },
             auth: 'participant',
         }),
 
-    payInvoice: (_participantId: string, invoice: string) =>
+    payInvoice: (invoice: string) =>
         request<PaymentResponse>('/pay', {
             method: 'POST',
             body: { invoice },
             auth: 'participant',
         }),
 
-    createNostrIdentity: (_participantId: string) =>
-        request<NostrIdentityResponse>('/nostr/identity', {
+    /**
+     * Register the npub generated client-side. The backend stores it on
+     * the participant row so future Nostr-event verifiers can know "this
+     * identity belongs to this participant".
+     */
+    registerNostrIdentity: (npub: string) =>
+        request<NostrRegisterResponse>('/nostr/register', {
             method: 'POST',
-            body: {},
+            body: { npub },
             auth: 'participant',
         }),
 
-    publishNostrNote: (_participantId: string, content: string, nsec: string) =>
+    publishNostrNote: (content: string, nsec: string) =>
         request<NostrPublishResponse>('/nostr/publish', {
             method: 'POST',
             body: { content, nsec },
             auth: 'participant',
         }),
 
-    mintEcash: (_participantId: string, amountSats: number) =>
+    publishNostrProfile: (name: string, about: string | null, nsec: string) =>
+        request<NostrPublishResponse>('/nostr/profile', {
+            method: 'POST',
+            body: { name, about, nsec },
+            auth: 'participant',
+        }),
+
+    publishNostrFollow: (followedNpub: string, nsec: string) =>
+        request<NostrPublishResponse>('/nostr/follow', {
+            method: 'POST',
+            body: { followed_npub: followedNpub, nsec },
+            auth: 'participant',
+        }),
+
+    /** Currently simulated — produces a synthetic zap receipt event id. */
+    simulateNostrZap: () =>
+        request<NostrZapResponse>('/nostr/zap', {
+            method: 'POST',
+            body: {},
+            auth: 'participant',
+        }),
+
+    mintEcash: (amountSats: number) =>
         request<EcashMintResponse>('/ecash/mint', {
             method: 'POST',
             body: { amount_sats: amountSats },
             auth: 'participant',
         }),
 
-    redeemEcash: (_participantId: string, token: string) =>
+    redeemEcash: (token: string) =>
         request<EcashRedeemResponse>('/ecash/redeem', {
             method: 'POST',
             body: { token },

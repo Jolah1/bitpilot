@@ -181,10 +181,14 @@ async fn join_session(
     let auth_token = generate_token();
     let created_at = now() as i64;
 
+    // New curriculum is 0-indexed; the legacy `participants.current_mission
+    // INTEGER NOT NULL DEFAULT 1` lives in 0001_initial.sql and is fine to
+    // override here. We explicitly bind 0 so this remains stable even if
+    // someone later changes the schema default.
     sqlx::query(
         "INSERT INTO participants \
          (id, name, session_id, current_mission, sats_earned, nostr_pubkey, auth_token, created_at) \
-         VALUES (?, ?, ?, 1, 0, NULL, ?, ?)",
+         VALUES (?, ?, ?, 0, 0, NULL, ?, ?)",
     )
     .bind(&id)
     .bind(name)
@@ -199,7 +203,7 @@ async fn join_session(
             id,
             name: name.to_string(),
             session_id: body.session_id,
-            current_mission: 1,
+            current_mission: 0,
             completed_missions: vec![],
             sats_earned: 0,
             nostr_pubkey: None,
