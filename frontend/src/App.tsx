@@ -74,10 +74,15 @@ export default function App() {
 
     const [view, setView] = useState<View>('learner')
     const [theme, setTheme] = useState<Theme>(getSavedTheme)
-    // If we already have a valid session, jump straight in. If we have only
-    // a session-id deep link, go straight to setup. Otherwise show landing.
+    // Routing rule:
+    //   - ?session= deep link → setup (joining)
+    //   - otherwise → landing
+    // We deliberately do NOT auto-jump to the app screen even if there are
+    // valid credentials in localStorage. The user should see what BitPilot
+    // is on every visit; if they want to resume, the landing offers a
+    // "Continue your missions" pill that reads from `initial.restored`.
     const [screen, setScreen] = useState<Screen>(
-        initial.restored ? 'app' : initial.deepLinkSessionId ? 'setup' : 'landing',
+        initial.deepLinkSessionId ? 'setup' : 'landing',
     )
     const [sessionId, setSessionId] = useState<string | null>(initial.sessionId)
     const [participantId, setParticipantId] = useState<string | null>(initial.participantId)
@@ -88,6 +93,13 @@ export default function App() {
     const [joinSessionId, setJoinSessionId] = useState<string | null>(initial.deepLinkSessionId)
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState('')
+
+    /** Returning user wants to continue. Only valid when `initial.restored`
+     *  was true at mount; the IDs are still in state from rehydrate(). */
+    const continueExisting = () => {
+        if (!sessionId || !participantId) return
+        setScreen('app')
+    }
 
     useEffect(() => {
         applyTheme(theme)
@@ -164,6 +176,8 @@ export default function App() {
                             setView('facilitator')
                             setScreen('setup')
                         }}
+                        hasResumable={initial.restored}
+                        onContinue={continueExisting}
                     />
                 )}
                 {screen === 'setup' && (
@@ -204,28 +218,40 @@ function Landing({
     onToggleTheme,
     onStart,
     onFacilitator,
+    hasResumable,
+    onContinue,
 }: {
     theme: Theme
     onToggleTheme: () => void
     onStart: () => void
     onFacilitator: () => void
+    hasResumable: boolean
+    onContinue: () => void
 }) {
     return (
-        <div style={{ minHeight: '100vh', background: 'var(--bg)', color: 'var(--text)' }}>
+        <div
+            style={{
+                minHeight: '100vh',
+                display: 'flex',
+                flexDirection: 'column',
+                background: 'var(--bg)',
+                color: 'var(--text)',
+            }}
+        >
             <TopNav theme={theme} onToggleTheme={onToggleTheme} onCta={onStart} />
 
-            <main id="main-content">
-                {/* Hero */}
+            <main id="main-content" style={{ flex: 1 }}>
+                {/* Hero — clearly tells you what BitPilot is in one sentence. */}
                 <section
                     aria-labelledby="hero-headline"
                     style={{
-                        maxWidth: 920,
+                        maxWidth: 760,
                         margin: '0 auto',
-                        padding: 'clamp(2.5rem, 8vw, 4.5rem) clamp(1rem, 4vw, 1.5rem) 2.5rem',
+                        padding: 'clamp(2rem, 8vw, 4rem) clamp(1rem, 4vw, 1.5rem) clamp(2rem, 6vw, 3rem)',
                         textAlign: 'center',
                     }}
                 >
-                    <span style={{ ...chip('orange'), marginBottom: 22 }}>
+                    <span style={{ ...chip('orange'), marginBottom: 20 }}>
                         <span
                             aria-hidden="true"
                             style={{
@@ -236,17 +262,17 @@ function Landing({
                                 display: 'inline-block',
                             }}
                         />
-                        No experience needed
+                        Free · no signup · no real money
                     </span>
 
                     <h1
                         id="hero-headline"
                         style={{
-                            fontSize: 'clamp(36px, 9vw, 76px)',
+                            fontSize: 'clamp(34px, 8.5vw, 64px)',
                             fontWeight: 800,
-                            lineHeight: 1.04,
+                            lineHeight: 1.05,
                             letterSpacing: '-0.035em',
-                            marginBottom: 20,
+                            marginBottom: 18,
                         }}
                     >
                         Learn Bitcoin
@@ -256,43 +282,67 @@ function Landing({
 
                     <p
                         style={{
-                            fontSize: 'clamp(15px, 3.6vw, 18px)',
+                            fontSize: 'clamp(16px, 3.6vw, 19px)',
                             color: 'var(--text-soft)',
-                            lineHeight: 1.6,
+                            lineHeight: 1.55,
                             maxWidth: 560,
-                            margin: '0 auto 30px',
+                            margin: '0 auto 14px',
                         }}
                     >
-                        {MISSION_COUNT} short missions across five tiers — from "what is Bitcoin?" to sending a
-                        real signet on-chain transaction. You'll generate a real Nostr identity, send Lightning
-                        payments, publish a message to a network nobody controls.
+                        BitPilot is a hands-on course. You'll do {MISSION_COUNT} short missions
+                        on Bitcoin, Lightning, Nostr and eCash — generating real keys, sending
+                        real (testnet) payments, and publishing real Nostr posts as you go.
+                    </p>
+                    <p
+                        style={{
+                            fontSize: 14,
+                            color: 'var(--muted)',
+                            lineHeight: 1.55,
+                            maxWidth: 520,
+                            margin: '0 auto 28px',
+                        }}
+                    >
+                        Every mission is <strong style={{ color: 'var(--text)' }}>Learn → Quiz → Do</strong>.
+                        Pass the quiz, do the action, claim sats inside the app, move on.
                     </p>
 
                     <div
                         style={{
                             display: 'flex',
-                            gap: 12,
+                            gap: 10,
                             justifyContent: 'center',
                             flexWrap: 'wrap',
-                            marginBottom: 48,
                         }}
                     >
+                        {hasResumable && (
+                            <button
+                                style={{
+                                    ...primaryButton(),
+                                    padding: '14px 24px',
+                                    fontSize: 15,
+                                    minHeight: 48,
+                                }}
+                                onClick={onContinue}
+                            >
+                                ↻ Continue your missions
+                            </button>
+                        )}
                         <button
                             style={{
-                                ...primaryButton(),
-                                padding: '15px 28px',
-                                fontSize: 16,
+                                ...(hasResumable ? ghostButton : primaryButton()),
+                                padding: '14px 24px',
+                                fontSize: 15,
                                 minHeight: 48,
                             }}
                             onClick={onStart}
                         >
-                            ⚡ Start my journey
+                            {hasResumable ? 'Start fresh' : '⚡ Start my journey'}
                         </button>
                         <button
                             style={{
                                 ...ghostButton,
-                                padding: '14px 24px',
-                                fontSize: 15,
+                                padding: '14px 22px',
+                                fontSize: 14,
                                 minHeight: 48,
                             }}
                             onClick={onFacilitator}
@@ -300,88 +350,39 @@ function Landing({
                             I'm running a session
                         </button>
                     </div>
-
-                    {/* Stats */}
-                    <dl
-                        style={{
-                            display: 'grid',
-                            gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
-                            gap: 24,
-                            justifyContent: 'center',
-                            margin: 0,
-                            maxWidth: 560,
-                            marginInline: 'auto',
-                        }}
-                    >
-                        {[
-                            ['45 min', 'rough completion time'],
-                            [`${MISSION_COUNT}`, 'missions, all explained'],
-                            ['5', 'tiers from novice to captain'],
-                            ['Free', 'no signup, no wallet needed'],
-                        ].map(([num, label]) => (
-                            <div key={label} style={{ textAlign: 'center' }}>
-                                <dt
-                                    style={{
-                                        fontSize: 26,
-                                        fontWeight: 800,
-                                        background: 'var(--gradient-bitcoin)',
-                                        WebkitBackgroundClip: 'text',
-                                        backgroundClip: 'text',
-                                        WebkitTextFillColor: 'transparent',
-                                        color: 'transparent',
-                                    }}
-                                >
-                                    {num}
-                                </dt>
-                                <dd
-                                    style={{
-                                        fontSize: 11,
-                                        color: 'var(--muted)',
-                                        textTransform: 'uppercase',
-                                        letterSpacing: '0.08em',
-                                        marginTop: 4,
-                                        margin: '4px 0 0',
-                                    }}
-                                >
-                                    {label}
-                                </dd>
-                            </div>
-                        ))}
-                    </dl>
                 </section>
 
-                {/* Tier preview */}
+                {/* Tier preview — what you'll actually do. */}
                 <section
                     aria-labelledby="tiers-headline"
                     style={{
                         maxWidth: 1080,
                         margin: '0 auto',
-                        padding: '30px clamp(1rem, 4vw, 1.5rem) 60px',
+                        padding: '0 clamp(1rem, 4vw, 1.5rem) clamp(2rem, 6vw, 4rem)',
                     }}
                 >
                     <h2
                         id="tiers-headline"
                         style={{
                             textAlign: 'center',
-                            fontSize: 'clamp(22px, 5vw, 30px)',
+                            fontSize: 'clamp(20px, 5vw, 28px)',
                             fontWeight: 800,
-                            marginBottom: 8,
+                            marginBottom: 6,
                             letterSpacing: '-0.025em',
                         }}
                     >
-                        Five tiers, novice to captain.
+                        From novice to captain in five tiers
                     </h2>
                     <p
                         style={{
                             textAlign: 'center',
                             color: 'var(--muted)',
-                            marginBottom: 28,
+                            marginBottom: 24,
                             fontSize: 14,
                             paddingInline: 8,
                         }}
                     >
-                        Every mission: <strong style={{ color: 'var(--text)' }}>Learn → Quiz → Do</strong>.
-                        Pass the quiz to unlock the action. Higher tiers pay more.
+                        Higher tiers ask more of you and pay more sats.
                     </p>
                     <ol
                         style={{
@@ -398,29 +399,9 @@ function Landing({
                         ))}
                     </ol>
                 </section>
-
-                <RuntimeBanner />
             </main>
 
-            <footer
-                style={{
-                    textAlign: 'center',
-                    padding: '32px 24px 40px',
-                    borderTop: '1px solid var(--border)',
-                    fontSize: 13,
-                    color: 'var(--muted)',
-                }}
-            >
-                Open source ·{' '}
-                <a
-                    href="https://github.com/Jolah1/bitpilot"
-                    target="_blank"
-                    rel="noreferrer"
-                    style={{ color: 'var(--bitcoin)', textDecoration: 'none', fontWeight: 600 }}
-                >
-                    github.com/Jolah1/bitpilot
-                </a>
-            </footer>
+            <SiteFooter />
         </div>
     )
 }
@@ -462,91 +443,246 @@ function TierCard({ tier: t }: { tier: (typeof TIERS)[number] }) {
     )
 }
 
-// ─── Honest "what's live, what's not" banner ─────────────────────────────────
+// ─── Footer ──────────────────────────────────────────────────────────────────
 
-function RuntimeBanner() {
+/**
+ * Three-column footer with brand, what-it-is, and links. Collapses to a
+ * single stacked column on mobile.
+ *
+ * The "Network honesty" row used to be a big card on the landing page; it
+ * belongs down here as a small note so the hero stays focused on the pitch.
+ */
+function SiteFooter() {
     const runtime = useRuntime()
     const lnReal = runtime?.lightning_real ?? false
     const ecashReal = runtime?.ecash_real ?? false
-    const mintUrl = runtime?.ecash_mint_url ?? 'not configured'
 
     return (
-        <section
-            aria-labelledby="honesty-headline"
-            style={{ maxWidth: 720, margin: '0 auto', padding: '0 clamp(1rem, 4vw, 1.5rem) 60px' }}
+        <footer
+            style={{
+                borderTop: '1px solid var(--border)',
+                background: 'var(--surface)',
+                color: 'var(--muted)',
+                fontSize: 13,
+                lineHeight: 1.55,
+            }}
         >
-            <div style={{ ...card, padding: 20, background: 'var(--surface2)' }}>
-                <h2 id="honesty-headline" style={{ fontSize: 16, fontWeight: 700, margin: '0 0 12px' }}>
-                    What's running underneath
-                </h2>
-                <ul
-                    style={{
-                        listStyle: 'none',
-                        padding: 0,
-                        margin: 0,
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: 10,
-                        fontSize: 13,
-                        color: 'var(--text-soft)',
-                        lineHeight: 1.55,
-                    }}
-                >
-                    <RuntimeRow
-                        ok
-                        label="Nostr"
-                        detail="Real secp256k1 keys generated in your browser. Real signed events broadcast to public relays."
-                    />
-                    <RuntimeRow
-                        ok={ecashReal}
-                        label="eCash"
-                        detail={
-                            ecashReal
-                                ? `Real Cashu protocol against testmint ${mintUrl}.`
-                                : "Simulated. Real Cashu is on hold while a Rust dependency conflict is resolved upstream."
-                        }
-                    />
-                    <RuntimeRow
-                        ok={lnReal}
-                        label="Lightning"
-                        detail={
-                            lnReal
-                                ? 'Real signet/testnet Lightning via LNbits — payments actually settle.'
-                                : 'Simulated for now. Set LNBITS_URL + LNBITS_ADMIN_KEY on the backend to enable real signet invoices.'
-                        }
-                    />
-                    <RuntimeRow
-                        ok
-                        label="Signet on-chain (mission 42)"
-                        detail="You'll get signet sats from a faucet, send a real transaction, and we'll verify it via mempool.space."
-                    />
-                </ul>
-                <p style={{ fontSize: 12, color: 'var(--muted)', margin: '14px 0 0', lineHeight: 1.5 }}>
-                    Nothing here uses mainnet. No real money moves. The point is to learn the mechanics safely.
-                </p>
+            <div
+                style={{
+                    maxWidth: 1080,
+                    margin: '0 auto',
+                    padding: 'clamp(2rem, 5vw, 3rem) clamp(1rem, 4vw, 1.5rem)',
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                    gap: 'clamp(1.25rem, 3vw, 2rem)',
+                }}
+            >
+                {/* Column 1 — brand + one-liner */}
+                <div>
+                    <div
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 8,
+                            marginBottom: 10,
+                        }}
+                    >
+                        <span
+                            aria-hidden="true"
+                            style={{
+                                width: 26,
+                                height: 26,
+                                borderRadius: 'var(--radius-1)',
+                                background: 'var(--gradient-bitcoin)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: 14,
+                                color: '#0A0A0B',
+                                fontWeight: 800,
+                            }}
+                        >
+                            ⚡
+                        </span>
+                        <span
+                            style={{
+                                color: 'var(--text)',
+                                fontSize: 15,
+                                fontWeight: 800,
+                                letterSpacing: '-0.025em',
+                            }}
+                        >
+                            BitPilot
+                        </span>
+                    </div>
+                    <p style={{ margin: 0 }}>
+                        Hands-on Bitcoin, Lightning, Nostr and eCash. Built to be
+                        finished in an afternoon and remembered for years.
+                    </p>
+                </div>
+
+                {/* Column 2 — what's safe to do here */}
+                <div>
+                    <h3
+                        style={{
+                            color: 'var(--text)',
+                            fontSize: 12,
+                            fontWeight: 700,
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.08em',
+                            margin: '0 0 10px',
+                        }}
+                    >
+                        Is this safe?
+                    </h3>
+                    <ul
+                        style={{
+                            listStyle: 'none',
+                            padding: 0,
+                            margin: 0,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 6,
+                        }}
+                    >
+                        <FooterFact ok label="Mainnet" detail="Never touched. Nothing here moves real money." />
+                        <FooterFact
+                            ok
+                            label="Nostr"
+                            detail="Real keys, real signed events to public relays."
+                        />
+                        <FooterFact
+                            ok={lnReal}
+                            label="Lightning"
+                            detail={lnReal ? 'Real signet via LNbits.' : 'Simulated until LNbits is wired.'}
+                        />
+                        <FooterFact
+                            ok={ecashReal}
+                            label="eCash"
+                            detail={ecashReal ? 'Real Cashu testmint.' : 'Simulated for now.'}
+                        />
+                    </ul>
+                </div>
+
+                {/* Column 3 — links */}
+                <div>
+                    <h3
+                        style={{
+                            color: 'var(--text)',
+                            fontSize: 12,
+                            fontWeight: 700,
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.08em',
+                            margin: '0 0 10px',
+                        }}
+                    >
+                        Project
+                    </h3>
+                    <ul
+                        style={{
+                            listStyle: 'none',
+                            padding: 0,
+                            margin: 0,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 8,
+                        }}
+                    >
+                        <li>
+                            <a
+                                href="https://github.com/Jolah1/bitpilot"
+                                target="_blank"
+                                rel="noreferrer"
+                                style={footerLinkStyle}
+                            >
+                                GitHub repository
+                            </a>
+                        </li>
+                        <li>
+                            <a
+                                href="https://github.com/Jolah1/bitpilot/issues"
+                                target="_blank"
+                                rel="noreferrer"
+                                style={footerLinkStyle}
+                            >
+                                Report an issue
+                            </a>
+                        </li>
+                        <li>
+                            <a href="https://nostr.com" target="_blank" rel="noreferrer" style={footerLinkStyle}>
+                                What is Nostr?
+                            </a>
+                        </li>
+                        <li>
+                            <a
+                                href="https://bitcoin.org"
+                                target="_blank"
+                                rel="noreferrer"
+                                style={footerLinkStyle}
+                            >
+                                What is Bitcoin?
+                            </a>
+                        </li>
+                    </ul>
+                </div>
             </div>
-        </section>
+
+            <div
+                style={{
+                    borderTop: '1px solid var(--border)',
+                    padding: '14px clamp(1rem, 4vw, 1.5rem)',
+                    fontSize: 12,
+                    color: 'var(--muted)',
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    justifyContent: 'space-between',
+                    gap: 8,
+                    maxWidth: 1080,
+                    margin: '0 auto',
+                }}
+            >
+                <span>© {new Date().getFullYear()} BitPilot · Open source (MIT)</span>
+                <span>
+                    Built with Rust, React, sqlx and{' '}
+                    <a
+                        href="https://github.com/nostr-protocol/nostr"
+                        target="_blank"
+                        rel="noreferrer"
+                        style={footerLinkStyle}
+                    >
+                        nostr-tools
+                    </a>
+                    .
+                </span>
+            </div>
+        </footer>
     )
 }
 
-function RuntimeRow({ ok, label, detail }: { ok: boolean; label: string; detail: string }) {
+const footerLinkStyle: CSSProperties = {
+    color: 'var(--bitcoin)',
+    textDecoration: 'none',
+    fontWeight: 600,
+}
+
+function FooterFact({ ok, label, detail }: { ok: boolean; label: string; detail: string }) {
     return (
-        <li style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+        <li style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
             <span
                 aria-hidden="true"
                 style={{
-                    width: 18,
-                    height: 18,
+                    width: 14,
+                    height: 14,
                     borderRadius: '50%',
                     background: ok ? 'var(--success)' : 'var(--muted)',
                     color: '#0A0A0B',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    fontSize: 10,
+                    fontSize: 9,
                     fontWeight: 800,
                     flexShrink: 0,
-                    marginTop: 1,
+                    marginTop: 3,
                 }}
             >
                 {ok ? '✓' : '·'}
