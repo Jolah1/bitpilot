@@ -29,11 +29,12 @@ pub fn sessions_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
 
 /// `/api/participants` — learner-side. `POST /` is open (joining a session
 /// requires only knowing the session id, which the facilitator shares).
-/// `GET /:id` requires the participant's own bearer token.
+/// `GET /me` and `GET /me/completions` require the participant's own bearer token.
 pub fn router(state: Arc<AppState>) -> Router<Arc<AppState>> {
     let public = Router::new().route("/", post(join_session));
     let authed = Router::new()
         .route("/me", get(get_self))
+        .route("/me/completions", get(list_completions))
         .layer(from_fn_with_state(state, require_participant));
     public.merge(authed)
 }
@@ -181,10 +182,14 @@ async fn join_session(
     let auth_token = generate_token();
     let created_at = now() as i64;
 
+    // New curriculum is 0-indexed; the legacy `participants.current_mission
+    // INTEGER NOT NULL DEFAULT 1` lives in 0001_initial.sql and is fine to
+    // override here. We explicitly bind 0 so this remains stable even if
+    // someone later changes the schema default.
     sqlx::query(
         "INSERT INTO participants \
          (id, name, session_id, current_mission, sats_earned, nostr_pubkey, auth_token, created_at) \
-         VALUES (?, ?, ?, 1, 0, NULL, ?, ?)",
+         VALUES (?, ?, ?, 0, 0, NULL, ?, ?)",
     )
     .bind(&id)
     .bind(name)
@@ -199,7 +204,7 @@ async fn join_session(
             id,
             name: name.to_string(),
             session_id: body.session_id,
-            current_mission: 1,
+            current_mission: 0,
             completed_missions: vec![],
             sats_earned: 0,
             nostr_pubkey: None,
@@ -217,6 +222,51 @@ async fn get_self(
 ) -> Result<Json<Participant>, AppError> {
     let p = load_participant(&state, &authed.participant_id).await?;
     Ok(Json(p))
+}
+
+/// One completed-mission record returned by the proof-archive endpoint.
+///
+/// `proof` is whatever artifact the verifier accepted at completion time:
+/// an npub (mission 14), bolt11 invoice (23), payment hash (24), Nostr
+/// event id (26/27/30/36), Cashu token (33/34), signet txid (42), or
+/// the literal "acknowledged" for knowledge-only missions. The UI is
+/// expected to render different shapes per `mission` number.
+#[derive(Serialize)]
+struct CompletionRecord {
+    mission: u8,
+    proof: String,
+    completed_at: i64,
+}
+
+/// `GET /api/participants/me/completions` — proof archive for the calling
+/// participant. Sorted by mission number ascending so the UI can render
+/// it without re-sorting. Empty array if nothing's been completed yet.
+async fn list_completions(
+    State(state): State<Arc<AppState>>,
+    Extension(authed): Extension<AuthedParticipant>,
+) -> Result<Json<Vec<CompletionRecord>>, AppError> {
+    let rows: Vec<(i64, Option<String>, i64)> = sqlx::query_as(
+        "SELECT mission, proof, completed_at \
+         FROM mission_completions \
+         WHERE participant_id = ? \
+         ORDER BY mission",
+    )
+    .bind(&authed.participant_id)
+    .fetch_all(&state.db)
+    .await?;
+
+    Ok(Json(
+        rows.into_iter()
+            .map(|(m, p, t)| CompletionRecord {
+                mission: m as u8,
+                // `proof` was made NULLable in the schema for forward
+                // compatibility; we always write something today so this
+                // default is mostly defensive.
+                proof: p.unwrap_or_default(),
+                completed_at: t,
+            })
+            .collect(),
+    ))
 }
 
 // ── Loaders ──────────────────────────────────────────────────────────────

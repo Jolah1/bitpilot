@@ -11,6 +11,7 @@ use std::time::Duration;
 use tower_governor::{governor::GovernorConfigBuilder, GovernorLayer};
 use tower_http::cors::CorsLayer;
 use tower_http::limit::RequestBodyLimitLayer;
+use tower_http::set_header::SetResponseHeaderLayer;
 use tower_http::timeout::TimeoutLayer;
 use tower_http::trace::TraceLayer;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
@@ -112,10 +113,86 @@ async fn main() -> anyhow::Result<()> {
             .ok_or_else(|| anyhow::anyhow!("invalid rate-limit configuration"))?,
     );
 
+    // ── Security response headers ────────────────────────────────────────
+    // Defense-in-depth: most of these are belt-and-braces for an API that
+    // only ever returns JSON. They're still cheap and they make the
+    // surface annoying to misuse (no framing, no MIME-sniff, no referer
+    // leak). The frontend hosts (Vercel/Cloudflare) inject their own CSP
+    // for the HTML/JS bundle; these protect API responses specifically.
+    //
+    // CSP rationale: an API response should never load anything in a
+    // browser. `default-src 'none'` denies absolutely everything; the
+    // browser will only honor it if the response gets rendered (e.g. via
+    // an `<iframe>` pointing at /api/...), which is exactly the case we
+    // want to block.
+    //
+    // HSTS is gated on `ENABLE_HSTS=1` — only enable behind real TLS, or
+    // browsers will refuse to talk to the dev backend on http://localhost.
+    let enable_hsts = std::env::var("ENABLE_HSTS")
+        .ok()
+        .map(|s| s == "1" || s.eq_ignore_ascii_case("true"))
+        .unwrap_or(false);
+
+    fn static_header(value: &'static str) -> HeaderValue {
+        // All values below are compile-time constants we own, so this
+        // unwrap can't fail in practice.
+        HeaderValue::from_static(value)
+    }
+
+    let security_headers = tower::ServiceBuilder::new()
+        .layer(SetResponseHeaderLayer::if_not_present(
+            axum::http::header::CONTENT_SECURITY_POLICY,
+            static_header("default-src 'none'; frame-ancestors 'none'"),
+        ))
+        .layer(SetResponseHeaderLayer::if_not_present(
+            axum::http::header::X_CONTENT_TYPE_OPTIONS,
+            static_header("nosniff"),
+        ))
+        .layer(SetResponseHeaderLayer::if_not_present(
+            axum::http::header::X_FRAME_OPTIONS,
+            static_header("DENY"),
+        ))
+        .layer(SetResponseHeaderLayer::if_not_present(
+            axum::http::header::REFERRER_POLICY,
+            static_header("no-referrer"),
+        ))
+        .layer(SetResponseHeaderLayer::if_not_present(
+            axum::http::HeaderName::from_static("permissions-policy"),
+            // We use no browser APIs from the backend response — deny all.
+            static_header(
+                "accelerometer=(), camera=(), geolocation=(), gyroscope=(), \
+                 microphone=(), payment=(), usb=()",
+            ),
+        ))
+        .layer(SetResponseHeaderLayer::if_not_present(
+            // Cross-Origin-Opener-Policy isolates this origin from popups
+            // it doesn't trust. Same-origin-allow-popups is the most
+            // permissive form that still blocks XS-Leaks.
+            axum::http::HeaderName::from_static("cross-origin-opener-policy"),
+            static_header("same-origin-allow-popups"),
+        ));
+
+    // HSTS is its own layer because it has a runtime guard.
+    let hsts_layer = if enable_hsts {
+        Some(SetResponseHeaderLayer::if_not_present(
+            axum::http::header::STRICT_TRANSPORT_SECURITY,
+            // 6 months. Don't `preload` — that's a one-way trip.
+            static_header("max-age=15552000; includeSubDomains"),
+        ))
+    } else {
+        None
+    };
+    if !enable_hsts {
+        tracing::info!(
+            "HSTS disabled (set ENABLE_HSTS=1 once you're behind real TLS to enable)"
+        );
+    }
+
     // ── App router ───────────────────────────────────────────────────────
     // Layer order matters: each `.layer(...)` wraps everything below it, so
     // the *last* one written is the outermost. We want:
     //   CORS (outermost; must see all responses incl. errors from inner layers)
+    //   → security headers
     //   → trace
     //   → timeout
     //   → body limit
@@ -125,7 +202,7 @@ async fn main() -> anyhow::Result<()> {
     // because CORS requires `ResBody: Default` which tower_governor's
     // wrapped response body doesn't satisfy. Applying them as separate
     // .layer() calls lets axum box the response between them.
-    let app = Router::new()
+    let mut app = Router::new()
         .route("/api/health", get(health))
         .merge(routes::runtime::router())
         .nest(
@@ -144,8 +221,14 @@ async fn main() -> anyhow::Result<()> {
         .layer(RequestBodyLimitLayer::new(body_limit_bytes))
         .layer(TimeoutLayer::new(Duration::from_secs(request_timeout_secs)))
         .layer(TraceLayer::new_for_http())
-        .layer(cors)
-        .with_state(state);
+        .layer(security_headers)
+        .layer(cors);
+
+    if let Some(hsts) = hsts_layer {
+        app = app.layer(hsts);
+    }
+
+    let app = app.with_state(state);
 
     let port = std::env::var("PORT").unwrap_or_else(|_| "8080".into());
     let addr = format!("0.0.0.0:{}", port);

@@ -14,7 +14,7 @@ import {
     setSessionId as persistSessionId,
 } from './lib/auth'
 import { RuntimeProvider, useRuntime } from './lib/runtime'
-import { MISSIONS, MISSION_COUNT } from './lib/types'
+import { MISSION_COUNT, TIERS } from './lib/types'
 import {
     card,
     chip,
@@ -22,8 +22,6 @@ import {
     input,
     label as labelStyle,
     primaryButton,
-    techGradient,
-    techTone,
 } from './lib/ui'
 
 const queryClient = new QueryClient({
@@ -33,18 +31,42 @@ const queryClient = new QueryClient({
 type View = 'learner' | 'facilitator'
 type Screen = 'landing' | 'setup' | 'app'
 
-// On first mount, rehydrate from localStorage if a previous run left
-// credentials behind. We only consider it valid if we have BOTH the auth
-// token and the participant id; the api client also re-reads the token
-// from localStorage on every request, so a refresh stays authenticated.
-function rehydrate(): { sessionId: string | null; participantId: string | null; restored: boolean } {
+/**
+ * On first mount we try to:
+ *   1. Restore a previous run from localStorage (full credentials present).
+ *   2. Read `?session=<id>` from the URL — facilitators share a QR with this
+ *      param, so the participant lands directly on the setup screen with
+ *      the session id pre-filled. Note: only `session=` is honored; no auth
+ *      tokens come from the URL. The participant must still enter a name.
+ */
+function rehydrate(): {
+    sessionId: string | null
+    participantId: string | null
+    restored: boolean
+    deepLinkSessionId: string | null
+} {
     const token = getAuthToken()
     const sid = getSessionId()
     const pid = getParticipantId()
-    if (token && pid && sid) {
-        return { sessionId: sid, participantId: pid, restored: true }
+
+    // ?session= deep link (facilitator-shared QR / URL).
+    let deepLinkSessionId: string | null = null
+    try {
+        const url = new URL(window.location.href)
+        const candidate = url.searchParams.get('session')
+        // UUID-shaped only — reject anything else so the URL bar can't
+        // be used to inject arbitrary strings into our session_id field.
+        if (candidate && /^[0-9a-f-]{36}$/i.test(candidate)) {
+            deepLinkSessionId = candidate
+        }
+    } catch {
+        // SSR or weird URL — ignore.
     }
-    return { sessionId: null, participantId: null, restored: false }
+
+    if (token && pid && sid) {
+        return { sessionId: sid, participantId: pid, restored: true, deepLinkSessionId }
+    }
+    return { sessionId: null, participantId: null, restored: false, deepLinkSessionId }
 }
 
 export default function App() {
@@ -52,15 +74,32 @@ export default function App() {
 
     const [view, setView] = useState<View>('learner')
     const [theme, setTheme] = useState<Theme>(getSavedTheme)
-    // If we successfully rehydrated, jump straight to the app screen so
-    // refresh = continue. Otherwise show the landing page.
-    const [screen, setScreen] = useState<Screen>(initial.restored ? 'app' : 'landing')
+    // Routing rule:
+    //   - ?session= deep link → setup (joining)
+    //   - otherwise → landing
+    // We deliberately do NOT auto-jump to the app screen even if there are
+    // valid credentials in localStorage. The user should see what BitPilot
+    // is on every visit; if they want to resume, the landing offers a
+    // "Continue your missions" pill that reads from `initial.restored`.
+    const [screen, setScreen] = useState<Screen>(
+        initial.deepLinkSessionId ? 'setup' : 'landing',
+    )
     const [sessionId, setSessionId] = useState<string | null>(initial.sessionId)
     const [participantId, setParticipantId] = useState<string | null>(initial.participantId)
     const [sessionName, setSessionName] = useState('')
     const [participantName, setParticipantName] = useState('')
+    // If we arrived via a deep link, pre-stash the session id so the setup
+    // form knows we're joining (not creating) a session.
+    const [joinSessionId, setJoinSessionId] = useState<string | null>(initial.deepLinkSessionId)
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState('')
+
+    /** Returning user wants to continue. Only valid when `initial.restored`
+     *  was true at mount; the IDs are still in state from rehydrate(). */
+    const continueExisting = () => {
+        if (!sessionId || !participantId) return
+        setScreen('app')
+    }
 
     useEffect(() => {
         applyTheme(theme)
@@ -75,17 +114,29 @@ export default function App() {
         setLoading(true)
         setError('')
         try {
-            // Wipe anything left over from a previous run before issuing
-            // fresh credentials. Otherwise a stale Authorization header
-            // could leak from one run into the next.
             clearAllTokens()
-            const session = await api.createSession(sessionName.trim() || 'BitPilot Session')
-            const participant = await api.joinSession(name, session.id)
-            setSessionId(session.id)
+            let sid: string
+            if (joinSessionId) {
+                // Deep-link path: join the existing session, don't create one.
+                sid = joinSessionId
+            } else {
+                const session = await api.createSession(sessionName.trim() || 'BitPilot Session')
+                sid = session.id
+            }
+            const participant = await api.joinSession(name, sid)
+            setSessionId(sid)
             setParticipantId(participant.id)
-            persistSessionId(session.id)
+            persistSessionId(sid)
             persistParticipantId(participant.id)
             setScreen('app')
+            // Clean up the URL — no need to keep ?session= hanging around.
+            try {
+                const url = new URL(window.location.href)
+                url.searchParams.delete('session')
+                window.history.replaceState({}, '', url.toString())
+            } catch {
+                /* ignore */
+            }
         } catch (e) {
             if (e instanceof ApiError) {
                 setError(e.message)
@@ -103,6 +154,7 @@ export default function App() {
         setParticipantId(null)
         setParticipantName('')
         setSessionName('')
+        setJoinSessionId(null)
         setScreen('landing')
     }
 
@@ -124,6 +176,8 @@ export default function App() {
                             setView('facilitator')
                             setScreen('setup')
                         }}
+                        hasResumable={initial.restored}
+                        onContinue={continueExisting}
                     />
                 )}
                 {screen === 'setup' && (
@@ -135,6 +189,7 @@ export default function App() {
                         setParticipantName={setParticipantName}
                         sessionName={sessionName}
                         setSessionName={setSessionName}
+                        joinSessionId={joinSessionId}
                         loading={loading}
                         error={error}
                         onStart={start}
@@ -163,33 +218,40 @@ function Landing({
     onToggleTheme,
     onStart,
     onFacilitator,
+    hasResumable,
+    onContinue,
 }: {
     theme: Theme
     onToggleTheme: () => void
     onStart: () => void
     onFacilitator: () => void
+    hasResumable: boolean
+    onContinue: () => void
 }) {
     return (
-        <div style={{ minHeight: '100vh', background: 'var(--bg)', color: 'var(--text)' }}>
+        <div
+            style={{
+                minHeight: '100vh',
+                display: 'flex',
+                flexDirection: 'column',
+                background: 'var(--bg)',
+                color: 'var(--text)',
+            }}
+        >
             <TopNav theme={theme} onToggleTheme={onToggleTheme} onCta={onStart} />
 
-            <main id="main-content">
-                {/* Hero */}
+            <main id="main-content" style={{ flex: 1 }}>
+                {/* Hero — clearly tells you what BitPilot is in one sentence. */}
                 <section
                     aria-labelledby="hero-headline"
                     style={{
-                        maxWidth: 920,
+                        maxWidth: 760,
                         margin: '0 auto',
-                        padding: '72px 24px 40px',
+                        padding: 'clamp(2rem, 8vw, 4rem) clamp(1rem, 4vw, 1.5rem) clamp(2rem, 6vw, 3rem)',
                         textAlign: 'center',
                     }}
                 >
-                    <span
-                        style={{
-                            ...chip('orange'),
-                            marginBottom: 24,
-                        }}
-                    >
+                    <span style={{ ...chip('orange'), marginBottom: 20 }}>
                         <span
                             aria-hidden="true"
                             style={{
@@ -200,17 +262,17 @@ function Landing({
                                 display: 'inline-block',
                             }}
                         />
-                        No experience needed
+                        Free · no signup · no real money
                     </span>
 
                     <h1
                         id="hero-headline"
                         style={{
-                            fontSize: 'clamp(40px, 7vw, 76px)',
+                            fontSize: 'clamp(34px, 8.5vw, 64px)',
                             fontWeight: 800,
-                            lineHeight: 1.04,
+                            lineHeight: 1.05,
                             letterSpacing: '-0.035em',
-                            marginBottom: 22,
+                            marginBottom: 18,
                         }}
                     >
                         Learn Bitcoin
@@ -220,115 +282,107 @@ function Landing({
 
                     <p
                         style={{
-                            fontSize: 18,
+                            fontSize: 'clamp(16px, 3.6vw, 19px)',
                             color: 'var(--text-soft)',
-                            lineHeight: 1.6,
+                            lineHeight: 1.55,
                             maxWidth: 560,
-                            margin: '0 auto 36px',
+                            margin: '0 auto 14px',
                         }}
                     >
-                        Ten short missions. You'll generate a real Nostr identity, simulate Lightning payments,
-                        claim a Cashu-style eCash token, and post your first message to a public network nobody
-                        controls.
+                        BitPilot is a hands-on course. You'll do {MISSION_COUNT} short missions
+                        on Bitcoin, Lightning, Nostr and eCash — generating real keys, sending
+                        real (testnet) payments, and publishing real Nostr posts as you go.
+                    </p>
+                    <p
+                        style={{
+                            fontSize: 14,
+                            color: 'var(--muted)',
+                            lineHeight: 1.55,
+                            maxWidth: 520,
+                            margin: '0 auto 28px',
+                        }}
+                    >
+                        Every mission is <strong style={{ color: 'var(--text)' }}>Learn → Quiz → Do</strong>.
+                        Pass the quiz, do the action, claim sats inside the app, move on.
                     </p>
 
                     <div
                         style={{
                             display: 'flex',
-                            gap: 12,
+                            gap: 10,
                             justifyContent: 'center',
                             flexWrap: 'wrap',
-                            marginBottom: 56,
                         }}
                     >
+                        {hasResumable && (
+                            <button
+                                style={{
+                                    ...primaryButton(),
+                                    padding: '14px 24px',
+                                    fontSize: 15,
+                                    minHeight: 48,
+                                }}
+                                onClick={onContinue}
+                            >
+                                ↻ Continue your missions
+                            </button>
+                        )}
                         <button
-                            style={{ ...primaryButton(), padding: '16px 30px', fontSize: 16 }}
+                            style={{
+                                ...(hasResumable ? ghostButton : primaryButton()),
+                                padding: '14px 24px',
+                                fontSize: 15,
+                                minHeight: 48,
+                            }}
                             onClick={onStart}
                         >
-                            ⚡ Start my journey
+                            {hasResumable ? 'Start fresh' : '⚡ Start my journey'}
                         </button>
                         <button
-                            style={{ ...ghostButton, padding: '15px 26px', fontSize: 15 }}
+                            style={{
+                                ...ghostButton,
+                                padding: '14px 22px',
+                                fontSize: 14,
+                                minHeight: 48,
+                            }}
                             onClick={onFacilitator}
                         >
                             I'm running a session
                         </button>
                     </div>
-
-                    {/* Honest stats */}
-                    <dl
-                        style={{
-                            display: 'flex',
-                            gap: 40,
-                            justifyContent: 'center',
-                            flexWrap: 'wrap',
-                            margin: 0,
-                        }}
-                    >
-                        {[
-                            ['20 min', 'rough completion time'],
-                            [`${MISSION_COUNT}`, 'missions, all explained'],
-                            ['Real', 'Nostr keys & relay publish'],
-                            ['Free', 'no signup, no wallet'],
-                        ].map(([num, label]) => (
-                            <div key={label} style={{ textAlign: 'center' }}>
-                                <dt
-                                    style={{
-                                        fontSize: 28,
-                                        fontWeight: 800,
-                                        background: 'var(--gradient-bitcoin)',
-                                        WebkitBackgroundClip: 'text',
-                                        backgroundClip: 'text',
-                                        WebkitTextFillColor: 'transparent',
-                                        color: 'transparent',
-                                    }}
-                                >
-                                    {num}
-                                </dt>
-                                <dd
-                                    style={{
-                                        fontSize: 11,
-                                        color: 'var(--muted)',
-                                        textTransform: 'uppercase',
-                                        letterSpacing: '0.08em',
-                                        marginTop: 4,
-                                        margin: '4px 0 0',
-                                    }}
-                                >
-                                    {label}
-                                </dd>
-                            </div>
-                        ))}
-                    </dl>
                 </section>
 
-                {/* Missions preview */}
+                {/* Tier preview — what you'll actually do. */}
                 <section
-                    aria-labelledby="missions-headline"
-                    style={{ maxWidth: 1080, margin: '0 auto', padding: '40px 24px 80px' }}
+                    aria-labelledby="tiers-headline"
+                    style={{
+                        maxWidth: 1080,
+                        margin: '0 auto',
+                        padding: '0 clamp(1rem, 4vw, 1.5rem) clamp(2rem, 6vw, 4rem)',
+                    }}
                 >
                     <h2
-                        id="missions-headline"
+                        id="tiers-headline"
                         style={{
                             textAlign: 'center',
-                            fontSize: 30,
+                            fontSize: 'clamp(20px, 5vw, 28px)',
                             fontWeight: 800,
-                            marginBottom: 8,
+                            marginBottom: 6,
                             letterSpacing: '-0.025em',
                         }}
                     >
-                        {MISSION_COUNT} missions, four topics.
+                        From novice to captain in five tiers
                     </h2>
                     <p
                         style={{
                             textAlign: 'center',
                             color: 'var(--muted)',
-                            marginBottom: 36,
-                            fontSize: 15,
+                            marginBottom: 24,
+                            fontSize: 14,
+                            paddingInline: 8,
                         }}
                     >
-                        Every mission: <strong style={{ color: 'var(--text)' }}>Learn → Quiz → Do</strong>. The
-                        quiz blocks the action until you actually understand the idea.
+                        Higher tiers ask more of you and pay more sats.
                     </p>
                     <ol
                         style={{
@@ -336,193 +390,299 @@ function Landing({
                             padding: 0,
                             margin: 0,
                             display: 'grid',
-                            gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
-                            gap: 14,
+                            gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+                            gap: 12,
                         }}
                     >
-                        {MISSIONS.map((m) => (
-                            <MissionCard key={m.id} mission={m} />
+                        {TIERS.map((t) => (
+                            <TierCard key={t.key} tier={t} />
                         ))}
                     </ol>
                 </section>
-
-                <RuntimeBanner />
             </main>
 
-            <footer
-                style={{
-                    textAlign: 'center',
-                    padding: '32px 24px 40px',
-                    borderTop: '1px solid var(--border)',
-                    fontSize: 13,
-                    color: 'var(--muted)',
-                }}
-            >
-                Open source ·{' '}
-                <a
-                    href="https://github.com/Jolah1/bitpilot"
-                    target="_blank"
-                    rel="noreferrer"
-                    style={{ color: 'var(--bitcoin)', textDecoration: 'none', fontWeight: 600 }}
-                >
-                    github.com/Jolah1/bitpilot
-                </a>
-            </footer>
+            <SiteFooter />
         </div>
     )
 }
 
-// ─── Mission card with live "TESTNET"/"SIMULATED"/"REAL" badge ───────────────
+// ─── Tier card on the landing page ───────────────────────────────────────────
 
-function MissionCard({ mission: m }: { mission: typeof MISSIONS[number] }) {
-    const runtime = useRuntime()
-    const isLnReal = runtime?.lightning_real ?? false
-    const isEcashReal = runtime?.ecash_real ?? false
-
-    // Decide which chip to show based on tech + runtime info.
-    // - bitcoin / nostr: always real (no chip — would be noise)
-    // - lightning: "Testnet" if LNbits wired, else "Simulated"
-    // - ecash: "Testmint" if mint reachable, else "Simulated"
-    let statusChip: { label: string; tone: Parameters<typeof chip>[0] } | null = null
-    if (m.tech === 'lightning') {
-        statusChip = isLnReal
-            ? { label: 'Testnet', tone: 'green' }
-            : { label: 'Simulated', tone: 'neutral' }
-    } else if (m.tech === 'ecash') {
-        statusChip = isEcashReal
-            ? { label: 'Testmint', tone: 'green' }
-            : { label: 'Simulated', tone: 'neutral' }
-    } else if (m.tech === 'nostr' && m.do.kind === 'nostr-publish') {
-        statusChip = { label: 'Live relays', tone: 'green' }
-    }
-
+function TierCard({ tier: t }: { tier: (typeof TIERS)[number] }) {
+    const count = t.range[1] - t.range[0] + 1
     return (
         <li
             style={{
                 ...card,
-                padding: 18,
+                padding: 16,
                 display: 'flex',
                 flexDirection: 'column',
-                gap: 10,
-                position: 'relative',
+                gap: 8,
             }}
         >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                <div
-                    aria-hidden="true"
-                    style={{
-                        width: 40,
-                        height: 40,
-                        borderRadius: 'var(--radius-2)',
-                        background: techGradient(m.tech),
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: 20,
-                    }}
-                >
-                    {m.emoji}
-                </div>
-                <span style={chip(techTone(m.tech))}>{m.topic}</span>
-                {statusChip && (
-                    <span style={{ ...chip(statusChip.tone), fontSize: 10 }}>{statusChip.label}</span>
-                )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <span style={chip('orange')}>{t.label}</span>
+                <span style={{ ...chip('neutral'), fontSize: 10 }}>
+                    {count} missions · {t.reward} sats each
+                </span>
             </div>
-            <div style={{ fontWeight: 700, fontSize: 14, lineHeight: 1.3 }}>
-                <span style={{ color: 'var(--muted)', marginRight: 6 }}>{m.id}.</span>
-                {m.name}
+            <div
+                style={{
+                    fontWeight: 700,
+                    fontSize: 14,
+                    color: 'var(--muted)',
+                    fontFamily: 'var(--font-mono)',
+                }}
+            >
+                Missions {t.range[0]}–{t.range[1]}
             </div>
-            <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.5 }}>{m.tagline}</div>
+            <div style={{ fontSize: 13, color: 'var(--text-soft)', lineHeight: 1.5 }}>
+                {t.tagline}
+            </div>
         </li>
     )
 }
 
-// ─── Honest "what's live, what's not" banner ─────────────────────────────────
+// ─── Footer ──────────────────────────────────────────────────────────────────
 
-function RuntimeBanner() {
+/**
+ * Three-column footer with brand, what-it-is, and links. Collapses to a
+ * single stacked column on mobile.
+ *
+ * The "Network honesty" row used to be a big card on the landing page; it
+ * belongs down here as a small note so the hero stays focused on the pitch.
+ */
+function SiteFooter() {
     const runtime = useRuntime()
     const lnReal = runtime?.lightning_real ?? false
     const ecashReal = runtime?.ecash_real ?? false
-    const mintUrl = runtime?.ecash_mint_url ?? 'not configured'
 
     return (
-        <section
-            aria-labelledby="honesty-headline"
-            style={{ maxWidth: 720, margin: '0 auto', padding: '0 24px 80px' }}
+        <footer
+            style={{
+                borderTop: '1px solid var(--border)',
+                background: 'var(--surface)',
+                color: 'var(--muted)',
+                fontSize: 13,
+                lineHeight: 1.55,
+            }}
         >
-            <div style={{ ...card, padding: 22, background: 'var(--surface2)' }}>
-                <h2 id="honesty-headline" style={{ fontSize: 16, fontWeight: 700, margin: '0 0 12px' }}>
-                    What's running underneath
-                </h2>
-                <ul
-                    style={{
-                        listStyle: 'none',
-                        padding: 0,
-                        margin: 0,
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: 10,
-                        fontSize: 13.5,
-                        color: 'var(--text-soft)',
-                        lineHeight: 1.55,
-                    }}
-                >
-                    <RuntimeRow
-                        ok
-                        label="Nostr"
-                        detail="Real secp256k1 keys, real signed events broadcast to public relays."
-                    />
-                    <RuntimeRow
-                        ok={ecashReal}
-                        label="eCash"
-                        detail={
-                            ecashReal
-                                ? `Real Cashu protocol against testmint ${mintUrl} — tokens any Cashu wallet can read.`
-                                : 'Simulated. Set CASHU_MINT_URL on the backend to point at a real mint.'
-                        }
-                    />
-                    <RuntimeRow
-                        ok={lnReal}
-                        label="Lightning"
-                        detail={
-                            lnReal
-                                ? 'Real signet/testnet Lightning via LNbits — payments actually settle.'
-                                : 'Simulated for now. Set LNBITS_URL + LNBITS_ADMIN_KEY on the backend to enable real testnet invoices.'
-                        }
-                    />
-                    <RuntimeRow
-                        ok
-                        label="Bitcoin concepts"
-                        detail="The three Bitcoin missions are knowledge-only — no network calls needed."
-                    />
-                </ul>
-                <p style={{ fontSize: 12, color: 'var(--muted)', margin: '14px 0 0', lineHeight: 1.5 }}>
-                    Nothing here uses mainnet. No real money moves. The point is to learn the mechanics
-                    safely.
-                </p>
+            <div
+                style={{
+                    maxWidth: 1080,
+                    margin: '0 auto',
+                    padding: 'clamp(2rem, 5vw, 3rem) clamp(1rem, 4vw, 1.5rem)',
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                    gap: 'clamp(1.25rem, 3vw, 2rem)',
+                }}
+            >
+                {/* Column 1 — brand + one-liner */}
+                <div>
+                    <div
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 8,
+                            marginBottom: 10,
+                        }}
+                    >
+                        <span
+                            aria-hidden="true"
+                            style={{
+                                width: 26,
+                                height: 26,
+                                borderRadius: 'var(--radius-1)',
+                                background: 'var(--gradient-bitcoin)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: 14,
+                                color: '#0A0A0B',
+                                fontWeight: 800,
+                            }}
+                        >
+                            ⚡
+                        </span>
+                        <span
+                            style={{
+                                color: 'var(--text)',
+                                fontSize: 15,
+                                fontWeight: 800,
+                                letterSpacing: '-0.025em',
+                            }}
+                        >
+                            BitPilot
+                        </span>
+                    </div>
+                    <p style={{ margin: 0 }}>
+                        Hands-on Bitcoin, Lightning, Nostr and eCash. Built to be
+                        finished in an afternoon and remembered for years.
+                    </p>
+                </div>
+
+                {/* Column 2 — what's safe to do here */}
+                <div>
+                    <h3
+                        style={{
+                            color: 'var(--text)',
+                            fontSize: 12,
+                            fontWeight: 700,
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.08em',
+                            margin: '0 0 10px',
+                        }}
+                    >
+                        Is this safe?
+                    </h3>
+                    <ul
+                        style={{
+                            listStyle: 'none',
+                            padding: 0,
+                            margin: 0,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 6,
+                        }}
+                    >
+                        <FooterFact ok label="Mainnet" detail="Never touched. Nothing here moves real money." />
+                        <FooterFact
+                            ok
+                            label="Nostr"
+                            detail="Real keys, real signed events to public relays."
+                        />
+                        <FooterFact
+                            ok={lnReal}
+                            label="Lightning"
+                            detail={lnReal ? 'Real signet via LNbits.' : 'Simulated until LNbits is wired.'}
+                        />
+                        <FooterFact
+                            ok={ecashReal}
+                            label="eCash"
+                            detail={ecashReal ? 'Real Cashu testmint.' : 'Simulated for now.'}
+                        />
+                    </ul>
+                </div>
+
+                {/* Column 3 — links */}
+                <div>
+                    <h3
+                        style={{
+                            color: 'var(--text)',
+                            fontSize: 12,
+                            fontWeight: 700,
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.08em',
+                            margin: '0 0 10px',
+                        }}
+                    >
+                        Project
+                    </h3>
+                    <ul
+                        style={{
+                            listStyle: 'none',
+                            padding: 0,
+                            margin: 0,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 8,
+                        }}
+                    >
+                        <li>
+                            <a
+                                href="https://github.com/Jolah1/bitpilot"
+                                target="_blank"
+                                rel="noreferrer"
+                                style={footerLinkStyle}
+                            >
+                                GitHub repository
+                            </a>
+                        </li>
+                        <li>
+                            <a
+                                href="https://github.com/Jolah1/bitpilot/issues"
+                                target="_blank"
+                                rel="noreferrer"
+                                style={footerLinkStyle}
+                            >
+                                Report an issue
+                            </a>
+                        </li>
+                        <li>
+                            <a href="https://nostr.com" target="_blank" rel="noreferrer" style={footerLinkStyle}>
+                                What is Nostr?
+                            </a>
+                        </li>
+                        <li>
+                            <a
+                                href="https://bitcoin.org"
+                                target="_blank"
+                                rel="noreferrer"
+                                style={footerLinkStyle}
+                            >
+                                What is Bitcoin?
+                            </a>
+                        </li>
+                    </ul>
+                </div>
             </div>
-        </section>
+
+            <div
+                style={{
+                    borderTop: '1px solid var(--border)',
+                    padding: '14px clamp(1rem, 4vw, 1.5rem)',
+                    fontSize: 12,
+                    color: 'var(--muted)',
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    justifyContent: 'space-between',
+                    gap: 8,
+                    maxWidth: 1080,
+                    margin: '0 auto',
+                }}
+            >
+                <span>© {new Date().getFullYear()} BitPilot · Open source (MIT)</span>
+                <span>
+                    Built with Rust, React, sqlx and{' '}
+                    <a
+                        href="https://github.com/nostr-protocol/nostr"
+                        target="_blank"
+                        rel="noreferrer"
+                        style={footerLinkStyle}
+                    >
+                        nostr-tools
+                    </a>
+                    .
+                </span>
+            </div>
+        </footer>
     )
 }
 
-function RuntimeRow({ ok, label, detail }: { ok: boolean; label: string; detail: string }) {
+const footerLinkStyle: CSSProperties = {
+    color: 'var(--bitcoin)',
+    textDecoration: 'none',
+    fontWeight: 600,
+}
+
+function FooterFact({ ok, label, detail }: { ok: boolean; label: string; detail: string }) {
     return (
-        <li style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+        <li style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
             <span
                 aria-hidden="true"
                 style={{
-                    width: 18,
-                    height: 18,
+                    width: 14,
+                    height: 14,
                     borderRadius: '50%',
                     background: ok ? 'var(--success)' : 'var(--muted)',
                     color: '#0A0A0B',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    fontSize: 10,
+                    fontSize: 9,
                     fontWeight: 800,
                     flexShrink: 0,
-                    marginTop: 1,
+                    marginTop: 3,
                 }}
             >
                 {ok ? '✓' : '·'}
@@ -550,14 +710,15 @@ function TopNav({
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                padding: '16px 24px',
+                padding: '12px clamp(1rem, 4vw, 1.5rem)',
                 borderBottom: '1px solid var(--border)',
                 position: 'sticky',
                 top: 0,
-                background: 'rgba(10, 10, 11, 0.85)',
+                background: 'var(--bg-elevated)',
                 backdropFilter: 'blur(10px)',
                 WebkitBackdropFilter: 'blur(10px)',
                 zIndex: 50,
+                gap: 8,
             }}
         >
             <a
@@ -568,6 +729,7 @@ function TopNav({
                     gap: 8,
                     textDecoration: 'none',
                     color: 'var(--text)',
+                    minWidth: 0,
                 }}
             >
                 <span
@@ -583,15 +745,32 @@ function TopNav({
                         fontSize: 16,
                         color: '#0A0A0B',
                         fontWeight: 800,
+                        flexShrink: 0,
                     }}
                 >
                     ⚡
                 </span>
-                <span style={{ fontSize: 17, fontWeight: 800, letterSpacing: '-0.025em' }}>BitPilot</span>
+                <span
+                    style={{
+                        fontSize: 17,
+                        fontWeight: 800,
+                        letterSpacing: '-0.025em',
+                    }}
+                >
+                    BitPilot
+                </span>
             </a>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <ThemeToggle theme={theme} onToggle={onToggleTheme} />
-                <button style={{ ...primaryButton(), padding: '10px 18px', fontSize: 14 }} onClick={onCta}>
+                <button
+                    style={{
+                        ...primaryButton(),
+                        padding: '10px 16px',
+                        fontSize: 14,
+                        minHeight: 40,
+                    }}
+                    onClick={onCta}
+                >
                     Start →
                 </button>
             </div>
@@ -609,6 +788,7 @@ function Setup({
     setParticipantName,
     sessionName,
     setSessionName,
+    joinSessionId,
     loading,
     error,
     onStart,
@@ -620,6 +800,7 @@ function Setup({
     setParticipantName: (v: string) => void
     sessionName: string
     setSessionName: (v: string) => void
+    joinSessionId: string | null
     loading: boolean
     error: string
     onStart: () => void
@@ -627,113 +808,161 @@ function Setup({
     const onKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === 'Enter') onStart()
     }
+    const joining = joinSessionId !== null
     return (
         <div
             style={{
                 minHeight: '100vh',
                 display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
+                flexDirection: 'column',
                 background: 'var(--bg)',
-                padding: 24,
-                position: 'relative',
             }}
         >
-            <button
-                onClick={onBack}
-                style={{ ...ghostButton, position: 'absolute', top: 20, left: 20, padding: '8px 14px' }}
-                aria-label="Back to landing page"
+            {/* Mobile-safe sticky bar: back left, theme toggle right. Was
+                position:absolute which caused overlap on narrow viewports. */}
+            <div
+                style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '12px 16px',
+                    borderBottom: '1px solid var(--border)',
+                    gap: 8,
+                }}
             >
-                ← Back
-            </button>
-            <div style={{ position: 'absolute', top: 20, right: 20 }}>
+                <button
+                    onClick={onBack}
+                    style={{ ...ghostButton, padding: '8px 14px', minHeight: 40 }}
+                    aria-label="Back to landing page"
+                >
+                    ← Back
+                </button>
                 <ThemeToggle theme={theme} onToggle={onToggleTheme} />
             </div>
 
-            <main id="main-content" style={{ width: '100%', maxWidth: 460 }}>
-                <div
-                    style={{
-                        ...card,
-                        padding: 32,
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: 20,
-                    }}
-                >
-                    <header>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-                            <span
-                                aria-hidden="true"
+            <main
+                id="main-content"
+                style={{
+                    flex: 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: 'clamp(1rem, 4vw, 1.5rem)',
+                }}
+            >
+                <div style={{ width: '100%', maxWidth: 460 }}>
+                    <div
+                        style={{
+                            ...card,
+                            padding: 'clamp(20px, 5vw, 32px)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 18,
+                        }}
+                    >
+                        <header>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                                <span
+                                    aria-hidden="true"
+                                    style={{
+                                        width: 36,
+                                        height: 36,
+                                        borderRadius: 'var(--radius-2)',
+                                        background: 'var(--gradient-bitcoin)',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        fontSize: 18,
+                                    }}
+                                >
+                                    ⚡
+                                </span>
+                                <h1
+                                    style={{
+                                        fontSize: 'clamp(20px, 5vw, 24px)',
+                                        fontWeight: 800,
+                                        letterSpacing: '-0.025em',
+                                        margin: 0,
+                                    }}
+                                >
+                                    {joining ? 'Join the session' : "Let's go"}
+                                </h1>
+                            </div>
+                            <p style={{ fontSize: 13.5, color: 'var(--muted)', lineHeight: 1.55, margin: 0 }}>
+                                {joining
+                                    ? "You're joining via a session link. Pick a name and you're in."
+                                    : 'Pick a name to use during the missions. Nothing leaves your browser except a real Nostr note you choose to publish later.'}
+                            </p>
+                            {joining && (
+                                <div
+                                    style={{
+                                        marginTop: 12,
+                                        fontSize: 11,
+                                        color: 'var(--muted)',
+                                        fontFamily: 'var(--font-mono)',
+                                        wordBreak: 'break-all',
+                                    }}
+                                >
+                                    session · {joinSessionId!.slice(0, 8)}…
+                                </div>
+                            )}
+                        </header>
+
+                        <Field
+                            label="Your name"
+                            id="participant-name"
+                            value={participantName}
+                            onChange={setParticipantName}
+                            onKeyDown={onKeyDown}
+                            placeholder="e.g. Amaka, Chidi, Fatima…"
+                            required
+                            autoFocus
+                            autoComplete="given-name"
+                        />
+
+                        {!joining && (
+                            <Field
+                                label="Session name"
+                                optionalNote="(optional, for facilitators)"
+                                id="session-name"
+                                value={sessionName}
+                                onChange={setSessionName}
+                                onKeyDown={onKeyDown}
+                                placeholder="e.g. Lagos Bitcoin Meetup"
+                            />
+                        )}
+
+                        {error && (
+                            <div
+                                role="alert"
                                 style={{
-                                    width: 38,
-                                    height: 38,
+                                    background: 'rgba(248, 113, 113, 0.08)',
+                                    border: '1px solid rgba(248, 113, 113, 0.3)',
                                     borderRadius: 'var(--radius-2)',
-                                    background: 'var(--gradient-bitcoin)',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    fontSize: 20,
+                                    padding: '10px 14px',
+                                    fontSize: 13,
+                                    color: 'var(--danger)',
+                                    lineHeight: 1.5,
                                 }}
                             >
-                                ⚡
-                            </span>
-                            <h1 style={{ fontSize: 24, fontWeight: 800, letterSpacing: '-0.025em', margin: 0 }}>
-                                Let's go
-                            </h1>
-                        </div>
-                        <p style={{ fontSize: 14, color: 'var(--muted)', lineHeight: 1.6, margin: 0 }}>
-                            Pick a name to use during the missions. Nothing leaves your browser except a real
-                            Nostr note you'll choose to publish at the end.
-                        </p>
-                    </header>
+                                {error}
+                            </div>
+                        )}
 
-                    <Field
-                        label="Your name"
-                        id="participant-name"
-                        value={participantName}
-                        onChange={setParticipantName}
-                        onKeyDown={onKeyDown}
-                        placeholder="e.g. Amaka, Chidi, Fatima…"
-                        required
-                        autoFocus
-                        autoComplete="given-name"
-                    />
-
-                    <Field
-                        label="Session name"
-                        optionalNote="(optional, for facilitators)"
-                        id="session-name"
-                        value={sessionName}
-                        onChange={setSessionName}
-                        onKeyDown={onKeyDown}
-                        placeholder="e.g. Lagos Bitcoin Meetup"
-                    />
-
-                    {error && (
-                        <div
-                            role="alert"
+                        <button
                             style={{
-                                background: 'rgba(248, 113, 113, 0.08)',
-                                border: '1px solid rgba(248, 113, 113, 0.3)',
-                                borderRadius: 'var(--radius-2)',
-                                padding: '10px 14px',
-                                fontSize: 13,
-                                color: 'var(--danger)',
-                                lineHeight: 1.5,
+                                ...primaryButton(loading || !participantName.trim()),
+                                width: '100%',
+                                fontSize: 15,
+                                minHeight: 48,
                             }}
+                            onClick={onStart}
+                            disabled={loading || !participantName.trim()}
+                            aria-busy={loading}
                         >
-                            {error}
-                        </div>
-                    )}
-
-                    <button
-                        style={{ ...primaryButton(loading || !participantName.trim()), width: '100%', fontSize: 15 }}
-                        onClick={onStart}
-                        disabled={loading || !participantName.trim()}
-                        aria-busy={loading}
-                    >
-                        {loading ? 'Starting…' : 'Start earning sats →'}
-                    </button>
+                            {loading ? 'Starting…' : 'Start earning sats →'}
+                        </button>
+                    </div>
                 </div>
             </main>
         </div>
@@ -792,6 +1021,18 @@ function Field({
 
 // ─── App shell (top bar + active view) ───────────────────────────────────────
 
+/**
+ * Mobile-first app shell.
+ *
+ * The old version put everything in one horizontal row:
+ *   [logo] [learner tab] [facilitator tab] [theme toggle] [exit button]
+ * On viewports <420px the Exit button was pushed off-screen, dead.
+ *
+ * New design: logo + a hamburger-style menu button. The menu reveals the
+ * view-switcher and exit. On desktop (≥640px) the menu items are shown
+ * inline. CSS-less: a single boolean + media-style breakpoints via inline
+ * matchMedia.
+ */
 function AppShell({
     view,
     setView,
@@ -809,11 +1050,30 @@ function AppShell({
     participantId: string | null
     sessionId: string | null
 }) {
+    const [menuOpen, setMenuOpen] = useState(false)
+    const [isWide, setIsWide] = useState<boolean>(() => {
+        if (typeof window === 'undefined') return true
+        return window.matchMedia('(min-width: 640px)').matches
+    })
+
+    useEffect(() => {
+        const mq = window.matchMedia('(min-width: 640px)')
+        const onChange = () => setIsWide(mq.matches)
+        mq.addEventListener('change', onChange)
+        return () => mq.removeEventListener('change', onChange)
+    }, [])
+
+    // Close the menu after any selection so mobile users get a clean state.
+    const pick = (action: () => void) => {
+        action()
+        setMenuOpen(false)
+    }
+
     const tabBtn = (v: View): CSSProperties => ({
         fontSize: 12,
         letterSpacing: '0.04em',
         textTransform: 'uppercase',
-        padding: '6px 14px',
+        padding: '8px 14px',
         borderRadius: 'var(--radius-1)',
         fontWeight: 700,
         border: `1px solid ${view === v ? 'var(--bitcoin)' : 'var(--border-strong)'}`,
@@ -821,7 +1081,9 @@ function AppShell({
         background: view === v ? 'rgba(247, 147, 26, 0.12)' : 'transparent',
         color: view === v ? 'var(--bitcoin)' : 'var(--muted)',
         fontFamily: 'var(--font-sans)',
+        minHeight: 36,
     })
+
     return (
         <>
             <header
@@ -835,12 +1097,13 @@ function AppShell({
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
-                    padding: '10px 20px',
+                    padding: '10px clamp(0.75rem, 3vw, 1.25rem)',
                     background: 'var(--bg-elevated)',
                     borderBottom: '1px solid var(--border)',
+                    gap: 8,
                 }}
             >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
                     <span
                         aria-hidden="true"
                         style={{
@@ -853,37 +1116,125 @@ function AppShell({
                             justifyContent: 'center',
                             fontSize: 14,
                             color: '#0A0A0B',
+                            flexShrink: 0,
                         }}
                     >
                         ⚡
                     </span>
-                    <span style={{ fontSize: 15, fontWeight: 800, letterSpacing: '-0.025em' }}>BitPilot</span>
+                    <span
+                        style={{
+                            fontSize: 15,
+                            fontWeight: 800,
+                            letterSpacing: '-0.025em',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                        }}
+                    >
+                        BitPilot
+                    </span>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+
+                {/* Wide: inline tab pills + theme + exit. Narrow: hamburger. */}
+                {isWide ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        {(['learner', 'facilitator'] as View[]).map((v) => (
+                            <button
+                                key={v}
+                                onClick={() => setView(v)}
+                                style={tabBtn(v)}
+                                aria-pressed={view === v}
+                            >
+                                {v}
+                            </button>
+                        ))}
+                        <ThemeToggle theme={theme} onToggle={onToggleTheme} />
+                        <button
+                            onClick={onExit}
+                            style={{ ...ghostButton, padding: '8px 14px', fontSize: 12, minHeight: 36 }}
+                        >
+                            Exit
+                        </button>
+                    </div>
+                ) : (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <ThemeToggle theme={theme} onToggle={onToggleTheme} />
+                        <button
+                            onClick={() => setMenuOpen((v) => !v)}
+                            aria-expanded={menuOpen}
+                            aria-controls="app-shell-menu"
+                            aria-label="Open menu"
+                            style={{
+                                ...ghostButton,
+                                padding: '6px 10px',
+                                fontSize: 18,
+                                lineHeight: 1,
+                                minHeight: 36,
+                                minWidth: 36,
+                            }}
+                        >
+                            {menuOpen ? '✕' : '☰'}
+                        </button>
+                    </div>
+                )}
+            </header>
+
+            {/* Mobile menu — slides in below the header */}
+            {!isWide && menuOpen && (
+                <div
+                    id="app-shell-menu"
+                    role="menu"
+                    style={{
+                        position: 'fixed',
+                        top: 50,
+                        right: 8,
+                        left: 8,
+                        zIndex: 99,
+                        background: 'var(--surface)',
+                        border: '1px solid var(--border)',
+                        borderRadius: 'var(--radius-3)',
+                        boxShadow: 'var(--shadow-2)',
+                        padding: 12,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 8,
+                    }}
+                >
+                    <span style={{ ...labelStyle, fontSize: 10 }}>View</span>
                     {(['learner', 'facilitator'] as View[]).map((v) => (
                         <button
                             key={v}
-                            onClick={() => setView(v)}
-                            style={tabBtn(v)}
+                            onClick={() => pick(() => setView(v))}
+                            style={{ ...tabBtn(v), width: '100%', justifyContent: 'flex-start' }}
                             aria-pressed={view === v}
+                            role="menuitem"
                         >
                             {v}
                         </button>
                     ))}
-                    <ThemeToggle theme={theme} onToggle={onToggleTheme} />
+                    <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
                     <button
-                        onClick={onExit}
+                        onClick={() => pick(onExit)}
                         style={{
                             ...ghostButton,
-                            padding: '6px 12px',
-                            fontSize: 12,
+                            padding: '10px 12px',
+                            fontSize: 13,
+                            width: '100%',
+                            justifyContent: 'flex-start',
+                            minHeight: 40,
                         }}
+                        role="menuitem"
                     >
-                        Exit
+                        Exit to landing
                     </button>
                 </div>
-            </header>
-            <div id="main-content" style={{ paddingTop: 56 }}>
+            )}
+
+            <div
+                id="main-content"
+                style={{ paddingTop: 52, minHeight: '100vh' }}
+                onClick={() => menuOpen && setMenuOpen(false)}
+            >
                 {view === 'learner' ? (
                     <LearnerView participantId={participantId!} />
                 ) : (

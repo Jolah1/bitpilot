@@ -1,16 +1,24 @@
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { QRSessionCard } from '../components/QRJoinFlow'
-import { MISSIONS, MISSION_COUNT, type Participant } from '../lib/types'
+import { MISSION_COUNT, TIERS, tierFor, type Participant } from '../lib/types'
 import { fetchSessionProgress } from '../lib/api'
-import { card, chip, ghostButton, techGradient, techTone } from '../lib/ui'
+import { card, chip, ghostButton, techGradient } from '../lib/ui'
 
+/**
+ * Facilitator dashboard. Polls /api/sessions/:id every 3s, shows a per-tier
+ * progress strip for each participant.
+ *
+ * The pre-51-mission design tried to render a 10-column grid (one per
+ * mission). At 51 missions that becomes ~1800px wide — completely broken
+ * on every viewport. New design: 5 tier bars per participant, plus a
+ * percentage and current-mission tag. Same info, much smaller footprint,
+ * works on mobile.
+ */
 export default function FacilitatorDashboard({ sessionId }: { sessionId: string }) {
     const [showQR, setShowQR] = useState(false)
     const [tick, setTick] = useState(0)
 
-    // Tick the LIVE indicator. We do this independently of react-query polling
-    // so the dot stays animated even if the network is slow.
     useEffect(() => {
         const t = setInterval(() => setTick((n) => n + 1), 1000)
         return () => clearInterval(t)
@@ -39,7 +47,7 @@ export default function FacilitatorDashboard({ sessionId }: { sessionId: string 
             id="facilitator-main"
             aria-label="Facilitator dashboard"
             style={{
-                padding: '1.5rem',
+                padding: 'clamp(0.75rem, 3vw, 1.5rem)',
                 maxWidth: 1200,
                 margin: '0 auto',
                 display: 'flex',
@@ -53,30 +61,41 @@ export default function FacilitatorDashboard({ sessionId }: { sessionId: string 
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
-                    gap: 16,
+                    gap: 12,
                     flexWrap: 'wrap',
                 }}
             >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
                     <span
                         aria-hidden="true"
                         style={{
-                            width: 44,
-                            height: 44,
+                            width: 40,
+                            height: 40,
                             borderRadius: 'var(--radius-2)',
                             background: 'var(--gradient-bitcoin)',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            fontSize: 22,
+                            fontSize: 20,
                             color: '#0A0A0B',
                             fontWeight: 800,
+                            flexShrink: 0,
                         }}
                     >
                         ₿
                     </span>
-                    <div>
-                        <h1 style={{ margin: 0, fontSize: 20, fontWeight: 800, letterSpacing: '-0.02em' }}>
+                    <div style={{ minWidth: 0 }}>
+                        <h1
+                            style={{
+                                margin: 0,
+                                fontSize: 'clamp(16px, 4vw, 20px)',
+                                fontWeight: 800,
+                                letterSpacing: '-0.02em',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                            }}
+                        >
                             {session?.name ?? (isLoading ? 'Loading session…' : 'Session')}
                         </h1>
                         <span
@@ -91,12 +110,9 @@ export default function FacilitatorDashboard({ sessionId }: { sessionId: string 
                         </span>
                     </div>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                     <span
-                        style={{
-                            ...chip('green'),
-                            fontFamily: 'var(--font-mono)',
-                        }}
+                        style={{ ...chip('green'), fontFamily: 'var(--font-mono)' }}
                         aria-live="polite"
                         aria-label={`Live, updated ${tick} seconds ago`}
                     >
@@ -113,7 +129,10 @@ export default function FacilitatorDashboard({ sessionId }: { sessionId: string 
                         />
                         LIVE
                     </span>
-                    <button onClick={() => setShowQR((v) => !v)} style={{ ...ghostButton, padding: '8px 14px' }}>
+                    <button
+                        onClick={() => setShowQR((v) => !v)}
+                        style={{ ...ghostButton, padding: '8px 14px', minHeight: 40 }}
+                    >
                         {showQR ? 'Hide QR' : 'Show QR'}
                     </button>
                 </div>
@@ -137,7 +156,7 @@ export default function FacilitatorDashboard({ sessionId }: { sessionId: string 
                 aria-label="Session statistics"
                 style={{
                     display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
                     gap: 12,
                 }}
             >
@@ -147,43 +166,49 @@ export default function FacilitatorDashboard({ sessionId }: { sessionId: string 
                 <Stat label="Missions" value={MISSION_COUNT} />
             </section>
 
-            {/* Participant grid */}
+            {/* Tier legend */}
+            <section
+                aria-label="Tier legend"
+                style={{
+                    ...card,
+                    padding: 12,
+                    display: 'flex',
+                    gap: 8,
+                    flexWrap: 'wrap',
+                    fontSize: 11,
+                }}
+            >
+                {TIERS.map((t) => (
+                    <span
+                        key={t.key}
+                        style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            color: 'var(--muted)',
+                            fontFamily: 'var(--font-mono)',
+                        }}
+                    >
+                        <span
+                            aria-hidden="true"
+                            style={{
+                                width: 10,
+                                height: 10,
+                                borderRadius: 2,
+                                background: 'var(--gradient-bitcoin)',
+                                opacity: 0.85,
+                            }}
+                        />
+                        {t.label} ({t.range[0]}-{t.range[1]})
+                    </span>
+                ))}
+            </section>
+
+            {/* Participant rows */}
             <section
                 aria-label="Participant progress"
-                style={{ ...card, overflow: 'hidden' }}
+                style={{ ...card, overflow: 'hidden', padding: 0 }}
             >
-                <div
-                    style={{
-                        display: 'grid',
-                        gridTemplateColumns: `220px repeat(${MISSION_COUNT}, minmax(0, 1fr)) 56px`,
-                        padding: '12px 16px',
-                        background: 'var(--surface2)',
-                        borderBottom: '1px solid var(--border)',
-                        fontSize: 10,
-                        letterSpacing: '0.08em',
-                        textTransform: 'uppercase',
-                        color: 'var(--muted)',
-                        fontWeight: 700,
-                    }}
-                >
-                    <span>Participant</span>
-                    {MISSIONS.map((m) => (
-                        <span
-                            key={m.id}
-                            title={m.name}
-                            aria-label={m.name}
-                            style={{
-                                textAlign: 'center',
-                                fontFamily: 'var(--font-mono)',
-                                fontSize: 11,
-                            }}
-                        >
-                            {m.id}
-                        </span>
-                    ))}
-                    <span style={{ textAlign: 'right' }}>%</span>
-                </div>
-
                 {participants.length === 0 ? (
                     <div
                         style={{
@@ -220,15 +245,10 @@ function Stat({
     accent?: boolean
 }) {
     return (
-        <div
-            style={{
-                ...card,
-                padding: '16px 18px',
-            }}
-        >
+        <div style={{ ...card, padding: '14px 16px' }}>
             <div
                 style={{
-                    fontSize: 28,
+                    fontSize: 26,
                     fontWeight: 800,
                     lineHeight: 1,
                     background: accent ? 'var(--gradient-bitcoin)' : undefined,
@@ -243,7 +263,7 @@ function Stat({
             </div>
             <div
                 style={{
-                    fontSize: 11,
+                    fontSize: 10,
                     letterSpacing: '0.08em',
                     textTransform: 'uppercase',
                     color: 'var(--muted)',
@@ -260,109 +280,120 @@ function Stat({
 function ParticipantRow({ participant }: { participant: Participant }) {
     const doneCount = participant.completed_missions.length
     const pct = Math.round((doneCount / MISSION_COUNT) * 100)
+    const currentTier = tierFor(participant.current_mission)
     return (
         <div
             style={{
                 display: 'grid',
-                gridTemplateColumns: `220px repeat(${MISSION_COUNT}, minmax(0, 1fr)) 56px`,
+                gridTemplateColumns: 'minmax(0, 1fr) auto',
+                gap: 12,
                 alignItems: 'center',
-                padding: '10px 16px',
+                padding: '12px 14px',
                 borderBottom: '1px solid var(--border)',
             }}
         >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-                <div
-                    aria-hidden="true"
-                    style={{
-                        width: 28,
-                        height: 28,
-                        borderRadius: '50%',
-                        background: 'var(--gradient-bitcoin)',
-                        color: '#0A0A0B',
-                        fontWeight: 800,
-                        fontSize: 13,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        flexShrink: 0,
-                    }}
-                >
-                    {participant.name.charAt(0).toUpperCase()}
-                </div>
-                <span
-                    style={{
-                        fontSize: 13,
-                        fontWeight: 600,
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                    }}
-                >
-                    {participant.name}
-                </span>
-            </div>
-            {MISSIONS.map((m) => {
-                const done = participant.completed_missions.includes(m.id)
-                const active = participant.current_mission === m.id
-                return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
                     <div
-                        key={m.id}
-                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                        title={`${m.id}. ${m.name}: ${
-                            done ? 'completed' : active ? 'in progress' : 'locked'
-                        }`}
-                        aria-label={`${m.name}: ${
-                            done ? 'completed' : active ? 'in progress' : 'locked'
-                        }`}
+                        aria-hidden="true"
+                        style={{
+                            width: 28,
+                            height: 28,
+                            borderRadius: '50%',
+                            background: 'var(--gradient-bitcoin)',
+                            color: '#0A0A0B',
+                            fontWeight: 800,
+                            fontSize: 13,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0,
+                        }}
                     >
-                        {done ? (
-                            <span
-                                aria-hidden="true"
+                        {participant.name.charAt(0).toUpperCase()}
+                    </div>
+                    <span
+                        style={{
+                            fontSize: 14,
+                            fontWeight: 600,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                            flex: 1,
+                            minWidth: 0,
+                        }}
+                    >
+                        {participant.name}
+                    </span>
+                    <span
+                        style={{
+                            fontSize: 10,
+                            color: 'var(--muted)',
+                            fontFamily: 'var(--font-mono)',
+                            whiteSpace: 'nowrap',
+                            flexShrink: 0,
+                        }}
+                        title={`Currently on mission ${participant.current_mission} (${currentTier.label})`}
+                    >
+                        #{participant.current_mission} · {currentTier.label}
+                    </span>
+                </div>
+                {/* 5-bar tier strip */}
+                <div
+                    style={{
+                        display: 'grid',
+                        gridTemplateColumns: `repeat(${TIERS.length}, 1fr)`,
+                        gap: 4,
+                    }}
+                    aria-label="Per-tier progress"
+                >
+                    {TIERS.map((t) => {
+                        const [lo, hi] = t.range
+                        const total = hi - lo + 1
+                        const done = participant.completed_missions.filter(
+                            (m) => m >= lo && m <= hi,
+                        ).length
+                        const isActive =
+                            participant.current_mission >= lo && participant.current_mission <= hi
+                        const pctTier = (done / total) * 100
+                        return (
+                            <div
+                                key={t.key}
+                                title={`${t.label}: ${done}/${total}`}
                                 style={{
-                                    width: 16,
-                                    height: 16,
-                                    borderRadius: '50%',
-                                    background: techGradient(m.tech),
-                                    color: '#0A0A0B',
-                                    fontSize: 10,
-                                    fontWeight: 800,
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
+                                    position: 'relative',
+                                    height: 6,
+                                    borderRadius: 'var(--radius-pill)',
+                                    background: 'var(--border)',
+                                    overflow: 'hidden',
                                 }}
                             >
-                                ✓
-                            </span>
-                        ) : active ? (
-                            <span
-                                aria-hidden="true"
-                                style={{
-                                    width: 8,
-                                    height: 8,
-                                    borderRadius: '50%',
-                                    background: `var(--${
-                                        techTone(m.tech) === 'orange'
-                                            ? 'bitcoin'
-                                            : techTone(m.tech) === 'purple'
-                                              ? 'nostr-purple'
-                                              : 'ecash-cyan'
-                                    })`,
-                                    animation: 'pulse-dot 1.6s infinite ease-in-out',
-                                }}
-                            />
-                        ) : (
-                            <span style={{ color: 'var(--muted)', fontSize: 11 }}>–</span>
-                        )}
-                    </div>
-                )
-            })}
+                                <div
+                                    style={{
+                                        position: 'absolute',
+                                        inset: 0,
+                                        width: `${pctTier}%`,
+                                        background:
+                                            done === total
+                                                ? techGradient('bitcoin')
+                                                : isActive
+                                                  ? 'var(--bitcoin)'
+                                                  : 'var(--border-strong)',
+                                    }}
+                                />
+                            </div>
+                        )
+                    })}
+                </div>
+            </div>
             <div
                 style={{
                     textAlign: 'right',
-                    fontSize: 12,
+                    fontSize: 14,
                     color: pct === 100 ? 'var(--success)' : 'var(--muted)',
-                    fontWeight: pct === 100 ? 700 : 500,
+                    fontWeight: pct === 100 ? 700 : 600,
                     fontFamily: 'var(--font-mono)',
+                    flexShrink: 0,
                 }}
             >
                 {pct}%

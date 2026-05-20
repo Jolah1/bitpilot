@@ -1,14 +1,19 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useState } from 'react'
 import QRCode from 'qrcode'
 import { chip, ghostButton } from '../lib/ui'
 
 /**
  * QR code + shareable link for a session.
  *
- * NOTE: the join URL points to `/join/:sessionId`, but there is no router
- * wired up to handle that path. For now this is a presentational helper
- * for sessions run on the same device — facilitators read the link out, or
- * use the copy button.
+ * The join URL is `${origin}/?session=<id>`. The App component parses the
+ * `session` query param on mount (see App.tsx:rehydrate) and takes the
+ * participant straight to the setup screen with the session pre-filled.
+ *
+ * Rendering note: we draw the QR via a *callback ref*, not a useEffect, so
+ * the QR appears the instant the canvas element mounts. The previous
+ * implementation used `useRef + useEffect([joinUrl])` which fired before
+ * the canvas existed — the ref was null at effect time, the effect's
+ * dependency (`joinUrl`) never changed afterwards, and the QR never drew.
  */
 export function QRSessionCard({
     sessionId,
@@ -17,19 +22,28 @@ export function QRSessionCard({
     sessionId: string
     sessionName: string
 }) {
-    const canvasRef = useRef<HTMLCanvasElement>(null)
     const joinUrl = `${window.location.origin}/?session=${sessionId}`
     const [copied, setCopied] = useState(false)
 
-    useEffect(() => {
-        if (canvasRef.current) {
-            QRCode.toCanvas(canvasRef.current, joinUrl, {
+    // Draw the QR as soon as the canvas element is in the DOM. React calls
+    // this with the node on mount and with null on unmount, so it doesn't
+    // matter what order the parent decides to mount us in.
+    const canvasRef = useCallback(
+        (node: HTMLCanvasElement | null) => {
+            if (!node) return
+            QRCode.toCanvas(node, joinUrl, {
                 width: 200,
                 margin: 1,
                 color: { dark: '#0A0A0B', light: '#FFFFFF' },
-            }).catch(() => { /* swallow — bad join URL shouldn't crash the page */ })
-        }
-    }, [joinUrl])
+            }).catch((err) => {
+                // We'd rather log + keep the page alive than crash on a
+                // bad join URL. The link below is still copyable.
+                // eslint-disable-next-line no-console
+                console.warn('QR render failed:', err)
+            })
+        },
+        [joinUrl],
+    )
 
     const copyLink = async () => {
         try {
@@ -37,8 +51,8 @@ export function QRSessionCard({
             setCopied(true)
             setTimeout(() => setCopied(false), 2000)
         } catch {
-            // Clipboard API can be blocked. We still show the link inline so
-            // the user can copy it manually.
+            // Clipboard API can be blocked (insecure context, iframe perms).
+            // The link is still visible in the code element below.
         }
     }
 
@@ -56,7 +70,7 @@ export function QRSessionCard({
                 maxWidth: 320,
             }}
         >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
                 <span style={chip('neutral')}>Join Session</span>
                 <span style={chip('orange')}>{sessionName}</span>
             </div>

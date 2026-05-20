@@ -1,7 +1,13 @@
-import { useEffect, useRef, useState, Fragment, type CSSProperties } from 'react'
+import { useEffect, useMemo, useRef, useState, Fragment, type CSSProperties } from 'react'
 import { api, ApiError } from '../lib/api'
 import { useIsTechReal } from '../lib/runtime'
-import { MISSIONS, MISSION_COUNT, type MissionDef } from '../lib/types'
+import {
+    MISSIONS,
+    MISSION_COUNT,
+    TIERS,
+    tierFor,
+    type MissionDef,
+} from '../lib/types'
 import {
     callout,
     card,
@@ -14,6 +20,20 @@ import {
     techGradient,
     techTone,
 } from '../lib/ui'
+import {
+    getNpub,
+    getNsec,
+    getSeedPhrase,
+    setNpub,
+    setNsec,
+    setSeedPhrase,
+} from '../lib/auth'
+import {
+    deriveFirstSegwitAddress,
+    generateBip39Mnemonic,
+    generateNostrKeys,
+    sha256Hex,
+} from '../lib/crypto'
 
 type Phase = 'learn' | 'quiz' | 'do'
 
@@ -27,14 +47,12 @@ interface DoOutcome {
 
 /**
  * The learner experience. One mission at a time, three phases per mission
- * (Learn → Quiz → Do). Progress is local state — the backend only stores
- * `completed_missions` and `current_mission` for the participant.
+ * (Learn → Quiz → Do). The backend stores progress; the frontend hydrates
+ * from `/api/participants/me` on mount.
  *
- * Accessibility notes:
- *   - phase tabs are real <button>s with aria-current, not divs
- *   - quiz options are <button>s with aria-pressed and disabled correctly
- *   - results blocks are aria-live="polite" so screen readers announce them
- *   - focus is moved to the result heading when a quiz/do step resolves
+ * Mobile-first: padding shrinks on small viewports, primary action button
+ * stays visible (no fixed widths that overflow), ProgressRail is tier-based
+ * not per-mission so 51 missions don't pile up into invisible slivers.
  */
 export default function LearnerView({ participantId }: { participantId: string }) {
     const [missionIdx, setMissionIdx] = useState(0)
@@ -44,14 +62,16 @@ export default function LearnerView({ participantId }: { participantId: string }
     const [quizResult, setQuizResult] = useState<'correct' | 'wrong' | null>(null)
 
     const [doInput, setDoInput] = useState('')
+    const [doInputB, setDoInputB] = useState('') // secondary input (e.g. about/bio)
     const [doOutcome, setDoOutcome] = useState<DoOutcome | null>(null)
     const [doError, setDoError] = useState<string | null>(null)
     const [loading, setLoading] = useState(false)
 
     const [completedMissions, setCompletedMissions] = useState<number[]>([])
-    /** nsec generated in mission 3, reused by mission 10's publish step. */
-    const [storedNsec, setStoredNsec] = useState<string | null>(null)
 
+    // The mission catalogue lookup is by id (mission number). missionIdx
+    // is BOTH the position in MISSIONS *and* the mission number, because
+    // MISSIONS is contiguous 0..50 in order. Keep these synonymous below.
     const mission: MissionDef = MISSIONS[missionIdx]
     const isLast = missionIdx === MISSION_COUNT - 1
     const allDone = completedMissions.length === MISSION_COUNT
@@ -69,25 +89,21 @@ export default function LearnerView({ participantId }: { participantId: string }
     // the source of truth: even if local state was wiped by a refresh, the
     // participant's `current_mission` and `completed_missions` are stored
     // in SQLite and come back via /api/participants/me.
-    //
-    // We pass `participantId` as an arg only to satisfy the older api
-    // signature; api.getParticipant actually calls /participants/me with
-    // the bearer token from localStorage and ignores the id.
     useEffect(() => {
         let cancelled = false
         ;(async () => {
             try {
-                const p = await api.getParticipant(participantId)
+                const p = await api.getParticipant()
                 if (cancelled) return
                 setCompletedMissions(p.completed_missions ?? [])
-                // current_mission is 1-indexed in the backend; missionIdx
-                // is 0-indexed here. Clamp to a valid range in case the
-                // mission catalogue changed under the participant.
-                const idx = Math.max(0, Math.min(MISSION_COUNT - 1, (p.current_mission ?? 1) - 1))
+                // current_mission is the same as missionIdx (both 0-indexed
+                // in the new curriculum). Clamp defensively in case the
+                // catalogue shrank under a participant.
+                const idx = Math.max(0, Math.min(MISSION_COUNT - 1, p.current_mission ?? 0))
                 setMissionIdx(idx)
             } catch {
                 // If the fetch fails (network down, token rejected), just
-                // start at mission 1. The Do action will fail loudly if
+                // start at mission 0. The Do action will fail loudly if
                 // the token is bad, which is the right place to surface it.
             }
         })()
@@ -104,6 +120,7 @@ export default function LearnerView({ participantId }: { participantId: string }
         setSelected(null)
         setQuizResult(null)
         setDoInput('')
+        setDoInputB('')
         setDoOutcome(null)
         setDoError(null)
     }
@@ -121,50 +138,73 @@ export default function LearnerView({ participantId }: { participantId: string }
         const correct = mission.quiz.options[selected].correct
         setQuizResult(correct ? 'correct' : 'wrong')
         if (correct) {
-            // Slight delay so the user can register the green flash.
             setTimeout(() => setPhase('do'), 700)
         }
     }
 
+    /**
+     * Action dispatch. Every branch must produce a `proof` string that the
+     * backend's `verify_proof()` will accept — see backend/src/routes/
+     * missions.rs. For knowledge missions, proof = "acknowledged".
+     */
     const handleDo = async () => {
         setLoading(true)
         setDoError(null)
         try {
             let outcome: DoOutcome
-            // proof gets sent to the backend on completeMission. For knowledge
-            // missions there's no server-issued artifact, so we send a
-            // non-empty placeholder; the backend accepts any non-empty string
-            // for missions 1/2/4/7. For technical missions, proof is the
-            // artifact the server just issued (npub, invoice, payment_hash,
-            // token, event_id) so the proof-ledger lookup succeeds.
             let proof: string
 
             switch (mission.do.kind) {
                 case 'knowledge': {
                     proof = 'acknowledged'
+                    outcome = { summary: 'Knowledge unlocked.', simulated: false }
+                    break
+                }
+
+                case 'seed-words': {
+                    // Generate a real BIP39 mnemonic in the browser. We
+                    // never send the mnemonic itself; we send a SHA-256
+                    // commitment so the backend can verify "you generated
+                    // something" without seeing the secret.
+                    const mnemonic = generateBip39Mnemonic()
+                    setSeedPhrase(mnemonic)
+                    proof = await sha256Hex(mnemonic)
                     outcome = {
-                        summary: 'Knowledge unlocked.',
+                        summary: 'Your 12 words — write these down on paper.',
+                        details: [
+                            { label: 'seed phrase', value: mnemonic },
+                            { label: 'commitment (sent to server)', value: proof },
+                        ],
+                        simulated: true,
+                    }
+                    break
+                }
+
+                case 'nostr-identity': {
+                    // Generate a real secp256k1 keypair in the browser.
+                    // Only the npub gets sent to the backend.
+                    const keys = generateNostrKeys()
+                    setNsec(keys.nsec)
+                    setNpub(keys.npub)
+                    await api.registerNostrIdentity(keys.npub)
+                    proof = keys.npub
+                    outcome = {
+                        summary: 'Your real Nostr keypair is ready.',
+                        details: [
+                            { label: 'npub (share freely)', value: keys.npub },
+                            { label: 'nsec (NEVER share)', value: keys.nsec },
+                            {
+                                label: 'next step',
+                                value: 'Copy your nsec into a password manager before continuing.',
+                            },
+                        ],
                         simulated: false,
                     }
                     break
                 }
-                case 'nostr-identity': {
-                    const r = await api.createNostrIdentity(participantId)
-                    setStoredNsec(r.nsec)
-                    proof = r.npub
-                    outcome = {
-                        summary: 'Your real Nostr keypair is ready.',
-                        details: [
-                            { label: 'npub (share)', value: r.npub },
-                            { label: 'nsec (NEVER share)', value: r.nsec },
-                            { label: 'warning', value: r.warning },
-                        ],
-                        simulated: r.simulated,
-                    }
-                    break
-                }
+
                 case 'invoice': {
-                    const r = await api.createInvoice(participantId, 100, 'BitPilot mission')
+                    const r = await api.createInvoice(100, 'BitPilot mission')
                     proof = r.invoice
                     outcome = {
                         summary: `Invoice for ${r.amount_sats} sats created.`,
@@ -173,13 +213,14 @@ export default function LearnerView({ participantId }: { participantId: string }
                     }
                     break
                 }
+
                 case 'pay': {
                     if (!doInput.trim()) {
                         setDoError('Type a Lightning address first.')
                         setLoading(false)
                         return
                     }
-                    const r = await api.payInvoice(participantId, doInput.trim())
+                    const r = await api.payInvoice(doInput.trim())
                     proof = r.payment_hash
                     outcome = {
                         summary: '50 sats sent.',
@@ -191,8 +232,9 @@ export default function LearnerView({ participantId }: { participantId: string }
                     }
                     break
                 }
+
                 case 'ecash-claim': {
-                    const r = await api.mintEcash(participantId, 50)
+                    const r = await api.mintEcash(50)
                     proof = r.token
                     outcome = {
                         summary: `Token minted — ${r.amount_sats} sats inside.`,
@@ -201,13 +243,14 @@ export default function LearnerView({ participantId }: { participantId: string }
                     }
                     break
                 }
+
                 case 'ecash-spend': {
                     if (!doInput.trim()) {
-                        setDoError('Paste a token (starts with cashuA).')
+                        setDoError('Paste a token (starts with cashuA/cashuB).')
                         setLoading(false)
                         return
                     }
-                    const r = await api.redeemEcash(participantId, doInput.trim())
+                    const r = await api.redeemEcash(doInput.trim())
                     proof = doInput.trim()
                     outcome = {
                         summary: `Token redeemed for ${r.amount_sats} sats.`,
@@ -216,18 +259,20 @@ export default function LearnerView({ participantId }: { participantId: string }
                     }
                     break
                 }
+
                 case 'nostr-publish': {
                     if (!doInput.trim()) {
                         setDoError("Your note can't be empty.")
                         setLoading(false)
                         return
                     }
-                    if (!storedNsec) {
-                        setDoError('Generate your Nostr identity first (mission 3).')
+                    const nsec = getNsec()
+                    if (!nsec) {
+                        setDoError('Generate your Nostr identity first (mission 14).')
                         setLoading(false)
                         return
                     }
-                    const r = await api.publishNostrNote(participantId, doInput.trim(), storedNsec)
+                    const r = await api.publishNostrNote(doInput.trim(), nsec)
                     proof = r.event_id
                     outcome = {
                         summary: 'Note signed and broadcast to public Nostr relays.',
@@ -239,13 +284,139 @@ export default function LearnerView({ participantId }: { participantId: string }
                     }
                     break
                 }
+
+                case 'nostr-profile': {
+                    if (!doInput.trim()) {
+                        setDoError('Pick a display name.')
+                        setLoading(false)
+                        return
+                    }
+                    const nsec = getNsec()
+                    if (!nsec) {
+                        setDoError('Generate your Nostr identity first (mission 14).')
+                        setLoading(false)
+                        return
+                    }
+                    const about = doInputB.trim() || null
+                    const r = await api.publishNostrProfile(doInput.trim(), about, nsec)
+                    proof = r.event_id
+                    outcome = {
+                        summary: 'Profile (kind-0) published to public relays.',
+                        details: [
+                            { label: 'event_id', value: r.event_id },
+                            { label: 'name', value: doInput.trim() },
+                            ...(about ? [{ label: 'about', value: about }] : []),
+                        ],
+                        simulated: r.simulated,
+                    }
+                    break
+                }
+
+                case 'nostr-follow': {
+                    const nsec = getNsec()
+                    if (!nsec) {
+                        setDoError('Generate your Nostr identity first (mission 14).')
+                        setLoading(false)
+                        return
+                    }
+                    // Pre-baked npubs to follow. Picking one for them is
+                    // friendlier than asking a beginner to find an npub.
+                    // fiatjaf is the inventor of Nostr. jb55 is Damus.
+                    const FOLLOW_TARGETS: Record<string, string> = {
+                        fiatjaf: 'npub180cvv07tjdrrgpa0j7j7tmnyl2yr6yr7l8j4s3evf6u64th6gkwsyjh6w6',
+                        jb55: 'npub1xtscya34g58tk0z605fvr788k263gsu6cy9x0mhnm87echrgufzsevkk5s',
+                    }
+                    const chosen = doInput.trim() || 'fiatjaf'
+                    const target = FOLLOW_TARGETS[chosen] ?? FOLLOW_TARGETS.fiatjaf
+                    const r = await api.publishNostrFollow(target, nsec)
+                    proof = r.event_id
+                    outcome = {
+                        summary: `Follow list (kind-3) published — following ${chosen}.`,
+                        details: [
+                            { label: 'followed npub', value: target },
+                            { label: 'event_id', value: r.event_id },
+                        ],
+                        simulated: r.simulated,
+                    }
+                    break
+                }
+
+                case 'nostr-zap': {
+                    const r = await api.simulateNostrZap()
+                    proof = r.event_id
+                    outcome = {
+                        summary: `Zap receipt generated — ${r.amount_sats} sats.`,
+                        details: [{ label: 'event_id', value: r.event_id }],
+                        simulated: r.simulated,
+                    }
+                    break
+                }
+
+                case 'derive-address': {
+                    const seed = getSeedPhrase()
+                    if (!seed) {
+                        setDoError('Generate your seed phrase first (mission 11).')
+                        setLoading(false)
+                        return
+                    }
+                    const address = deriveFirstSegwitAddress(seed)
+                    proof = address
+                    outcome = {
+                        summary: 'Derived your first receive address from the seed.',
+                        details: [
+                            { label: 'path', value: "m/84'/0'/0'/0/0" },
+                            { label: 'address', value: address },
+                        ],
+                        simulated: true,
+                    }
+                    break
+                }
+
+                case 'onchain-signet': {
+                    if (!doInput.trim()) {
+                        setDoError('Paste your signet transaction id (64 hex characters).')
+                        setLoading(false)
+                        return
+                    }
+                    proof = doInput.trim().toLowerCase()
+                    outcome = {
+                        summary: 'Your signet transaction is real — confirmed via mempool.space.',
+                        details: [
+                            { label: 'txid', value: proof },
+                            {
+                                label: 'view on mempool',
+                                value: `mempool.space/signet/tx/${proof}`,
+                            },
+                        ],
+                        simulated: false,
+                    }
+                    break
+                }
+
+                // Generic "paste this thing" — currently unused but reserved
+                // for future missions (e.g. "paste your npub here").
+                case 'paste-value': {
+                    if (!doInput.trim()) {
+                        setDoError('Paste a value first.')
+                        setLoading(false)
+                        return
+                    }
+                    proof = doInput.trim()
+                    outcome = { summary: 'Captured.', simulated: false }
+                    break
+                }
             }
 
             // Only credit the mission after the action succeeded.
-            await api.completeMission(participantId, mission.id, proof)
+            await api.completeMission(mission.id, proof)
             setDoOutcome(outcome)
         } catch (e) {
-            const msg = e instanceof ApiError ? e.message : e instanceof Error ? e.message : 'Unknown error'
+            const msg =
+                e instanceof ApiError
+                    ? e.message
+                    : e instanceof Error
+                      ? e.message
+                      : 'Unknown error'
             setDoError(msg)
         }
         setLoading(false)
@@ -259,22 +430,32 @@ export default function LearnerView({ participantId }: { participantId: string }
     return (
         <main
             id="learner-main"
-            style={{ padding: '1.5rem 1rem 4rem', maxWidth: 720, margin: '0 auto' }}
-            aria-label={`Mission ${mission.id} of ${MISSION_COUNT}: ${mission.name}`}
+            // Mobile: shrink padding aggressively so content uses the viewport.
+            // Desktop: comfortable 720-px reading width centered.
+            style={{
+                padding: 'clamp(0.75rem, 3vw, 1.5rem) clamp(0.5rem, 3vw, 1rem) 5rem',
+                maxWidth: 720,
+                margin: '0 auto',
+            }}
+            aria-label={`Mission ${mission.id} of ${MISSION_COUNT - 1}: ${mission.name}`}
         >
             <ProgressRail missionIdx={missionIdx} completed={completedMissions} />
 
-            <article style={{ ...card, overflow: 'hidden', marginTop: 24 }}>
-                <MissionHeader mission={mission} index={missionIdx} />
+            <article style={{ ...card, overflow: 'hidden', marginTop: 20 }}>
+                <MissionHeader mission={mission} />
 
-                <PhaseTabs phase={phase} onChange={(p) => setPhase(p)} quizPassed={quizResult === 'correct'} />
+                <PhaseTabs
+                    phase={phase}
+                    onChange={(p) => setPhase(p)}
+                    quizPassed={quizResult === 'correct'}
+                />
 
                 <div
                     style={{
-                        padding: '20px 22px 24px',
+                        padding: 'clamp(14px, 4vw, 22px)',
                         display: 'flex',
                         flexDirection: 'column',
-                        gap: 16,
+                        gap: 14,
                         background: 'var(--gradient-surface)',
                     }}
                 >
@@ -310,6 +491,8 @@ export default function LearnerView({ participantId }: { participantId: string }
                             tone={tone}
                             doInput={doInput}
                             setDoInput={setDoInput}
+                            doInputB={doInputB}
+                            setDoInputB={setDoInputB}
                             loading={loading}
                             outcome={doOutcome}
                             error={doError}
@@ -328,67 +511,117 @@ export default function LearnerView({ participantId }: { participantId: string }
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
 
-function ProgressRail({ missionIdx, completed }: { missionIdx: number; completed: number[] }) {
+/**
+ * Tier-grouped progress rail. Shows 5 stacked bars (one per tier), with
+ * a sub-line showing the current mission within the active tier.
+ *
+ * Why not 51 per-mission ticks? At 51 missions, each one would be 6-7px
+ * wide on mobile — invisible, useless. Tier rails communicate progress in
+ * a way you can read at a glance.
+ */
+function ProgressRail({
+    missionIdx,
+    completed,
+}: {
+    missionIdx: number
+    completed: number[]
+}) {
+    const currentTier = tierFor(missionIdx)
     return (
-        <nav aria-label="Mission progress">
+        <nav aria-label="Mission progress" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <ol
                 style={{
                     listStyle: 'none',
                     margin: 0,
                     padding: 0,
                     display: 'grid',
-                    gridTemplateColumns: `repeat(${MISSION_COUNT}, 1fr)`,
+                    gridTemplateColumns: `repeat(${TIERS.length}, 1fr)`,
                     gap: 4,
                 }}
             >
-                {MISSIONS.map((m, i) => {
-                    const done = completed.includes(i)
-                    const active = i === missionIdx
-                    const tone = techTone(m.tech)
+                {TIERS.map((t) => {
+                    const [lo, hi] = t.range
+                    const total = hi - lo + 1
+                    const doneInTier = completed.filter((m) => m >= lo && m <= hi).length
+                    const isActive = missionIdx >= lo && missionIdx <= hi
+                    const pct = isActive
+                        ? Math.max(((missionIdx - lo + (doneInTier === missionIdx - lo + 1 ? 1 : 0.4)) / total) * 100, 8)
+                        : doneInTier === total
+                          ? 100
+                          : (doneInTier / total) * 100
                     return (
-                        <li key={m.id} aria-current={active ? 'step' : undefined}>
+                        <li key={t.key}>
                             <div
-                                title={`Mission ${m.id}: ${m.name}`}
                                 style={{
-                                    height: 6,
+                                    position: 'relative',
+                                    height: 8,
                                     borderRadius: 'var(--radius-pill)',
-                                    background: done
-                                        ? techGradient(m.tech)
-                                        : active
-                                            ? techGradient(m.tech)
-                                            : 'var(--border)',
-                                    opacity: done ? 1 : active ? 1 : 0.6,
-                                    transition: 'opacity 0.15s ease',
+                                    background: 'var(--border)',
+                                    overflow: 'hidden',
                                 }}
-                            />
-                            <span
-                                aria-hidden="true"
+                                title={`${t.label}: ${doneInTier}/${total}`}
+                            >
+                                <div
+                                    style={{
+                                        position: 'absolute',
+                                        inset: 0,
+                                        width: `${pct}%`,
+                                        background: isActive
+                                            ? 'var(--gradient-bitcoin)'
+                                            : doneInTier === total
+                                              ? 'var(--success)'
+                                              : 'var(--border-strong)',
+                                        transition: 'width 0.3s ease',
+                                    }}
+                                />
+                            </div>
+                            <div
                                 style={{
-                                    display: 'block',
-                                    textAlign: 'center',
                                     marginTop: 4,
                                     fontSize: 10,
-                                    color: active ? `var(--${tone === 'orange' ? 'bitcoin' : tone === 'purple' ? 'nostr-purple' : 'ecash-cyan'})` : 'var(--muted)',
-                                    fontWeight: active ? 700 : 500,
+                                    textAlign: 'center',
+                                    color: isActive ? 'var(--bitcoin)' : 'var(--muted)',
+                                    fontWeight: isActive ? 700 : 500,
                                     letterSpacing: '0.04em',
+                                    textTransform: 'uppercase',
+                                    // Hide labels on very narrow viewports to avoid wrapping;
+                                    // the title attribute still gives the info.
+                                    whiteSpace: 'nowrap',
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
                                 }}
                             >
-                                {done ? '✓' : m.id}
-                            </span>
+                                {t.label}
+                            </div>
                         </li>
                     )
                 })}
             </ol>
+            <div
+                style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    fontSize: 12,
+                    color: 'var(--muted)',
+                    fontFamily: 'var(--font-mono)',
+                    flexWrap: 'wrap',
+                }}
+            >
+                <span style={{ color: 'var(--text)' }}>
+                    Mission {missionIdx}/{MISSION_COUNT - 1}
+                </span>
+                <span aria-hidden="true">·</span>
+                <span>{currentTier.label} tier</span>
+                <span aria-hidden="true">·</span>
+                <span>{currentTier.reward} sats reward</span>
+            </div>
         </nav>
     )
 }
 
-function MissionHeader({ mission, index }: { mission: MissionDef; index: number }) {
-    // The runtime decides whether the tech is really live or simulated.
-    // mission.simulated is the *default expectation* from the catalogue, but
-    // we honour what the backend actually reports.
+function MissionHeader({ mission }: { mission: MissionDef }) {
     const techReal = useIsTechReal(mission.tech)
-    const isSimulated = !techReal
     const statusChip =
         mission.tech === 'lightning'
             ? techReal
@@ -398,17 +631,24 @@ function MissionHeader({ mission, index }: { mission: MissionDef; index: number 
               ? techReal
                   ? { label: 'Testmint', tone: 'green' as const }
                   : { label: 'Simulated', tone: 'neutral' as const }
-              : mission.do.kind === 'nostr-publish'
+              : mission.do.kind === 'nostr-publish' ||
+                  mission.do.kind === 'nostr-profile' ||
+                  mission.do.kind === 'nostr-follow'
                 ? { label: 'Live relays', tone: 'green' as const }
-                : null
-    void isSimulated
+                : mission.do.kind === 'nostr-zap'
+                  ? { label: 'Simulated', tone: 'neutral' as const }
+                  : mission.do.kind === 'onchain-signet'
+                    ? { label: 'Signet', tone: 'green' as const }
+                    : null
+    const tier = tierFor(mission.id)
+
     return (
         <header
             style={{
-                padding: '22px 22px 16px',
+                padding: 'clamp(14px, 4vw, 20px) clamp(14px, 4vw, 22px) 14px',
                 display: 'flex',
                 alignItems: 'flex-start',
-                gap: 14,
+                gap: 12,
                 borderBottom: '1px solid var(--border)',
                 background: 'var(--surface)',
             }}
@@ -416,14 +656,14 @@ function MissionHeader({ mission, index }: { mission: MissionDef; index: number 
             <div
                 aria-hidden="true"
                 style={{
-                    width: 52,
-                    height: 52,
+                    width: 44,
+                    height: 44,
                     borderRadius: 'var(--radius-3)',
                     background: techGradient(mission.tech),
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    fontSize: 26,
+                    fontSize: 22,
                     flexShrink: 0,
                     boxShadow: 'var(--shadow-1)',
                 }}
@@ -431,30 +671,61 @@ function MissionHeader({ mission, index }: { mission: MissionDef; index: number 
                 <span style={{ filter: 'drop-shadow(0 1px 1px rgba(0,0,0,0.2))' }}>{mission.emoji}</span>
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
-                    <span style={labelStyle}>
-                        Mission {index + 1} of {MISSION_COUNT}
+                <div
+                    style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        flexWrap: 'wrap',
+                        marginBottom: 4,
+                    }}
+                >
+                    <span style={{ ...labelStyle, fontSize: 10 }}>
+                        #{mission.id} · {tier.label}
                     </span>
-                    <span style={chip(techTone(mission.tech))}>{mission.topic}</span>
+                    <span style={{ ...chip(techTone(mission.tech)), fontSize: 10 }}>
+                        {mission.topic}
+                    </span>
                     {statusChip && (
                         <span
-                            style={chip(statusChip.tone)}
+                            style={{ ...chip(statusChip.tone), fontSize: 10 }}
                             title={
                                 statusChip.label === 'Simulated'
-                                    ? "This mission's action is simulated — no real value moves."
+                                    ? "Action is simulated — no real value moves."
                                     : statusChip.label === 'Testnet'
-                                      ? 'Real Lightning, but on the signet/testnet network — no mainnet sats.'
+                                      ? 'Real Lightning, signet network — no mainnet sats.'
                                       : statusChip.label === 'Testmint'
-                                        ? 'Real Cashu protocol against a public testmint — fake sats, real tokens.'
-                                        : 'Real signed Nostr events to public relays.'
+                                        ? 'Real Cashu protocol against a public testmint.'
+                                        : statusChip.label === 'Signet'
+                                          ? 'Real on-chain transaction on signet.'
+                                          : 'Real signed Nostr events to public relays.'
                             }
                         >
                             {statusChip.label}
                         </span>
                     )}
                 </div>
-                <h2 style={{ fontSize: 22, fontWeight: 700, margin: '0 0 4px', letterSpacing: '-0.02em' }}>{mission.name}</h2>
-                <p style={{ fontSize: 14, color: 'var(--muted)', margin: 0, lineHeight: 1.5 }}>{mission.tagline}</p>
+                <h2
+                    style={{
+                        fontSize: 'clamp(17px, 4.5vw, 21px)',
+                        fontWeight: 700,
+                        margin: '0 0 3px',
+                        letterSpacing: '-0.02em',
+                        wordBreak: 'break-word',
+                    }}
+                >
+                    {mission.name}
+                </h2>
+                <p
+                    style={{
+                        fontSize: 13,
+                        color: 'var(--muted)',
+                        margin: 0,
+                        lineHeight: 1.45,
+                    }}
+                >
+                    {mission.tagline}
+                </p>
             </div>
         </header>
     )
@@ -477,7 +748,7 @@ function PhaseTabs({
             aria-label="Mission phase"
             style={{
                 display: 'flex',
-                margin: '16px 22px 0',
+                margin: '14px clamp(14px, 4vw, 22px) 0',
                 border: '1px solid var(--border)',
                 borderRadius: 'var(--radius-2)',
                 overflow: 'hidden',
@@ -488,9 +759,6 @@ function PhaseTabs({
                 const isPast =
                     (p === 'learn' && (phase === 'quiz' || phase === 'do')) ||
                     (p === 'quiz' && phase === 'do' && quizPassed)
-                // We don't allow tab clicks to skip ahead — the only way forward
-                // is to pass the quiz / complete the mission. Past phases can be
-                // revisited though.
                 const clickable = isActive || isPast
                 return (
                     <button
@@ -502,7 +770,7 @@ function PhaseTabs({
                         onClick={() => clickable && onChange(p)}
                         style={{
                             flex: 1,
-                            padding: '10px 8px',
+                            padding: '10px 6px',
                             background: isActive ? 'var(--bg-elevated)' : 'transparent',
                             color: isActive ? 'var(--text)' : 'var(--muted)',
                             fontWeight: isActive ? 700 : 500,
@@ -515,6 +783,7 @@ function PhaseTabs({
                             justifyContent: 'center',
                             gap: 6,
                             fontFamily: 'var(--font-sans)',
+                            minHeight: 44, // iOS recommended tap target
                         }}
                     >
                         <span
@@ -545,12 +814,21 @@ function PhaseTabs({
 function LearnPanel({ mission, onAdvance }: { mission: MissionDef; onAdvance: () => void }) {
     return (
         <>
-            <h3 style={{ fontSize: 18, fontWeight: 700, margin: 0, letterSpacing: '-0.01em' }}>{mission.learn.heading}</h3>
+            <h3
+                style={{
+                    fontSize: 'clamp(16px, 4vw, 18px)',
+                    fontWeight: 700,
+                    margin: 0,
+                    letterSpacing: '-0.01em',
+                }}
+            >
+                {mission.learn.heading}
+            </h3>
             {mission.learn.body.split('\n\n').map((para, i) => (
                 <p
                     key={i}
                     style={{
-                        fontSize: 15,
+                        fontSize: 14.5,
                         lineHeight: 1.7,
                         margin: 0,
                         color: 'var(--text-soft)',
@@ -587,11 +865,20 @@ function QuizPanel({
 }) {
     return (
         <>
-            <p style={{ fontSize: 17, fontWeight: 600, lineHeight: 1.4, margin: 0 }}>{mission.quiz.question}</p>
+            <p style={{ fontSize: 16, fontWeight: 600, lineHeight: 1.4, margin: 0 }}>
+                {mission.quiz.question}
+            </p>
             <ul
                 role="radiogroup"
                 aria-label="Quiz options"
-                style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 8 }}
+                style={{
+                    listStyle: 'none',
+                    padding: 0,
+                    margin: 0,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 8,
+                }}
             >
                 {mission.quiz.options.map((opt, i) => {
                     const isChosen = selected === i
@@ -600,17 +887,17 @@ function QuizPanel({
                     const borderColor = isCorrect
                         ? 'var(--success)'
                         : isWrong
-                            ? 'var(--danger)'
-                            : isChosen
-                                ? 'var(--bitcoin)'
-                                : 'var(--border)'
+                          ? 'var(--danger)'
+                          : isChosen
+                            ? 'var(--bitcoin)'
+                            : 'var(--border)'
                     const bg = isCorrect
                         ? 'rgba(16, 197, 126, 0.1)'
                         : isWrong
-                            ? 'rgba(248, 113, 113, 0.08)'
-                            : isChosen
-                                ? 'rgba(247, 147, 26, 0.08)'
-                                : 'var(--bg)'
+                          ? 'rgba(248, 113, 113, 0.08)'
+                          : isChosen
+                            ? 'rgba(247, 147, 26, 0.08)'
+                            : 'var(--bg)'
                     return (
                         <li key={i}>
                             <button
@@ -624,7 +911,7 @@ function QuizPanel({
                                     alignItems: 'center',
                                     gap: 12,
                                     width: '100%',
-                                    padding: '14px 16px',
+                                    padding: '12px 14px',
                                     border: `1.5px solid ${borderColor}`,
                                     borderRadius: 'var(--radius-2)',
                                     background: bg,
@@ -634,6 +921,7 @@ function QuizPanel({
                                     fontFamily: 'var(--font-sans)',
                                     color: 'var(--text)',
                                     transition: 'border-color 0.12s, background 0.12s',
+                                    minHeight: 48,
                                 }}
                             >
                                 <span
@@ -702,6 +990,8 @@ function DoPanel({
     tone,
     doInput,
     setDoInput,
+    doInputB,
+    setDoInputB,
     loading,
     outcome,
     error,
@@ -715,6 +1005,8 @@ function DoPanel({
     tone: 'orange' | 'purple' | 'cyan'
     doInput: string
     setDoInput: (v: string) => void
+    doInputB: string
+    setDoInputB: (v: string) => void
     loading: boolean
     outcome: DoOutcome | null
     error: string | null
@@ -724,56 +1016,81 @@ function DoPanel({
     resultRef: React.RefObject<HTMLDivElement>
     nextMissionName: string | null
 }) {
-    const needsTextInput = mission.do.kind === 'pay' || mission.do.kind === 'ecash-spend'
-    const needsTextarea = mission.do.kind === 'nostr-publish'
+    // Decide what input UI to show. Each branch labels its own field so
+    // the user understands what they're typing.
+    const ui = useMemo(() => uiForKind(mission.do.kind), [mission.do.kind])
 
     return (
         <>
-            <p style={{ fontSize: 14, color: 'var(--muted)', lineHeight: 1.6, margin: 0 }}>{mission.do.helper}</p>
+            <p style={{ fontSize: 14, color: 'var(--muted)', lineHeight: 1.6, margin: 0 }}>
+                {mission.do.helper}
+            </p>
 
-            {!outcome && needsTextInput && (
+            {!outcome && ui.primary && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                     <label htmlFor={`do-input-${mission.id}`} style={labelStyle}>
-                        {mission.do.kind === 'pay' ? 'Lightning address' : 'Cashu token'}
+                        {ui.primary.label}
                     </label>
-                    <input
-                        id={`do-input-${mission.id}`}
-                        style={inputMono}
-                        value={doInput}
-                        onChange={(e) => setDoInput(e.target.value)}
-                        placeholder={mission.do.placeholder}
-                        maxLength={mission.do.maxLength}
-                        autoComplete="off"
-                        autoCapitalize="none"
-                        spellCheck={false}
-                    />
+                    {ui.primary.type === 'textarea' ? (
+                        <>
+                            <textarea
+                                id={`do-input-${mission.id}`}
+                                value={doInput}
+                                onChange={(e) => setDoInput(e.target.value)}
+                                placeholder={mission.do.placeholder ?? ui.primary.placeholder}
+                                maxLength={mission.do.maxLength}
+                                rows={4}
+                                style={{
+                                    ...input,
+                                    minHeight: 100,
+                                    resize: 'vertical',
+                                    lineHeight: 1.5,
+                                }}
+                            />
+                            {mission.do.maxLength && (
+                                <span
+                                    style={{
+                                        fontSize: 11,
+                                        color: 'var(--muted)',
+                                        alignSelf: 'flex-end',
+                                        fontFamily: 'var(--font-mono)',
+                                    }}
+                                >
+                                    {doInput.length} / {mission.do.maxLength}
+                                </span>
+                            )}
+                        </>
+                    ) : (
+                        <input
+                            id={`do-input-${mission.id}`}
+                            style={ui.primary.mono ? inputMono : input}
+                            value={doInput}
+                            onChange={(e) => setDoInput(e.target.value)}
+                            placeholder={mission.do.placeholder ?? ui.primary.placeholder}
+                            maxLength={mission.do.maxLength ?? ui.primary.maxLength}
+                            autoComplete="off"
+                            autoCapitalize="none"
+                            spellCheck={false}
+                        />
+                    )}
                 </div>
             )}
 
-            {!outcome && needsTextarea && (
+            {!outcome && ui.secondary && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    <label htmlFor={`do-input-${mission.id}`} style={labelStyle}>
-                        Your Nostr note
+                    <label htmlFor={`do-input-b-${mission.id}`} style={labelStyle}>
+                        {ui.secondary.label}
                     </label>
-                    <textarea
-                        id={`do-input-${mission.id}`}
-                        value={doInput}
-                        onChange={(e) => setDoInput(e.target.value)}
-                        placeholder={mission.do.placeholder}
-                        maxLength={mission.do.maxLength}
-                        rows={4}
-                        style={{ ...input, minHeight: 100, resize: 'vertical', lineHeight: 1.5 }}
+                    <input
+                        id={`do-input-b-${mission.id}`}
+                        style={input}
+                        value={doInputB}
+                        onChange={(e) => setDoInputB(e.target.value)}
+                        placeholder={ui.secondary.placeholder}
+                        maxLength={ui.secondary.maxLength}
+                        autoComplete="off"
+                        spellCheck={false}
                     />
-                    <span
-                        style={{
-                            fontSize: 11,
-                            color: 'var(--muted)',
-                            alignSelf: 'flex-end',
-                            fontFamily: 'var(--font-mono)',
-                        }}
-                    >
-                        {doInput.length} / {mission.do.maxLength}
-                    </span>
                 </div>
             )}
 
@@ -805,6 +1122,70 @@ function DoPanel({
     )
 }
 
+/**
+ * Per-DoKind UI hints: labels, placeholders, whether to use mono input,
+ * whether a textarea is needed, whether a secondary input slot is shown.
+ * Centralised so the DoPanel itself stays compact.
+ */
+interface DoUi {
+    primary?: {
+        label: string
+        placeholder?: string
+        maxLength?: number
+        mono?: boolean
+        type?: 'input' | 'textarea'
+    }
+    secondary?: {
+        label: string
+        placeholder?: string
+        maxLength?: number
+    }
+}
+
+function uiForKind(kind: MissionDef['do']['kind']): DoUi {
+    switch (kind) {
+        case 'pay':
+            return { primary: { label: 'Lightning address', placeholder: 'demo@ln.tips', maxLength: 80, mono: true } }
+        case 'ecash-spend':
+            return { primary: { label: 'Cashu token', placeholder: 'cashuB…', maxLength: 400, mono: true } }
+        case 'nostr-publish':
+            return {
+                primary: {
+                    label: 'Your Nostr note',
+                    type: 'textarea',
+                    placeholder: 'GM Nostr — I just finished BitPilot ⚡',
+                    maxLength: 280,
+                },
+            }
+        case 'nostr-profile':
+            return {
+                primary: { label: 'Display name', placeholder: 'e.g. Amaka', maxLength: 40 },
+                secondary: { label: 'About (optional)', placeholder: 'one-line bio', maxLength: 200 },
+            }
+        case 'nostr-follow':
+            return {
+                primary: {
+                    label: 'Who to follow (type "fiatjaf" or "jb55")',
+                    placeholder: 'fiatjaf',
+                    maxLength: 20,
+                },
+            }
+        case 'onchain-signet':
+            return {
+                primary: {
+                    label: 'Your signet transaction id',
+                    placeholder: '64-character hex',
+                    maxLength: 64,
+                    mono: true,
+                },
+            }
+        default:
+            // knowledge, seed-words, nostr-identity, invoice, ecash-claim,
+            // nostr-zap, derive-address, paste-value with no UI need.
+            return {}
+    }
+}
+
 function ResultBlock({
     outcome,
     resultRef,
@@ -817,7 +1198,7 @@ function ResultBlock({
     const detailStyle: CSSProperties = {
         display: 'grid',
         gridTemplateColumns: 'auto 1fr',
-        gap: '4px 12px',
+        gap: '6px 12px',
         marginTop: 12,
         fontFamily: 'var(--font-mono)',
         fontSize: 12,
@@ -829,22 +1210,29 @@ function ResultBlock({
             tabIndex={-1}
             role="status"
             aria-live="polite"
-            style={{
-                ...callout('success'),
-                outline: 'none',
-            }}
+            style={{ ...callout('success'), outline: 'none' }}
         >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+            <div
+                style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    marginBottom: 6,
+                    flexWrap: 'wrap',
+                }}
+            >
                 <span aria-hidden="true" style={{ fontSize: 18 }}>
                     ✓
                 </span>
-                <strong style={{ fontSize: 14 }}>{outcome.summary}</strong>
+                <strong style={{ fontSize: 14, flex: '1 1 auto', minWidth: 0 }}>
+                    {outcome.summary}
+                </strong>
                 {outcome.simulated ? (
-                    <span style={{ ...chip('neutral'), marginLeft: 'auto' }} title="No real network call — this action was simulated.">
+                    <span style={{ ...chip('neutral'), fontSize: 10 }} title="Simulated action.">
                         Simulated
                     </span>
                 ) : (
-                    <span style={{ ...chip('green'), marginLeft: 'auto' }} title="This really happened — on a real network (Nostr relays, testnet, or testmint).">
+                    <span style={{ ...chip('green'), fontSize: 10 }} title="Really happened on a real network.">
                         Real
                     </span>
                 )}
@@ -859,8 +1247,6 @@ function ResultBlock({
                     ))}
                 </div>
             )}
-            {/* tone is currently unused in the result block, but kept as a prop
-              so we can later tint the check icon to match the mission. */}
             <span style={{ display: 'none' }}>{tone}</span>
         </div>
     )
@@ -873,7 +1259,7 @@ function FinishedScreen() {
             style={{
                 maxWidth: 640,
                 margin: '0 auto',
-                padding: '4rem 1rem',
+                padding: 'clamp(2rem, 8vw, 4rem) 1rem',
                 textAlign: 'center',
                 display: 'flex',
                 flexDirection: 'column',
@@ -898,14 +1284,26 @@ function FinishedScreen() {
             >
                 🎉
             </div>
-            <h1 style={{ fontSize: 32, fontWeight: 800, margin: 0, letterSpacing: '-0.025em' }}>
+            <h1
+                style={{
+                    fontSize: 'clamp(26px, 7vw, 34px)',
+                    fontWeight: 800,
+                    margin: 0,
+                    letterSpacing: '-0.025em',
+                }}
+            >
                 <span className="gradient-text">You did it.</span>
             </h1>
-            <p style={{ fontSize: 16, color: 'var(--muted)', lineHeight: 1.6, margin: 0, maxWidth: 480 }}>
-                You just used <strong style={{ color: 'var(--text)' }}>Bitcoin</strong>,{' '}
-                <strong style={{ color: 'var(--text)' }}>Lightning</strong>,{' '}
-                <strong style={{ color: 'var(--text)' }}>Nostr</strong>, and{' '}
-                <strong style={{ color: 'var(--text)' }}>eCash</strong> — and you actually understand what each one
+            <p
+                style={{
+                    fontSize: 16,
+                    color: 'var(--muted)',
+                    lineHeight: 1.6,
+                    margin: 0,
+                    maxWidth: 480,
+                }}
+            >
+                51 missions. Five tiers. You used Bitcoin, Lightning, Nostr, and eCash for real, and you actually understand what each one
                 does. That puts you ahead of about 99% of people on earth.
             </p>
             <ul
@@ -915,7 +1313,7 @@ function FinishedScreen() {
                     margin: 0,
                     display: 'flex',
                     flexDirection: 'column',
-                    gap: 8,
+                    gap: 10,
                     width: '100%',
                     maxWidth: 420,
                     background: 'var(--surface)',
@@ -924,9 +1322,9 @@ function FinishedScreen() {
                     textAlign: 'left',
                 }}
             >
-                {MISSIONS.map((m) => (
+                {TIERS.map((t) => (
                     <li
-                        key={m.id}
+                        key={t.key}
                         style={{
                             display: 'flex',
                             alignItems: 'center',
@@ -938,14 +1336,15 @@ function FinishedScreen() {
                         <span aria-hidden="true" style={{ color: 'var(--success)', fontWeight: 700 }}>
                             ✓
                         </span>
-                        <span aria-hidden="true">{m.emoji}</span>
-                        <span>{m.name}</span>
+                        <span style={{ flex: 1 }}>
+                            <strong style={{ color: 'var(--text)' }}>{t.label}</strong> ·{' '}
+                            {t.range[1] - t.range[0] + 1} missions · {t.reward} sats each
+                        </span>
                     </li>
                 ))}
             </ul>
             <p style={{ fontSize: 13, color: 'var(--muted)', margin: 0 }}>
-                Your Nostr note from mission 10 is now live on public relays — open any Nostr client and paste your{' '}
-                <code style={{ fontFamily: 'var(--font-mono)' }}>npub</code> to find it.
+                Your Nostr identity and notes are real — open any Nostr client and search your npub.
             </p>
         </main>
     )
