@@ -199,6 +199,16 @@ button {
     background: var(--muted);
 }
 
+/* Opt-out for horizontal sliders (e.g. landing-page Your Journey).
+   We keep the global bar styled above, but elements with this class go
+   bare so the card snap-scroll feels like a slider, not a window. */
+.no-scrollbar {
+    scrollbar-width: none; /* Firefox */
+}
+.no-scrollbar::-webkit-scrollbar {
+    display: none; /* Chrome/Safari/Edge */
+}
+
 /* Inputs inherit fonts everywhere */
 input, textarea, select {
     font-family: inherit;

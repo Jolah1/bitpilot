@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { isSoloSessionName } from '../App'
 import { QRSessionCard } from '../components/QRJoinFlow'
 import { MISSION_COUNT, TIERS, tierFor, type Participant } from '../lib/types'
 import { fetchSessionProgress } from '../lib/api'
@@ -32,6 +33,11 @@ export default function FacilitatorDashboard({ sessionId }: { sessionId: string 
 
     const session = progress?.session
     const participants: Participant[] = progress?.participants ?? []
+    // Solo learners create a sentinel-named session under the hood (see
+    // `SOLO_SESSION_NAME` in App.tsx). Display them as "Solo run" rather
+    // than leaking the raw "__solo__" string into the header or QR card.
+    const isSolo = isSoloSessionName(session?.name)
+    const displayName = isSolo ? 'Solo run' : session?.name
     const completed = participants.filter((p) => p.completed_missions.length === MISSION_COUNT).length
     const avgProgress =
         participants.length > 0
@@ -96,7 +102,7 @@ export default function FacilitatorDashboard({ sessionId }: { sessionId: string 
                                 whiteSpace: 'nowrap',
                             }}
                         >
-                            {session?.name ?? (isLoading ? 'Loading session…' : 'Session')}
+                            {displayName ?? (isLoading ? 'Loading session…' : 'Session')}
                         </h1>
                         <span
                             style={{
@@ -147,7 +153,7 @@ export default function FacilitatorDashboard({ sessionId }: { sessionId: string 
                         padding: 20,
                     }}
                 >
-                    <QRSessionCard sessionId={sessionId} sessionName={session.name} />
+                    <QRSessionCard sessionId={sessionId} sessionName={displayName ?? session.name} />
                 </div>
             )}
 

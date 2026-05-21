@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import LearnerView from './views/LearnerView'
 import FacilitatorDashboard from './views/FacilitatorDashboard'
@@ -30,6 +30,26 @@ const queryClient = new QueryClient({
 
 type View = 'learner' | 'facilitator'
 type Screen = 'landing' | 'setup' | 'app'
+
+/**
+ * Sentinel session name for solo learners.
+ *
+ * A solo learner is someone who lands on bitpilot.app, hits "Start
+ * Learning Bitcoin", and never enters a session name. The backend still
+ * needs *a* session row (the schema joins participants to sessions), but
+ * we don't want every drive-by visitor showing up as a session named
+ * "BitPilot Session" on a future admin dashboard. So we tag those rows
+ * with this sentinel, and any facilitator-style UI that happens to
+ * render one knows to display "Solo run" instead.
+ *
+ * Keep the prefix `__` so it can't collide with anything a human would
+ * legitimately type — the backend only rejects empty names, not unusual
+ * ones.
+ */
+export const SOLO_SESSION_NAME = '__solo__'
+export function isSoloSessionName(name: string | null | undefined): boolean {
+    return name === SOLO_SESSION_NAME
+}
 
 /**
  * On first mount we try to:
@@ -120,7 +140,19 @@ export default function App() {
                 // Deep-link path: join the existing session, don't create one.
                 sid = joinSessionId
             } else {
-                const session = await api.createSession(sessionName.trim() || 'BitPilot Session')
+                // No deep link: we have to create a session for the
+                // participant to belong to. If the user typed a session
+                // name OR is in the facilitator flow, treat it as a real
+                // named session. Otherwise tag it with the solo sentinel
+                // so future admin views can hide drive-by learners.
+                const typed = sessionName.trim()
+                const sessionLabel =
+                    typed.length > 0
+                        ? typed
+                        : view === 'facilitator'
+                          ? 'BitPilot Session'
+                          : SOLO_SESSION_NAME
+                const session = await api.createSession(sessionLabel)
                 sid = session.id
             }
             const participant = await api.joinSession(name, sid)
@@ -158,6 +190,25 @@ export default function App() {
         setScreen('landing')
     }
 
+    /**
+     * Soft "home" — go back to the landing page WITHOUT wiping credentials.
+     * Triggered by clicking the BitPilot logo in the app shell. The user
+     * lands on the marketing page and the "Continue your missions" pill
+     * is visible because `sessionId` and `participantId` are still set.
+     *
+     * This is distinct from Exit (the explicit "Exit to landing" menu
+     * item) which is a clean-slate signal.
+     */
+    const onHomeFromApp = () => {
+        setScreen('landing')
+    }
+
+    // Whether the landing page should show a "Continue your missions" pill.
+    // We read live state, not just the initial mount, so a user who clicks
+    // the logo mid-session still sees the resume option even though
+    // `initial.restored` was false when they first arrived.
+    const hasResumable = sessionId !== null && participantId !== null
+
     return (
         <QueryClientProvider client={queryClient}>
             <RuntimeProvider>
@@ -176,7 +227,7 @@ export default function App() {
                             setView('facilitator')
                             setScreen('setup')
                         }}
-                        hasResumable={initial.restored}
+                        hasResumable={hasResumable}
                         onContinue={continueExisting}
                     />
                 )}
@@ -202,6 +253,7 @@ export default function App() {
                         theme={theme}
                         onToggleTheme={toggleTheme}
                         onExit={onExitToLanding}
+                        onHome={onHomeFromApp}
                         participantId={participantId}
                         sessionId={sessionId}
                     />
@@ -334,20 +386,23 @@ function Hero({
 
             {/* Two sentences. The first names the problem we all know
                 (videos that go nowhere); the second names the cure. */}
+            {/* Two short sentences. First names the failure mode; second
+                states the cure. Anything longer here turns the hero into
+                a paragraph — exactly the documentation-shaped page we're
+                trying to escape. */}
             <p
                 style={{
                     fontSize: 'clamp(16px, 3.6vw, 19px)',
                     color: 'var(--text-soft)',
                     lineHeight: 1.55,
-                    maxWidth: 580,
+                    maxWidth: 540,
                     margin: '0 auto 28px',
                 }}
             >
-                Most people watch videos about Bitcoin and still feel confused.
+                Most people watch videos about Bitcoin and stay confused.
                 BitPilot teaches you by making you{' '}
-                <strong style={{ color: 'var(--text)' }}>do things for real</strong> — create
-                wallets, send payments, use Lightning, publish on Nostr, and earn sats as
-                you learn.
+                <strong style={{ color: 'var(--text)' }}>actually do it</strong>{' '}
+                — and earn sats as you learn.
             </p>
 
             <div
@@ -513,23 +568,44 @@ function HowItWorks() {
 // ─── Your Journey ────────────────────────────────────────────────────────────
 
 /**
- * Tier descriptions deliberately diverge from `TIERS[].tagline` (which is
- * written for the in-app view, where the user already knows the jargon).
- * Here we want outcome statements — what the visitor will *be able to do*.
+ * One-word outcome per tier. The old copy was a sentence; on a marketing
+ * page this is too dense, especially repeated 5 times in a row. We swap
+ * each long sentence for an icon + a single outcome phrase, and rely on
+ * the slider to invite exploration instead of dumping it all at once.
  *
- * The mapping by `key` is intentional: if a tier is renamed or reordered
- * in `types.ts`, the lookup just drops the missing one rather than
- * crashing the landing page.
+ * Order matches `TIERS` in `types.ts`. If a tier is renamed there, the
+ * lookup quietly falls through to `t.tagline`.
  */
-const TIER_PITCH: Record<string, string> = {
-    novice: 'Learn the basics of Bitcoin. Why it exists, what a wallet is, how it actually works.',
-    apprentice: 'Create real wallets. Understand keys, addresses, and how money moves.',
-    pilot: 'Use Lightning and Nostr in real scenarios — send payments, publish your first note.',
-    navigator: 'Explore eCash, zaps and the wider Bitcoin ecosystem.',
-    captain: 'Master self-custody, on-chain transactions, and Bitcoin sovereignty.',
+interface TierPitch {
+    icon: string
+    outcome: string
+}
+const TIER_PITCH: Record<string, TierPitch> = {
+    novice: { icon: '🌱', outcome: 'Bitcoin basics, from zero.' },
+    apprentice: { icon: '🔑', outcome: 'Wallets, keys, and transactions.' },
+    pilot: { icon: '⚡', outcome: 'Lightning and Nostr in real scenarios.' },
+    navigator: { icon: '🧭', outcome: 'eCash, zaps and the wider ecosystem.' },
+    captain: { icon: '🚀', outcome: 'Self-custody and sovereignty.' },
 }
 
+/**
+ * Horizontally scroll-snapped slider. CSS scroll-snap + overflow-x: auto
+ * gives us touch swiping on mobile and mouse-wheel/drag on desktop with
+ * no JS library. The arrow buttons on desktop are pure ergonomics — the
+ * slider works without them.
+ */
 function YourJourney() {
+    const trackRef = useRef<HTMLOListElement | null>(null)
+
+    const scrollBy = (dir: -1 | 1) => {
+        const el = trackRef.current
+        if (!el) return
+        // Step one card-width at a time. We read clientWidth so the step
+        // adapts when the viewport changes.
+        const step = Math.min(el.clientWidth * 0.85, 360)
+        el.scrollBy({ left: step * dir, behavior: 'smooth' })
+    }
+
     return (
         <section
             aria-labelledby="journey-headline"
@@ -544,59 +620,170 @@ function YourJourney() {
                 eyebrow="Your journey"
                 title="From beginner to Bitcoin captain."
             />
-            <ol
-                style={{
-                    listStyle: 'none',
-                    padding: 0,
-                    margin: 0,
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-                    gap: 12,
-                }}
-            >
-                {TIERS.map((t) => (
-                    <TierCard key={t.key} tier={t} pitch={TIER_PITCH[t.key] ?? t.tagline} />
-                ))}
-            </ol>
+
+            <div style={{ position: 'relative' }}>
+                <ol
+                    ref={trackRef}
+                    className="no-scrollbar"
+                    style={{
+                        listStyle: 'none',
+                        padding: '4px 4px 16px',
+                        margin: 0,
+                        display: 'flex',
+                        gap: 12,
+                        overflowX: 'auto',
+                        scrollSnapType: 'x mandatory',
+                        scrollPaddingInline: '4px',
+                        // The class above hides the visible scrollbar in
+                        // every modern browser; we keep the inline style
+                        // for the (rare) Firefox case as belt-and-braces.
+                        scrollbarWidth: 'none',
+                        WebkitOverflowScrolling: 'touch',
+                    }}
+                >
+                    {TIERS.map((t, i) => (
+                        <TierSlide
+                            key={t.key}
+                            tier={t}
+                            pitch={TIER_PITCH[t.key]}
+                            index={i + 1}
+                            total={TIERS.length}
+                        />
+                    ))}
+                </ol>
+
+                {/* Arrow buttons: hidden on touch viewports via media query
+                    isn't possible without CSS; keep them visible but small
+                    so they don't dominate on mobile. */}
+                <SliderArrows onLeft={() => scrollBy(-1)} onRight={() => scrollBy(1)} />
+            </div>
+
             <p
                 style={{
                     textAlign: 'center',
                     fontSize: 13,
                     color: 'var(--muted)',
-                    marginTop: 18,
+                    marginTop: 12,
                 }}
             >
-                {MISSION_COUNT} missions total · Earn sats as you progress
+                {MISSION_COUNT} missions · Earn sats as you progress
             </p>
         </section>
     )
 }
 
-function TierCard({ tier: t, pitch }: { tier: (typeof TIERS)[number]; pitch: string }) {
+function TierSlide({
+    tier: t,
+    pitch,
+    index,
+    total,
+}: {
+    tier: (typeof TIERS)[number]
+    pitch: TierPitch | undefined
+    index: number
+    total: number
+}) {
+    const meta = pitch ?? { icon: '✦', outcome: t.tagline }
     return (
         <li
             style={{
                 ...card,
-                padding: 18,
+                padding: 20,
+                flex: '0 0 min(280px, 80vw)',
+                scrollSnapAlign: 'start',
                 display: 'flex',
                 flexDirection: 'column',
-                gap: 10,
+                gap: 12,
+                minHeight: 200,
             }}
+            aria-label={`Tier ${index} of ${total}: ${t.label}`}
         >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                <span style={chip('orange')}>{t.label}</span>
-            </div>
-            <p
+            <div
+                aria-hidden="true"
                 style={{
-                    fontSize: 13.5,
-                    color: 'var(--text-soft)',
-                    lineHeight: 1.55,
-                    margin: 0,
+                    width: 56,
+                    height: 56,
+                    borderRadius: 'var(--radius-3)',
+                    background: 'var(--gradient-bitcoin)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: 28,
+                    color: '#0A0A0B',
+                    boxShadow: 'var(--shadow-1)',
                 }}
             >
-                {pitch}
+                {meta.icon}
+            </div>
+            <div
+                style={{
+                    fontSize: 11,
+                    color: 'var(--muted)',
+                    letterSpacing: '0.1em',
+                    textTransform: 'uppercase',
+                    fontWeight: 700,
+                    fontFamily: 'var(--font-mono)',
+                }}
+            >
+                Tier {index} / {total}
+            </div>
+            <h3
+                style={{
+                    fontSize: 20,
+                    fontWeight: 800,
+                    margin: 0,
+                    letterSpacing: '-0.02em',
+                }}
+            >
+                {t.label}
+            </h3>
+            <p
+                style={{
+                    fontSize: 14,
+                    color: 'var(--text-soft)',
+                    margin: 0,
+                    lineHeight: 1.5,
+                }}
+            >
+                {meta.outcome}
             </p>
         </li>
+    )
+}
+
+function SliderArrows({ onLeft, onRight }: { onLeft: () => void; onRight: () => void }) {
+    const btn: CSSProperties = {
+        width: 36,
+        height: 36,
+        borderRadius: '50%',
+        border: '1px solid var(--border)',
+        background: 'var(--bg-elevated)',
+        color: 'var(--text)',
+        cursor: 'pointer',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontSize: 16,
+        fontFamily: 'inherit',
+        boxShadow: 'var(--shadow-1)',
+    }
+    return (
+        <div
+            aria-hidden="true"
+            style={{
+                display: 'flex',
+                justifyContent: 'center',
+                gap: 8,
+                marginTop: 4,
+            }}
+        >
+            <button type="button" onClick={onLeft} style={btn} aria-label="Scroll tiers left">
+                ←
+            </button>
+            <button type="button" onClick={onRight} style={btn} aria-label="Scroll tiers right">
+                →
+            </button>
+        </div>
     )
 }
 
@@ -614,7 +801,7 @@ function WhyThisWorks() {
         >
             <div
                 style={{
-                    maxWidth: 760,
+                    maxWidth: 640,
                     margin: '0 auto',
                     padding: 'clamp(2.5rem, 7vw, 4rem) clamp(1rem, 4vw, 1.5rem)',
                     textAlign: 'center',
@@ -632,65 +819,32 @@ function WhyThisWorks() {
                 >
                     Most Bitcoin education fails.
                 </h2>
+                {/* One line. The contrast does the work — anything longer
+                    reads as a lecture, which is exactly what we're
+                    accusing the alternative of. */}
                 <p
                     style={{
                         fontSize: 'clamp(15px, 3.5vw, 17px)',
                         color: 'var(--text-soft)',
                         lineHeight: 1.65,
-                        maxWidth: 560,
-                        margin: '0 auto 20px',
+                        maxWidth: 480,
+                        margin: '0 auto 8px',
                     }}
                 >
-                    You watch videos. You read threads. You memorise terms. And you still
-                    never actually use Bitcoin.
+                    You watch the videos. You read the threads. You still never use Bitcoin.
                 </p>
                 <p
                     style={{
                         fontSize: 'clamp(16px, 3.6vw, 18px)',
                         color: 'var(--text)',
-                        lineHeight: 1.55,
-                        maxWidth: 560,
-                        margin: '0 auto 24px',
-                        fontWeight: 600,
-                    }}
-                >
-                    BitPilot is different. Every mission is hands-on.
-                </p>
-                <ul
-                    style={{
-                        listStyle: 'none',
-                        padding: 0,
+                        lineHeight: 1.45,
+                        maxWidth: 480,
                         margin: '0 auto',
-                        maxWidth: 380,
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: 8,
-                        textAlign: 'left',
+                        fontWeight: 700,
                     }}
                 >
-                    {[
-                        'Real wallets, generated in your browser',
-                        'Real cryptographic keys you control',
-                        'Real Lightning payment flows',
-                        'Real Nostr posts to public relays',
-                        'Real learning — without risking real money',
-                    ].map((line) => (
-                        <li
-                            key={line}
-                            style={{
-                                display: 'flex',
-                                gap: 10,
-                                alignItems: 'center',
-                                fontSize: 14.5,
-                                color: 'var(--text-soft)',
-                                lineHeight: 1.5,
-                            }}
-                        >
-                            <CheckDot />
-                            <span>{line}</span>
-                        </li>
-                    ))}
-                </ul>
+                    BitPilot makes you actually do it.
+                </p>
             </div>
         </section>
     )
@@ -699,9 +853,14 @@ function WhyThisWorks() {
 // ─── Safe by design ──────────────────────────────────────────────────────────
 
 /**
- * Defuses the "is this real money?" anxiety before it's asked. We also use
- * the live runtime to add a single honest line about which integrations
- * are currently simulated — without making it the centrepiece.
+ * Three visual tiles, not a bullet list. Each tile is one big icon, a
+ * short label, and a one-line clarification. This is the highest-anxiety
+ * section ("am I about to lose real money?") so we want it to feel
+ * confident and self-evident, not defensive.
+ *
+ * The tiny "Lightning/eCash currently simulated" disclaimer is still
+ * here, but shrunk and visually demoted under the tiles where it
+ * belongs.
  */
 function SafeByDesign() {
     const runtime = useRuntime()
@@ -709,18 +868,17 @@ function SafeByDesign() {
     const ecashReal = runtime?.ecash_real ?? false
     const anySimulated = !lnReal || !ecashReal
 
-    const points = [
-        'No real money required',
-        'Uses testnet Bitcoin only — mainnet is never touched',
-        'Learn without financial risk',
-        'Open source and transparent',
-        'Real Nostr interactions for authentic learning',
+    const tiles: Array<{ icon: string; label: string; sub: string }> = [
+        { icon: '🛡️', label: 'No real money', sub: 'Testnet only — mainnet is never touched.' },
+        { icon: '🔒', label: 'Your keys, your browser', sub: 'Keys are generated locally and stay with you.' },
+        { icon: '🌍', label: 'Open source', sub: 'Every line of code is on GitHub.' },
     ]
+
     return (
         <section
             aria-labelledby="safe-headline"
             style={{
-                maxWidth: 760,
+                maxWidth: 1080,
                 margin: '0 auto',
                 padding: 'clamp(2.5rem, 7vw, 4rem) clamp(1rem, 4vw, 1.5rem)',
             }}
@@ -730,67 +888,107 @@ function SafeByDesign() {
                 style={{
                     listStyle: 'none',
                     padding: 0,
-                    margin: '0 auto',
-                    maxWidth: 480,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 10,
+                    margin: 0,
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                    gap: 14,
+                    maxWidth: 880,
+                    marginInline: 'auto',
                 }}
             >
-                {points.map((p) => (
-                    <li
-                        key={p}
-                        style={{
-                            display: 'flex',
-                            gap: 12,
-                            alignItems: 'center',
-                            fontSize: 15,
-                            color: 'var(--text-soft)',
-                            lineHeight: 1.5,
-                        }}
-                    >
-                        <CheckDot />
-                        <span>{p}</span>
-                    </li>
+                {tiles.map((t) => (
+                    <SafetyTile key={t.label} {...t} />
                 ))}
             </ul>
             {anySimulated && (
                 <p
                     style={{
-                        fontSize: 12.5,
+                        fontSize: 12,
                         color: 'var(--muted)',
-                        marginTop: 20,
+                        marginTop: 18,
                         textAlign: 'center',
                         maxWidth: 480,
                         marginLeft: 'auto',
                         marginRight: 'auto',
-                        lineHeight: 1.55,
+                        lineHeight: 1.5,
                     }}
                 >
-                    {/* Tiny honest note — kept small on purpose. */}
                     {!lnReal && !ecashReal
-                        ? 'Lightning and eCash are currently simulated while infrastructure is being finalised.'
+                        ? 'Lightning and eCash integrations are currently simulated.'
                         : !lnReal
-                          ? 'Lightning is currently simulated while infrastructure is being finalised.'
-                          : 'eCash is currently simulated while infrastructure is being finalised.'}
+                          ? 'Lightning is currently simulated.'
+                          : 'eCash is currently simulated.'}
                 </p>
             )}
         </section>
     )
 }
 
+function SafetyTile({ icon, label, sub }: { icon: string; label: string; sub: string }) {
+    return (
+        <li
+            style={{
+                ...card,
+                padding: '22px 18px',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                textAlign: 'center',
+                gap: 10,
+            }}
+        >
+            <div
+                aria-hidden="true"
+                style={{
+                    width: 64,
+                    height: 64,
+                    borderRadius: '50%',
+                    background: 'var(--gradient-bitcoin)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: 30,
+                    color: '#0A0A0B',
+                    boxShadow: 'var(--shadow-1)',
+                }}
+            >
+                {icon}
+            </div>
+            <h3
+                style={{
+                    fontSize: 16,
+                    fontWeight: 800,
+                    margin: 0,
+                    letterSpacing: '-0.02em',
+                }}
+            >
+                {label}
+            </h3>
+            <p
+                style={{
+                    fontSize: 13,
+                    color: 'var(--text-soft)',
+                    margin: 0,
+                    lineHeight: 1.5,
+                    maxWidth: 200,
+                }}
+            >
+                {sub}
+            </p>
+        </li>
+    )
+}
+
 // ─── Who it's for ────────────────────────────────────────────────────────────
 
 function WhoItsFor() {
-    // Ordered learner-first. Facilitators are a real audience (the hero
-    // has a "Run a Workshop" CTA for them) but they belong at the end,
-    // framed as a role someone takes — not as the primary identity this
-    // page speaks to.
+    // Trimmed to four items, learner-first. The old list ran to five and
+    // started repeating itself ("students and communities" + "people who
+    // tried videos" both said roughly the same thing). Tighter is better.
     const items = [
         'Anyone curious about Bitcoin',
         'People who tried videos and gave up',
-        'Students learning by doing',
-        'Communities and study groups',
+        'Communities, study groups, and classrooms',
         'Workshop facilitators running sessions',
     ]
     return (
@@ -881,12 +1079,11 @@ function FinalCTA({
                     fontSize: 15,
                     color: 'var(--text-soft)',
                     lineHeight: 1.55,
-                    maxWidth: 480,
+                    maxWidth: 420,
                     margin: '0 auto 22px',
                 }}
             >
-                It takes about 45 minutes. You'll come out the other side knowing more than
-                most people who've held Bitcoin for years.
+                About 45 minutes. You'll come out the other side actually using it.
             </p>
             <div
                 style={{
@@ -1478,6 +1675,7 @@ function AppShell({
     theme,
     onToggleTheme,
     onExit,
+    onHome,
     participantId,
     sessionId,
 }: {
@@ -1486,6 +1684,7 @@ function AppShell({
     theme: Theme
     onToggleTheme: () => void
     onExit: () => void
+    onHome: () => void
     participantId: string | null
     sessionId: string | null
 }) {
@@ -1542,7 +1741,28 @@ function AppShell({
                     gap: 8,
                 }}
             >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                {/* Clickable logo — soft "home". Goes back to the landing
+                    page without clearing credentials, so the user can hit
+                    "Continue your missions" to come right back. Styled as
+                    a bare button so it inherits the same visual treatment
+                    as the marketing nav. */}
+                <button
+                    type="button"
+                    onClick={onHome}
+                    aria-label="Back to landing page"
+                    style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        minWidth: 0,
+                        background: 'transparent',
+                        border: 'none',
+                        padding: 0,
+                        color: 'inherit',
+                        cursor: 'pointer',
+                        fontFamily: 'inherit',
+                    }}
+                >
                     <span
                         aria-hidden="true"
                         style={{
@@ -1568,11 +1788,12 @@ function AppShell({
                             overflow: 'hidden',
                             textOverflow: 'ellipsis',
                             whiteSpace: 'nowrap',
+                            color: 'var(--text)',
                         }}
                     >
                         BitPilot
                     </span>
-                </div>
+                </button>
 
                 {/* Wide: inline tab pills + theme + exit. Narrow: hamburger. */}
                 {isWide ? (

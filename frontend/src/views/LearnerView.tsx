@@ -55,7 +55,18 @@ interface DoOutcome {
  * not per-mission so 51 missions don't pile up into invisible slivers.
  */
 export default function LearnerView({ participantId }: { participantId: string }) {
+    // `missionIdx` is the mission the learner is *viewing*. `currentMission`
+    // is the server's pointer — the highest mission they're allowed to
+    // *complete*. Decoupling these two is what makes the "← Previous"
+    // button work: the learner can scroll back through their finished
+    // missions to re-read them without the completion flow getting
+    // confused about where they are.
+    //
+    // Invariant: `missionIdx <= currentMission` at all times. The nav
+    // buttons enforce this; nothing else should write `missionIdx`
+    // directly except the initial hydration and `goNextMission`.
     const [missionIdx, setMissionIdx] = useState(0)
+    const [currentMission, setCurrentMission] = useState(0)
     const [phase, setPhase] = useState<Phase>('learn')
 
     const [selected, setSelected] = useState<number | null>(null)
@@ -76,6 +87,21 @@ export default function LearnerView({ participantId }: { participantId: string }
     const isLast = missionIdx === MISSION_COUNT - 1
     const allDone = completedMissions.length === MISSION_COUNT
     const tone = techTone(mission.tech)
+    /** True when the learner is *re-viewing* a mission they've already
+     *  completed AND there's no fresh result block on screen.
+     *
+     *  Two distinct UI states share this code path:
+     *    - **Just finished it** (`doOutcome` is set): show the celebratory
+     *      result block + "Next: …" button. Not review mode.
+     *    - **Came back later** (no `doOutcome`, mission is in
+     *      `completedMissions` OR `missionIdx < currentMission`): show the
+     *      "✓ You've completed this mission" callout in DoPanel.
+     *
+     *  Mixing these would erase the celebration the moment the action
+     *  succeeds, which feels wrong. */
+    const isReviewing =
+        !doOutcome &&
+        (missionIdx < currentMission || completedMissions.includes(missionIdx))
 
     // Move focus to the live result region whenever it appears.
     const resultRef = useRef<HTMLDivElement | null>(null)
@@ -101,6 +127,7 @@ export default function LearnerView({ participantId }: { participantId: string }
                 // catalogue shrank under a participant.
                 const idx = Math.max(0, Math.min(MISSION_COUNT - 1, p.current_mission ?? 0))
                 setMissionIdx(idx)
+                setCurrentMission(idx)
             } catch {
                 // If the fetch fails (network down, token rejected), just
                 // start at mission 0. The Do action will fail loudly if
@@ -128,6 +155,30 @@ export default function LearnerView({ participantId }: { participantId: string }
     const goNextMission = () => {
         setCompletedMissions((prev) => [...new Set([...prev, missionIdx])])
         if (missionIdx < MISSION_COUNT - 1) {
+            const next = missionIdx + 1
+            setMissionIdx(next)
+            // Advance the server-truth pointer too. The Do action that
+            // just succeeded was on the highest unfinished mission, so
+            // `next` is the new floor.
+            setCurrentMission((c) => Math.max(c, next))
+            resetForNext()
+        }
+    }
+
+    /**
+     * Step navigation. `Previous` walks back through any completed
+     * mission; `Next` only advances if the learner is currently
+     * reviewing — never past `currentMission`. The actual completion
+     * flow uses `goNextMission`, not this.
+     */
+    const goPrev = () => {
+        if (missionIdx > 0) {
+            setMissionIdx(missionIdx - 1)
+            resetForNext()
+        }
+    }
+    const goNextReview = () => {
+        if (missionIdx < currentMission) {
             setMissionIdx(missionIdx + 1)
             resetForNext()
         }
@@ -410,6 +461,13 @@ export default function LearnerView({ participantId }: { participantId: string }
             // Only credit the mission after the action succeeded.
             await api.completeMission(mission.id, proof)
             setDoOutcome(outcome)
+            // Mark complete *now*, not when the user clicks Next. Without
+            // this, navigating away with Previous and returning with Next
+            // would re-show the action button and let the user re-fire
+            // the request (which the backend would 400, but the UX would
+            // still be wrong). Marking it here means review-mode kicks in
+            // immediately after a successful action.
+            setCompletedMissions((prev) => [...new Set([...prev, missionIdx])])
         } catch (e) {
             const msg =
                 e instanceof ApiError
@@ -441,7 +499,14 @@ export default function LearnerView({ participantId }: { participantId: string }
         >
             <ProgressRail missionIdx={missionIdx} completed={completedMissions} />
 
-            <article style={{ ...card, overflow: 'hidden', marginTop: 20 }}>
+            <MissionNav
+                missionIdx={missionIdx}
+                currentMission={currentMission}
+                onPrev={goPrev}
+                onNext={goNextReview}
+            />
+
+            <article style={{ ...card, overflow: 'hidden', marginTop: 14 }}>
                 <MissionHeader mission={mission} />
 
                 <PhaseTabs
@@ -499,6 +564,8 @@ export default function LearnerView({ participantId }: { participantId: string }
                             onSubmit={handleDo}
                             onNext={goNextMission}
                             isLast={isLast}
+                            isReviewing={isReviewing}
+                            onReviewNext={goNextReview}
                             resultRef={resultRef}
                             nextMissionName={isLast ? null : MISSIONS[missionIdx + 1].name}
                         />
@@ -510,6 +577,109 @@ export default function LearnerView({ participantId }: { participantId: string }
 }
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
+
+/**
+ * Step navigation row above the mission card.
+ *
+ *   ← Previous · Mission n / N · Next →
+ *
+ * - **Previous** is enabled whenever `missionIdx > 0` so the learner can
+ *   walk back through anything they've finished. When they land on a
+ *   completed mission the DoPanel switches to read-only mode.
+ * - **Next** is enabled only while *reviewing* — i.e. `missionIdx <
+ *   currentMission`. We never advance past the server-truth pointer with
+ *   this button; the way to unlock the next mission is to complete the
+ *   current one via the action button inside DoPanel.
+ *
+ * The bar is intentionally compact so it doesn't compete with the
+ * mission card below. On the active mission, Next looks disabled — that
+ * is correct: the only way forward is to finish.
+ */
+function MissionNav({
+    missionIdx,
+    currentMission,
+    onPrev,
+    onNext,
+}: {
+    missionIdx: number
+    currentMission: number
+    onPrev: () => void
+    onNext: () => void
+}) {
+    const canPrev = missionIdx > 0
+    const canNext = missionIdx < currentMission
+    return (
+        <nav
+            aria-label="Mission navigation"
+            style={{
+                marginTop: 14,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 10,
+            }}
+        >
+            <button
+                type="button"
+                onClick={onPrev}
+                disabled={!canPrev}
+                aria-label="Previous mission"
+                style={navButtonStyle(canPrev)}
+            >
+                ← Previous
+            </button>
+            <span
+                style={{
+                    fontSize: 11,
+                    color: 'var(--muted)',
+                    letterSpacing: '0.06em',
+                    textTransform: 'uppercase',
+                    fontFamily: 'var(--font-mono)',
+                    fontWeight: 700,
+                    whiteSpace: 'nowrap',
+                    flexShrink: 0,
+                }}
+                title={
+                    missionIdx < currentMission
+                        ? `Reviewing — your current mission is #${currentMission}`
+                        : 'Your current mission'
+                }
+            >
+                {missionIdx < currentMission ? 'Reviewing' : 'Current'} · #{missionIdx}
+            </span>
+            <button
+                type="button"
+                onClick={onNext}
+                disabled={!canNext}
+                aria-label="Next mission"
+                style={navButtonStyle(canNext)}
+                title={
+                    canNext
+                        ? 'Next mission'
+                        : 'Finish this mission to unlock the next one'
+                }
+            >
+                Next →
+            </button>
+        </nav>
+    )
+}
+
+function navButtonStyle(enabled: boolean): CSSProperties {
+    return {
+        padding: '8px 14px',
+        minHeight: 40,
+        fontSize: 13,
+        fontWeight: 600,
+        background: 'transparent',
+        border: '1px solid var(--border)',
+        borderRadius: 'var(--radius-2)',
+        color: enabled ? 'var(--text)' : 'var(--muted)',
+        cursor: enabled ? 'pointer' : 'not-allowed',
+        opacity: enabled ? 1 : 0.5,
+        fontFamily: 'var(--font-sans)',
+    }
+}
 
 /**
  * Tier-grouped progress rail. Shows 5 stacked bars (one per tier), with
@@ -998,6 +1168,8 @@ function DoPanel({
     onSubmit,
     onNext,
     isLast,
+    isReviewing,
+    onReviewNext,
     resultRef,
     nextMissionName,
 }: {
@@ -1013,12 +1185,39 @@ function DoPanel({
     onSubmit: () => void
     onNext: () => void
     isLast: boolean
+    /** True when the learner is revisiting a previously-completed mission. */
+    isReviewing: boolean
+    /** Walks to mission +1 from review mode (does NOT mark anything complete). */
+    onReviewNext: () => void
     resultRef: React.RefObject<HTMLDivElement>
     nextMissionName: string | null
 }) {
     // Decide what input UI to show. Each branch labels its own field so
     // the user understands what they're typing.
     const ui = useMemo(() => uiForKind(mission.do.kind), [mission.do.kind])
+
+    // Review mode: this mission was completed in a past session (or
+    // earlier in this one) and the learner navigated back to re-read it.
+    // The action button is replaced with a "completed" badge so they
+    // can't accidentally re-submit — the backend would reject it, but
+    // the UI shouldn't even offer.
+    if (isReviewing) {
+        return (
+            <>
+                <p style={{ fontSize: 14, color: 'var(--muted)', lineHeight: 1.6, margin: 0 }}>
+                    {mission.do.helper}
+                </p>
+                <div style={callout('success')}>
+                    <strong>✓ You've completed this mission.</strong>{' '}
+                    Use Previous/Next above to navigate, or jump back to your current
+                    mission below.
+                </div>
+                <button style={{ ...primaryButton(), width: '100%' }} onClick={onReviewNext}>
+                    {nextMissionName ? `Next: ${nextMissionName} →` : 'Forward →'}
+                </button>
+            </>
+        )
+    }
 
     return (
         <>
