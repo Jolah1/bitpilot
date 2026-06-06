@@ -5,12 +5,100 @@ use axum::{
     Json, Router,
 };
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::sync::Arc;
+use uuid::Uuid;
 
 use crate::auth::{require_participant, AuthedParticipant};
 use crate::error::AppError;
 use crate::models::now;
 use crate::state::AppState;
+
+/// Per-call payment ceiling in sats. Hard upper bound on any single
+/// `/api/pay`. Defaults to 100 sats so even a misconfigured deploy can
+/// only leak in small increments before the per-participant cap closes
+/// the gap. Override via `MAX_PAYMENT_SATS`.
+fn max_payment_sats() -> u64 {
+    std::env::var("MAX_PAYMENT_SATS")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(100)
+}
+
+/// Cumulative-per-participant payment ceiling in sats. Summed from the
+/// `lightning_payment_audit` table over rows with `decision = 'allowed'`.
+/// Defaults to 500 sats. Override via `MAX_PARTICIPANT_PAYOUT_SATS`.
+fn max_participant_payout_sats() -> u64 {
+    std::env::var("MAX_PARTICIPANT_PAYOUT_SATS")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(500)
+}
+
+/// Outcome of the cap-decision tree for a single `/api/pay` attempt.
+/// Pulled out as a plain enum so the decision is unit-testable without
+/// touching SQLite or HTTP.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum CapDecision {
+    Allowed,
+    RejectedPerCallCap,
+    RejectedParticipantCap,
+}
+
+/// Decide whether a payment of `amount` is allowed given the per-call
+/// cap, what the participant has already spent (audit-table sum), and the
+/// per-participant cap. Pure function over u64 — no I/O.
+pub(crate) fn decide(
+    amount: u64,
+    per_call_cap: u64,
+    already_spent: u64,
+    participant_cap: u64,
+) -> CapDecision {
+    if amount > per_call_cap {
+        return CapDecision::RejectedPerCallCap;
+    }
+    if already_spent.saturating_add(amount) > participant_cap {
+        return CapDecision::RejectedParticipantCap;
+    }
+    CapDecision::Allowed
+}
+
+fn sha256_hex(s: &str) -> String {
+    let mut h = Sha256::new();
+    h.update(s.as_bytes());
+    hex::encode(h.finalize())
+}
+
+/// Write one row to `lightning_payment_audit`. Best-effort: errors are
+/// logged but not propagated, because losing audit visibility shouldn't
+/// turn a successful payment into a 500 (and vice versa).
+async fn write_audit(
+    db: &sqlx::SqlitePool,
+    participant_id: &str,
+    bolt11_hash: &str,
+    amount_sats: u64,
+    decision: &str,
+    reason: Option<&str>,
+) {
+    let id = Uuid::new_v4().to_string();
+    let res = sqlx::query(
+        "INSERT INTO lightning_payment_audit \
+         (id, participant_id, bolt11_hash, amount_sats, decision, reason, created_at) \
+         VALUES (?, ?, ?, ?, ?, ?, ?)",
+    )
+    .bind(&id)
+    .bind(participant_id)
+    .bind(bolt11_hash)
+    .bind(amount_sats as i64)
+    .bind(decision)
+    .bind(reason)
+    .bind(now() as i64)
+    .execute(db)
+    .await;
+    if let Err(e) = res {
+        tracing::error!(error = %e, "lightning_payment_audit insert failed");
+    }
+}
 
 /// All Lightning, Nostr, and eCash endpoints require the participant's
 /// bearer token. The participant_id is read from the token, not from the
@@ -112,14 +200,134 @@ async fn pay_invoice(
     if body.invoice.trim().is_empty() {
         return Err(AppError::BadRequest("invoice must not be empty".into()));
     }
-    let payment_hash = state.lightning.pay_invoice(&body.invoice).await?;
+
+    let bolt11 = body.invoice.trim();
+    let bolt11_hash = sha256_hex(bolt11);
+    let payouts_real = state.lightning.payouts_allowed;
+
+    // ── Simulated payout path ───────────────────────────────────────────
+    // LNbits not configured, or `LIGHTNING_REAL_ALLOW_PAYOUTS=1` not set.
+    // No sats move; we still log the attempt for visibility and skip cap
+    // enforcement (amount can't be reliably parsed without LNbits to
+    // decode, and there's no real-money risk).
+    if !payouts_real {
+        let payment_hash = state.lightning.pay_invoice(bolt11).await?;
+
+        write_audit(
+            &state.db,
+            &authed.participant_id,
+            &bolt11_hash,
+            0,
+            "simulated",
+            None,
+        )
+        .await;
+
+        sqlx::query(
+            "INSERT INTO lightning_log (kind, artifact, participant_id, amount_sats, created_at) \
+             VALUES ('payment', ?, ?, 0, ?)",
+        )
+        .bind(&payment_hash)
+        .bind(&authed.participant_id)
+        .bind(now() as i64)
+        .execute(&state.db)
+        .await?;
+
+        return Ok(Json(PaymentResponse {
+            payment_hash,
+            participant_id: authed.participant_id,
+            status: "paid".into(),
+            simulated: true,
+        }));
+    }
+
+    // ── Real payout path ────────────────────────────────────────────────
+    // Decode via LNbits to learn the true amount (the caller cannot be
+    // trusted to declare it). Decode failure means we can't enforce caps,
+    // so we reject and audit.
+    let amount_sats = match state.lightning.decode_invoice(bolt11).await {
+        Ok(s) => s,
+        Err(e) => {
+            tracing::warn!(error = %e, "decode_invoice failed; rejecting payment");
+            write_audit(
+                &state.db,
+                &authed.participant_id,
+                &bolt11_hash,
+                0,
+                "rejected",
+                Some("decode_failed"),
+            )
+            .await;
+            return Err(AppError::BadRequest(
+                "invoice could not be decoded".into(),
+            ));
+        }
+    };
+
+    let per_call_cap = max_payment_sats();
+    let participant_cap = max_participant_payout_sats();
+
+    // Cumulative spend so far for this participant. SQLite SUM over an
+    // empty set is NULL; COALESCE keeps the type clean as i64.
+    let (already_spent_i,): (i64,) = sqlx::query_as(
+        "SELECT COALESCE(SUM(amount_sats), 0) FROM lightning_payment_audit \
+         WHERE participant_id = ? AND decision = 'allowed'",
+    )
+    .bind(&authed.participant_id)
+    .fetch_one(&state.db)
+    .await?;
+    let already_spent = already_spent_i.max(0) as u64;
+
+    match decide(amount_sats, per_call_cap, already_spent, participant_cap) {
+        CapDecision::RejectedPerCallCap => {
+            write_audit(
+                &state.db,
+                &authed.participant_id,
+                &bolt11_hash,
+                amount_sats,
+                "rejected",
+                Some("per_call_cap"),
+            )
+            .await;
+            return Err(AppError::Forbidden);
+        }
+        CapDecision::RejectedParticipantCap => {
+            write_audit(
+                &state.db,
+                &authed.participant_id,
+                &bolt11_hash,
+                amount_sats,
+                "rejected",
+                Some("participant_cap"),
+            )
+            .await;
+            return Err(AppError::Forbidden);
+        }
+        CapDecision::Allowed => {}
+    }
+
+    // Commit the allowed-audit row BEFORE calling LNbits. If the payment
+    // fails after this point, the cap counter still increments — the safe
+    // direction for "did we move money or not" ambiguity.
+    write_audit(
+        &state.db,
+        &authed.participant_id,
+        &bolt11_hash,
+        amount_sats,
+        "allowed",
+        None,
+    )
+    .await;
+
+    let payment_hash = state.lightning.pay_invoice(bolt11).await?;
 
     sqlx::query(
         "INSERT INTO lightning_log (kind, artifact, participant_id, amount_sats, created_at) \
-         VALUES ('payment', ?, ?, 0, ?)",
+         VALUES ('payment', ?, ?, ?, ?)",
     )
     .bind(&payment_hash)
     .bind(&authed.participant_id)
+    .bind(amount_sats as i64)
     .bind(now() as i64)
     .execute(&state.db)
     .await?;
@@ -128,7 +336,7 @@ async fn pay_invoice(
         payment_hash,
         participant_id: authed.participant_id,
         status: "paid".into(),
-        simulated: state.lightning.simulated,
+        simulated: false,
     }))
 }
 
@@ -452,3 +660,53 @@ async fn redeem_ecash(
         simulated: state.ecash.simulated,
     }))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn allows_payment_under_both_caps() {
+        assert_eq!(decide(50, 100, 0, 500), CapDecision::Allowed);
+        assert_eq!(decide(100, 100, 0, 500), CapDecision::Allowed);
+        assert_eq!(decide(50, 100, 450, 500), CapDecision::Allowed);
+    }
+
+    #[test]
+    fn rejects_payment_over_per_call_cap() {
+        assert_eq!(decide(101, 100, 0, 500), CapDecision::RejectedPerCallCap);
+        // Per-call cap is checked first even if participant cap would also fail.
+        assert_eq!(
+            decide(1_000_000, 100, 499, 500),
+            CapDecision::RejectedPerCallCap
+        );
+    }
+
+    #[test]
+    fn rejects_payment_that_would_exceed_participant_cap() {
+        // Under per-call but pushes cumulative over.
+        assert_eq!(
+            decide(60, 100, 450, 500),
+            CapDecision::RejectedParticipantCap
+        );
+        // Exactly at the cap is allowed (the strict > is intentional).
+        assert_eq!(decide(50, 100, 450, 500), CapDecision::Allowed);
+    }
+
+    #[test]
+    fn participant_cap_check_does_not_overflow() {
+        // saturating_add prevents wrap-around if amount+already overflows u64.
+        assert_eq!(
+            decide(1, 100, u64::MAX, 500),
+            CapDecision::RejectedParticipantCap
+        );
+    }
+
+    #[test]
+    fn zero_amount_is_allowed_when_caps_arent_zero() {
+        // The route validates non-empty invoice; a 0-sat invoice is
+        // unusual but cap logic shouldn't care.
+        assert_eq!(decide(0, 100, 0, 500), CapDecision::Allowed);
+    }
+}
+

@@ -21,6 +21,9 @@ sqlx              = { version = "0.8.6", default-features = false, features = ["
 rand              = "0.8"
 chrono            = { version = "0.4", features = ["serde"] }
 hex               = "0.4"
+# SHA-256 for hashing bearer tokens at rest. The DB stores only the hash;
+# the plaintext is returned to the caller exactly once at issue time.
+sha2              = "0.10"
 
 # ── Real-mode service backends ───────────────────────────────────────────────
 # Real Nostr support: bech32 keys + signed events + relay publishing.

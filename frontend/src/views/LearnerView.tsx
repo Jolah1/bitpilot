@@ -6,6 +6,7 @@ import {
     MISSION_COUNT,
     TIERS,
     tierFor,
+    type Badge,
     type MissionDef,
 } from '../lib/types'
 import {
@@ -79,6 +80,11 @@ export default function LearnerView({ participantId }: { participantId: string }
     const [loading, setLoading] = useState(false)
 
     const [completedMissions, setCompletedMissions] = useState<number[]>([])
+    const [badges, setBadges] = useState<Badge[]>([])
+    // Tier key of the most recently unlocked badge that we haven't yet
+    // shown a celebration for. `null` once dismissed. Persists across
+    // the (missionIdx, phase) state churn that resets per-mission UI.
+    const [justEarnedBadge, setJustEarnedBadge] = useState<Badge | null>(null)
 
     // The mission catalogue lookup is by id (mission number). missionIdx
     // is BOTH the position in MISSIONS *and* the mission number, because
@@ -119,9 +125,10 @@ export default function LearnerView({ participantId }: { participantId: string }
         let cancelled = false
         ;(async () => {
             try {
-                const p = await api.getParticipant()
+                const [p, b] = await Promise.all([api.getParticipant(), api.getMyBadges()])
                 if (cancelled) return
                 setCompletedMissions(p.completed_missions ?? [])
+                setBadges(b)
                 // current_mission is the same as missionIdx (both 0-indexed
                 // in the new curriculum). Clamp defensively in case the
                 // catalogue shrank under a participant.
@@ -163,6 +170,25 @@ export default function LearnerView({ participantId }: { participantId: string }
             setCurrentMission((c) => Math.max(c, next))
             resetForNext()
         }
+        // Refresh badges and surface any newly-earned one. We do this even
+        // when the mission isn't the last in its tier (cheap call, simpler
+        // than gating on tier boundaries here).
+        ;(async () => {
+            try {
+                const next = await api.getMyBadges()
+                setBadges((prev) => {
+                    const freshlyEarned = next.find(
+                        (b) => b.earned && !prev.find((p) => p.tier === b.tier)?.earned,
+                    )
+                    if (freshlyEarned) setJustEarnedBadge(freshlyEarned)
+                    return next
+                })
+            } catch {
+                // Badge refresh failing isn't blocking — the completion
+                // already succeeded server-side; badges will repopulate on
+                // the next mount.
+            }
+        })()
     }
 
     /**
@@ -499,6 +525,15 @@ export default function LearnerView({ participantId }: { participantId: string }
         >
             <ProgressRail missionIdx={missionIdx} completed={completedMissions} />
 
+            <BadgesStrip badges={badges} />
+
+            {justEarnedBadge && (
+                <BadgeCelebration
+                    badge={justEarnedBadge}
+                    onDismiss={() => setJustEarnedBadge(null)}
+                />
+            )}
+
             <MissionNav
                 missionIdx={missionIdx}
                 currentMission={currentMission}
@@ -787,6 +822,144 @@ function ProgressRail({
                 <span>{currentTier.reward} sats reward</span>
             </div>
         </nav>
+    )
+}
+
+/**
+ * Five tier-badge medallions, one per learning band. Filled = earned (the
+ * learner finished every mission in the tier); outlined = locked, with a
+ * "n/m" counter showing progress toward the unlock.
+ *
+ * Renders nothing on first paint before `getMyBadges()` resolves, so the
+ * page doesn't flash a row of empty placeholders.
+ */
+function BadgesStrip({ badges }: { badges: Badge[] }) {
+    if (badges.length === 0) return null
+    const tierEmoji: Record<string, string> = {
+        novice: '🥚',
+        apprentice: '🌱',
+        pilot: '⚡',
+        navigator: '🧭',
+        captain: '🏴',
+    }
+    return (
+        <section
+            aria-label="Tier badges"
+            style={{
+                display: 'grid',
+                gridTemplateColumns: `repeat(${badges.length}, 1fr)`,
+                gap: 6,
+                marginTop: 8,
+            }}
+        >
+            {badges.map((b) => {
+                const tierMeta = TIERS.find((t) => t.key === b.tier)
+                const label = tierMeta?.label ?? b.tier
+                const title = b.earned
+                    ? `${label} earned · ${b.required}/${b.required} missions`
+                    : `${label} locked · ${b.completed}/${b.required} missions`
+                return (
+                    <div
+                        key={b.tier}
+                        title={title}
+                        aria-label={title}
+                        style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            gap: 2,
+                            padding: '6px 4px',
+                            borderRadius: 'var(--radius-2)',
+                            background: b.earned ? 'rgba(247, 147, 26, 0.10)' : 'transparent',
+                            border: b.earned
+                                ? '1px solid rgba(247, 147, 26, 0.35)'
+                                : '1px dashed var(--border)',
+                            opacity: b.earned ? 1 : 0.55,
+                        }}
+                    >
+                        <span style={{ fontSize: 18, lineHeight: 1 }} aria-hidden="true">
+                            {tierEmoji[b.tier] ?? '🏅'}
+                        </span>
+                        <span
+                            style={{
+                                fontSize: 9,
+                                fontWeight: 700,
+                                letterSpacing: '0.05em',
+                                textTransform: 'uppercase',
+                                color: b.earned ? 'var(--bitcoin)' : 'var(--muted)',
+                                fontFamily: 'var(--font-sans)',
+                            }}
+                        >
+                            {label}
+                        </span>
+                        <span
+                            style={{
+                                fontSize: 9,
+                                color: 'var(--muted)',
+                                fontFamily: 'var(--font-mono)',
+                            }}
+                        >
+                            {b.completed}/{b.required}
+                        </span>
+                    </div>
+                )
+            })}
+        </section>
+    )
+}
+
+/**
+ * One-shot celebration banner shown the moment a learner crosses a tier
+ * boundary. Dismissable, doesn't persist — the BadgesStrip below it is
+ * the durable record.
+ */
+function BadgeCelebration({ badge, onDismiss }: { badge: Badge; onDismiss: () => void }) {
+    const tierMeta = TIERS.find((t) => t.key === badge.tier)
+    const label = tierMeta?.label ?? badge.tier
+    return (
+        <div
+            role="status"
+            aria-live="polite"
+            style={{
+                marginTop: 10,
+                padding: '12px 14px',
+                borderRadius: 'var(--radius-2)',
+                background: 'var(--gradient-bitcoin)',
+                color: '#0A0A0B',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 10,
+                boxShadow: '0 4px 20px rgba(247, 147, 26, 0.35)',
+                fontFamily: 'var(--font-sans)',
+            }}
+        >
+            <div>
+                <div style={{ fontWeight: 800, fontSize: 14, letterSpacing: '-0.005em' }}>
+                    🏆 {label} badge unlocked
+                </div>
+                <div style={{ fontSize: 12, opacity: 0.85 }}>
+                    You completed all {badge.required} missions in the {label} tier.
+                </div>
+            </div>
+            <button
+                onClick={onDismiss}
+                aria-label="Dismiss badge celebration"
+                style={{
+                    background: 'rgba(10, 10, 11, 0.15)',
+                    color: '#0A0A0B',
+                    border: 'none',
+                    borderRadius: 'var(--radius-pill)',
+                    padding: '6px 14px',
+                    fontWeight: 700,
+                    fontSize: 12,
+                    cursor: 'pointer',
+                    fontFamily: 'var(--font-sans)',
+                }}
+            >
+                Nice
+            </button>
+        </div>
     )
 }
 

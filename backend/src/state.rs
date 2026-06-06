@@ -49,6 +49,12 @@ impl AppState {
         tracing::info!("Running database migrations…");
         sqlx::migrate!("./migrations").run(&db).await?;
 
+        // One-shot post-migration backfill: migration 0004 stages old
+        // plaintext tokens under a `legacy:` prefix; turn each into a real
+        // SHA-256 hash so middleware lookups work. Idempotent — already-
+        // hashed rows do not match the prefix and are skipped.
+        backfill_token_hashes(&db).await?;
+
         Ok(Self {
             db,
             lightning: LightningService::new(),
@@ -64,4 +70,58 @@ fn redact_url(url: &str) -> String {
         Some(idx) => format!("{}?…", &url[..idx]),
         None => url.to_string(),
     }
+}
+
+/// Convert legacy plaintext tokens (marked with the `legacy:` prefix by
+/// migration 0004) into real SHA-256 hashes. Runs in a single transaction
+/// after migrations apply. Idempotent — rows whose hash column no longer
+/// starts with `legacy:` are skipped, so subsequent boots are no-ops.
+async fn backfill_token_hashes(db: &SqlitePool) -> anyhow::Result<()> {
+    let mut tx = db.begin().await?;
+
+    let participants: Vec<(String, String)> = sqlx::query_as(
+        "SELECT id, auth_token_hash FROM participants \
+         WHERE auth_token_hash LIKE 'legacy:%'",
+    )
+    .fetch_all(&mut *tx)
+    .await?;
+
+    for (id, marked) in &participants {
+        // Safe to unwrap: the LIKE filter guarantees the prefix is present.
+        let plaintext = marked.strip_prefix("legacy:").unwrap();
+        let hash = crate::auth::hash_token(plaintext);
+        sqlx::query("UPDATE participants SET auth_token_hash = ? WHERE id = ?")
+            .bind(&hash)
+            .bind(id)
+            .execute(&mut *tx)
+            .await?;
+    }
+
+    let sessions: Vec<(String, String)> = sqlx::query_as(
+        "SELECT id, facilitator_token_hash FROM sessions \
+         WHERE facilitator_token_hash LIKE 'legacy:%'",
+    )
+    .fetch_all(&mut *tx)
+    .await?;
+
+    for (id, marked) in &sessions {
+        let plaintext = marked.strip_prefix("legacy:").unwrap();
+        let hash = crate::auth::hash_token(plaintext);
+        sqlx::query("UPDATE sessions SET facilitator_token_hash = ? WHERE id = ?")
+            .bind(&hash)
+            .bind(id)
+            .execute(&mut *tx)
+            .await?;
+    }
+
+    tx.commit().await?;
+
+    if !participants.is_empty() || !sessions.is_empty() {
+        tracing::info!(
+            "hashed {} legacy participant token(s) and {} legacy facilitator token(s)",
+            participants.len(),
+            sessions.len()
+        );
+    }
+    Ok(())
 }

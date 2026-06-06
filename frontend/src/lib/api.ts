@@ -21,7 +21,7 @@
  */
 
 import { getAuthToken, getFacilitatorToken, setAuthToken, setFacilitatorToken } from './auth'
-import type { Participant, Session } from './types'
+import type { Badge, Participant, Session } from './types'
 
 const BASE = '/api'
 
@@ -203,6 +203,10 @@ export const api = {
     /** Authenticated self-fetch. */
     getParticipant: () =>
         request<Participant>('/participants/me', { auth: 'participant' }),
+
+    /** Tier badges, derived server-side from the completion ledger. */
+    getMyBadges: () =>
+        request<Badge[]>('/participants/me/badges', { auth: 'participant' }),
 
     completeMission: (mission: number, proof: string) =>
         request<CompleteMissionResponse>('/missions/complete', {

@@ -504,3 +504,83 @@ fn runtime_endpoint_reports_simulated_state_by_default() {
     // Default nostr relays are non-empty.
     assert!(v["nostr_relays"].as_array().unwrap().len() > 0);
 }
+
+#[test]
+fn pay_in_simulated_mode_returns_simulated_true_and_no_caps() {
+    // With no LNBITS_* / LIGHTNING_REAL_ALLOW_PAYOUTS env, payouts are
+    // simulated and the cap check is bypassed. The response should be
+    // simulated:true and 200 regardless of invoice amount/shape.
+    let h = Harness::start();
+    let s = create_session(&h.base, "pay-sim");
+    let j = join_session(&h.base, "alice", &s.id);
+
+    let r = client()
+        .post(format!("{}/api/pay", h.base))
+        .header("authorization", format!("Bearer {}", j.auth_token))
+        .json(&json!({ "invoice": "lnbc999999n1totally-fake-invoice" }))
+        .send()
+        .unwrap();
+    assert_eq!(r.status(), 200);
+    let v: Value = r.json().unwrap();
+    assert_eq!(v["simulated"], true);
+    assert_eq!(v["status"], "paid");
+}
+
+#[test]
+fn pay_rejects_empty_invoice() {
+    let h = Harness::start();
+    let s = create_session(&h.base, "pay-empty");
+    let j = join_session(&h.base, "bob", &s.id);
+
+    let r = client()
+        .post(format!("{}/api/pay", h.base))
+        .header("authorization", format!("Bearer {}", j.auth_token))
+        .json(&json!({ "invoice": "   " }))
+        .send()
+        .unwrap();
+    assert_eq!(r.status(), 400);
+}
+
+#[test]
+fn me_badges_starts_empty_then_unlocks_novice_after_tier_clear() {
+    // Walks through the badge derivation: 0 missions = no badges earned,
+    // all 11 Novice missions = Novice earned, other 4 still locked.
+    let h = Harness::start();
+    let s = create_session(&h.base, "badge-flow");
+    let j = join_session(&h.base, "carol", &s.id);
+
+    let fetch = || -> Vec<Value> {
+        client()
+            .get(format!("{}/api/participants/me/badges", h.base))
+            .header("authorization", format!("Bearer {}", j.auth_token))
+            .send()
+            .unwrap()
+            .json()
+            .unwrap()
+    };
+
+    // Initial: 5 entries, all unearned.
+    let badges = fetch();
+    assert_eq!(badges.len(), 5);
+    assert!(badges.iter().all(|b| b["earned"] == false));
+    assert_eq!(badges[0]["required"], 11); // Novice = missions 0..=10
+    assert_eq!(badges[0]["completed"], 0);
+
+    // Clear the Novice tier (missions 0..=10 are knowledge missions, so
+    // "acknowledged" is the only proof the verifier asks for).
+    for m in 0..=10 {
+        let r = complete(&h.base, &j.auth_token, m, "acknowledged");
+        assert_eq!(r.status(), 200, "completing mission {m}");
+    }
+
+    let badges = fetch();
+    assert_eq!(badges[0]["tier"], "novice");
+    assert_eq!(badges[0]["earned"], true);
+    assert_eq!(badges[0]["completed"], 11);
+    assert!(badges[0]["earned_at"].as_i64().unwrap() > 0);
+    // Other tiers untouched.
+    for b in &badges[1..] {
+        assert_eq!(b["earned"], false);
+        assert!(b["earned_at"].is_null());
+    }
+}

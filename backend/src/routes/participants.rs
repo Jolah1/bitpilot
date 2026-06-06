@@ -8,9 +8,11 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
 
-use crate::auth::{generate_token, require_facilitator, require_participant, AuthedParticipant};
+use crate::auth::{
+    generate_token, hash_token, require_facilitator, require_participant, AuthedParticipant,
+};
 use crate::error::AppError;
-use crate::models::{now, Participant, Session};
+use crate::models::{now, Badge, Participant, Session};
 use crate::state::AppState;
 
 /// `/api/sessions` — facilitator-side routes. `POST /` is open (anyone can
@@ -35,6 +37,7 @@ pub fn router(state: Arc<AppState>) -> Router<Arc<AppState>> {
     let authed = Router::new()
         .route("/me", get(get_self))
         .route("/me/completions", get(list_completions))
+        .route("/me/badges", get(list_badges))
         .layer(from_fn_with_state(state, require_participant));
     public.merge(authed)
 }
@@ -65,16 +68,19 @@ async fn create_session(
     }
 
     let id = Uuid::new_v4().to_string();
+    // Plaintext is returned to the caller exactly once below. The DB only
+    // ever sees the hash — see auth::hash_token for the rationale.
     let facilitator_token = generate_token();
+    let facilitator_hash = hash_token(&facilitator_token);
     let created_at = now() as i64;
 
     sqlx::query(
-        "INSERT INTO sessions (id, name, facilitator_token, created_at) \
+        "INSERT INTO sessions (id, name, facilitator_token_hash, created_at) \
          VALUES (?, ?, ?, ?)",
     )
     .bind(&id)
     .bind(name)
-    .bind(&facilitator_token)
+    .bind(&facilitator_hash)
     .bind(created_at)
     .execute(&state.db)
     .await?;
@@ -179,22 +185,23 @@ async fn join_session(
     }
 
     let id = Uuid::new_v4().to_string();
+    // Plaintext token returned in the response below; only the SHA-256
+    // hash is persisted. See auth::hash_token.
     let auth_token = generate_token();
+    let auth_hash = hash_token(&auth_token);
     let created_at = now() as i64;
 
-    // New curriculum is 0-indexed; the legacy `participants.current_mission
-    // INTEGER NOT NULL DEFAULT 1` lives in 0001_initial.sql and is fine to
-    // override here. We explicitly bind 0 so this remains stable even if
-    // someone later changes the schema default.
+    // New curriculum is 0-indexed; we explicitly bind 0 to be robust if
+    // the column's default ever drifts in a future migration.
     sqlx::query(
         "INSERT INTO participants \
-         (id, name, session_id, current_mission, sats_earned, nostr_pubkey, auth_token, created_at) \
+         (id, name, session_id, current_mission, sats_earned, nostr_pubkey, auth_token_hash, created_at) \
          VALUES (?, ?, ?, 0, 0, NULL, ?, ?)",
     )
     .bind(&id)
     .bind(name)
     .bind(&body.session_id)
-    .bind(&auth_token)
+    .bind(&auth_hash)
     .bind(created_at)
     .execute(&state.db)
     .await?;
@@ -267,6 +274,23 @@ async fn list_completions(
             })
             .collect(),
     ))
+}
+
+/// `GET /api/participants/me/badges` — one tier badge per learning band
+/// (Novice → Captain). Derived from `mission_completions`; no badge table.
+/// Always returns exactly 5 entries in tier order.
+async fn list_badges(
+    State(state): State<Arc<AppState>>,
+    Extension(authed): Extension<AuthedParticipant>,
+) -> Result<Json<Vec<Badge>>, AppError> {
+    let rows: Vec<(i64, i64)> = sqlx::query_as(
+        "SELECT mission, completed_at FROM mission_completions WHERE participant_id = ?",
+    )
+    .bind(&authed.participant_id)
+    .fetch_all(&state.db)
+    .await?;
+    let completions: Vec<(u8, i64)> = rows.into_iter().map(|(m, t)| (m as u8, t)).collect();
+    Ok(Json(Badge::all_for(&completions)))
 }
 
 // ── Loaders ──────────────────────────────────────────────────────────────

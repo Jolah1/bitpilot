@@ -48,6 +48,25 @@ export function tierFor(missionId: number): TierMeta {
     return TIERS.find((t) => missionId >= t.range[0] && missionId <= t.range[1]) ?? TIERS[0]
 }
 
+/**
+ * Tier badge as returned by GET /api/participants/me/badges.
+ *
+ * One per learning tier (Novice → Captain). Earned when every mission in
+ * the tier's range has been completed. `earned_at` is unix-seconds of the
+ * latest completion in the tier (the moment the badge actually unlocked),
+ * `null` while still in progress.
+ *
+ * Derived server-side from `mission_completions`, so badges always agree
+ * with the completion list — no drift, no migration when ranges shift.
+ */
+export interface Badge {
+    tier: Tier
+    completed: number
+    required: number
+    earned: boolean
+    earned_at: number | null
+}
+
 // ─── Frontend mission catalogue ──────────────────────────────────────────────
 // Numbers MUST line up with `Mission::all()` in backend/src/models/mission.rs.
 // The backend is source of truth for `id`, `tech`, `reward`, and `simulated`.

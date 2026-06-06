@@ -1,8 +1,20 @@
 //! Bearer-token auth middleware.
 //!
-//! Tokens are 32 cryptographically-random bytes, hex-encoded (64 chars). They
-//! are issued exactly once by `POST /api/participants` and stored in SQLite.
-//! Subsequent requests prove identity by sending `Authorization: Bearer <token>`.
+//! Tokens are 32 cryptographically-random bytes, hex-encoded (64 chars).
+//! They are issued exactly once by `POST /api/sessions` and
+//! `POST /api/participants` and returned to the caller in the response body.
+//!
+//! The database stores only `SHA-256(token)` (also hex-encoded, also 64
+//! chars). On every authed request the middleware hashes the incoming
+//! bearer and looks the *hash* up. The plaintext token therefore exists in
+//! exactly two places: in transit (TLS-encrypted in prod) and in the
+//! caller's own storage (sessionStorage on the frontend). It is never on
+//! disk on the server.
+//!
+//! SHA-256 with no salt is appropriate here because the input has 256 bits
+//! of entropy from `OsRng`, putting it well beyond brute-force or
+//! rainbow-table reach. Salting / argon2 would add cost without buying
+//! security against the threat we care about (DB-at-rest disclosure).
 
 use axum::{
     body::Body,
@@ -12,6 +24,7 @@ use axum::{
     response::Response,
 };
 use rand::RngCore;
+use sha2::{Digest, Sha256};
 use std::sync::Arc;
 
 use crate::error::AppError;
@@ -27,7 +40,7 @@ pub struct AuthedParticipant {
 }
 
 /// Per-participant bearer-token middleware. Rejects with 401 if the header
-/// is missing/malformed, or if the token doesn't resolve to a real row.
+/// is missing/malformed, or if the hashed token doesn't resolve to a row.
 pub async fn require_participant(
     State(state): State<Arc<AppState>>,
     mut req: Request<Body>,
@@ -45,11 +58,14 @@ pub async fn require_participant(
         return Err(AppError::Unauthorized);
     }
 
-    // O(log n) indexed lookup. The `auth_token` column has a UNIQUE index.
-    let row: Option<(String,)> = sqlx::query_as("SELECT id FROM participants WHERE auth_token = ?")
-        .bind(&token)
-        .fetch_optional(&state.db)
-        .await?;
+    let hash = hash_token(&token);
+
+    // O(log n) indexed lookup on the unique `auth_token_hash` column.
+    let row: Option<(String,)> =
+        sqlx::query_as("SELECT id FROM participants WHERE auth_token_hash = ?")
+            .bind(&hash)
+            .fetch_optional(&state.db)
+            .await?;
 
     let participant_id = row.ok_or(AppError::Unauthorized)?.0;
 
@@ -61,8 +77,9 @@ pub async fn require_participant(
 /// Facilitator-only middleware. Accepts a request if **either**:
 ///   - the `X-Facilitator-Key` header matches the global `FACILITATOR_KEY`
 ///     env var (single-tenant deploys), or
-///   - the header matches a `sessions.facilitator_token` row in the DB
-///     (multi-tenant: each session has its own facilitator token).
+///   - the hash of the header matches a `sessions.facilitator_token_hash`
+///     row in the DB (multi-tenant: each session has its own facilitator
+///     token).
 ///
 /// In dev with neither env var nor matching session token, the request is
 /// rejected. There is no "open by default" path.
@@ -82,7 +99,9 @@ pub async fn require_facilitator(
         return Err(AppError::Forbidden);
     }
 
-    // 1. Global env-configured master key (optional).
+    // 1. Global env-configured master key (optional). Not stored in the DB
+    //    — it lives in process env — so we compare in plaintext with a
+    //    constant-time check.
     if let Some(expected) = std::env::var("FACILITATOR_KEY")
         .ok()
         .filter(|s| !s.is_empty())
@@ -92,10 +111,12 @@ pub async fn require_facilitator(
         }
     }
 
-    // 2. Per-session facilitator token in the DB.
+    // 2. Per-session facilitator token: hash the header value and look up
+    //    by hash. The DB only ever holds the hash.
+    let hash = hash_token(&provided);
     let row: Option<(String,)> =
-        sqlx::query_as("SELECT id FROM sessions WHERE facilitator_token = ?")
-            .bind(&provided)
+        sqlx::query_as("SELECT id FROM sessions WHERE facilitator_token_hash = ?")
+            .bind(&hash)
             .fetch_optional(&state.db)
             .await?;
 
@@ -122,9 +143,20 @@ fn ct_eq(a: &[u8], b: &[u8]) -> bool {
 /// Generate a cryptographically-random 32-byte token, hex-encoded (64 chars).
 ///
 /// Uses `OsRng`, which delegates to the OS CSPRNG (`getrandom` on Linux).
-/// This is the only acceptable source for security tokens.
+/// This is the only acceptable source for security tokens. Callers must
+/// pair this with `hash_token` for storage — the plaintext is for the
+/// caller only.
 pub fn generate_token() -> String {
     let mut bytes = [0u8; 32];
     rand::rngs::OsRng.fill_bytes(&mut bytes);
     hex::encode(bytes)
+}
+
+/// SHA-256 of the token, hex-encoded. Stable across processes and platforms;
+/// safe to store and to index on. Inputs always have 256 bits of CSPRNG
+/// entropy, so no salt is required.
+pub fn hash_token(token: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(token.as_bytes());
+    hex::encode(hasher.finalize())
 }
