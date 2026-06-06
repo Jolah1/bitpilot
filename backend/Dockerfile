@@ -45,20 +45,35 @@ RUN apt-get update \
         tini \
     && rm -rf /var/lib/apt/lists/*
 
+# Litestream: continuous SQLite backup to an S3-compatible replica. We
+# copy the binary out of the official image rather than fetching a tarball
+# so the build doesn't depend on an unsigned download. Bump the tag when
+# a new litestream release lands.
+COPY --from=litestream/litestream:0.3.13 /usr/local/bin/litestream /usr/local/bin/litestream
+
 # Run as non-root.
 RUN useradd --system --uid 10001 --shell /usr/sbin/nologin --create-home bitpilot
+
+# Copy the binary, migrations, litestream config, and entrypoint script.
+# Entrypoint and config land in well-known paths under /etc and
+# /usr/local/bin so they are predictable regardless of WORKDIR.
+COPY --from=builder /build/target/release/bitpilot /usr/local/bin/bitpilot
+COPY --from=builder /build/migrations /home/bitpilot/migrations
+COPY litestream.yml /etc/litestream.yml
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod 0755 /usr/local/bin/entrypoint.sh \
+    && chown -R bitpilot:bitpilot /home/bitpilot
+
 USER bitpilot
 WORKDIR /home/bitpilot
-
-# Copy the binary and migrations from the builder.
-COPY --from=builder /build/target/release/bitpilot /usr/local/bin/bitpilot
-COPY --from=builder /build/migrations ./migrations
 
 # The binary's working directory is /home/bitpilot, so sqlx::migrate!("./migrations")
 # resolves correctly. The SQLite database lives on a mounted volume; we
 # point DATABASE_URL at /data/bitpilot.db in fly.toml.
 EXPOSE 8080
 
-# tini-as-PID-1 so SIGTERM from Fly cleanly stops the server.
+# tini-as-PID-1 so SIGTERM from Fly cleanly stops the server. The
+# entrypoint decides between litestream-supervised and direct boot based
+# on whether LITESTREAM_REPLICA_URL is set in the environment.
 ENTRYPOINT ["/usr/bin/tini", "--"]
-CMD ["/usr/local/bin/bitpilot"]
+CMD ["/usr/local/bin/entrypoint.sh"]

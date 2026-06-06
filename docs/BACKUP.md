@@ -19,7 +19,37 @@ deployment manifest.
 Pre-migration-0004 backups still contain plaintext tokens. Treat them as
 secret material and delete them once you no longer need rollback capability.
 
-## Online backup (preferred)
+## Continuous backup (production — preferred)
+
+The production container ships with [Litestream](https://litestream.io)
+baked in (see `backend/Dockerfile`, `backend/litestream.yml`,
+`backend/entrypoint.sh`). When `LITESTREAM_REPLICA_URL` is set on the
+machine, the entrypoint:
+
+1. Restores the SQLite file from the S3 replica on boot (no-op if no
+   replica exists yet — first boot creates the DB from migrations).
+2. Hands control to `litestream replicate -exec` which supervises the
+   backend while streaming the WAL to S3 every 10 s.
+
+This gives point-in-time restore for the last 7 days (retention configured
+in `litestream.yml`). To enable on Fly:
+
+```bash
+fly secrets set \
+    LITESTREAM_REPLICA_URL=s3://your-bucket/bitpilot \
+    AWS_ACCESS_KEY_ID=... \
+    AWS_SECRET_ACCESS_KEY=... \
+    AWS_REGION=eu-west-1
+fly deploy
+```
+
+For R2/B2/MinIO, extend `backend/litestream.yml` with an `endpoint:` field
+under the replica entry rather than overriding via env.
+
+To restore manually to a fresh machine, set the same secrets and deploy —
+the entrypoint's restore step will pull the latest snapshot + WAL.
+
+## Online snapshot (one-off, dev)
 
 SQLite has a built-in safe-while-running backup. With the backend live:
 
@@ -28,7 +58,8 @@ sqlite3 /path/to/bitpilot.db ".backup '/path/to/bitpilot-$(date +%F).db'"
 ```
 
 This works under WAL (which the backend uses) and produces a consistent
-snapshot without taking a lock that blocks readers.
+snapshot without taking a lock that blocks readers. Use this for ad-hoc
+local backups; in production prefer Litestream above.
 
 ## Offline backup
 

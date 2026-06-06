@@ -1,0 +1,31 @@
+# Continuous SQLite backup via Litestream.
+#
+# Litestream tails the WAL of /data/bitpilot.db and streams it to an
+# S3-compatible replica. Point-in-time restore works from any moment in
+# the retention window — much stronger than the manual `.backup` flow
+# documented in docs/BACKUP.md.
+#
+# Env vars (set with `fly secrets set ...`):
+#   LITESTREAM_REPLICA_URL  — e.g. s3://my-bucket/bitpilot
+#                             For R2/B2/MinIO, append the custom endpoint
+#                             section below — see docs/BACKUP.md.
+#   AWS_ACCESS_KEY_ID       — credentials with write access to the bucket
+#   AWS_SECRET_ACCESS_KEY   —   "
+#   AWS_REGION              — e.g. eu-west-1
+#
+# If LITESTREAM_REPLICA_URL is unset, the entrypoint skips litestream
+# entirely and runs the backend with no continuous backup — fine for
+# local dev or staging that doesn't need restore.
+
+dbs:
+    - path: /data/bitpilot.db
+      replicas:
+          - url: ${LITESTREAM_REPLICA_URL}
+            # WAL flush cadence. Smaller = less data-loss window on crash,
+            # more PUT requests. 10s ≈ 6 puts/min while idle.
+            sync-interval: 10s
+            # How long to keep snapshots + WAL in S3 before GC.
+            retention: 168h
+            # Fresh full snapshot every 24h; in between, restore replays
+            # WAL on top of the prior snapshot.
+            snapshot-interval: 24h
