@@ -5,7 +5,7 @@
  * payment_hash + amount on success. The modal stays open so the learner
  * can read the result; closing it returns control to whatever opened it.
  */
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { api, ApiError } from '../lib/api'
 import { TIERS, type Badge, type RewardClaim } from '../lib/types'
 import {
@@ -33,6 +33,16 @@ export function TierRewardClaimModal({
     const [error, setError] = useState<string | null>(null)
     const [localClaim, setLocalClaim] = useState<RewardClaim | null>(null)
     const claim = localClaim ?? badge.reward_claim
+
+    // Escape closes the modal — but only when we're not mid-claim, so the
+    // learner can't accidentally cancel a payout that's already in flight.
+    useEffect(() => {
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key === 'Escape' && !claiming) onClose()
+        }
+        document.addEventListener('keydown', onKey)
+        return () => document.removeEventListener('keydown', onKey)
+    }, [onClose, claiming])
 
     const submitClaim = async () => {
         if (!invoice.trim()) {

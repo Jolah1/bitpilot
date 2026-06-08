@@ -14,7 +14,7 @@
  * opening the X compose URL so the user can drag the image into the
  * tweet. Either way the image ends up in the post.
  */
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Badge } from '../lib/types'
 import { TierBadgeCard, badgeIdFor } from './TierBadgeCard'
 
@@ -45,6 +45,17 @@ export function ShareBadgeModal({
     const [error, setError] = useState<string | null>(null)
     const [status, setStatus] = useState<string | null>(null)
     const badgeId = badgeIdFor(participantId, badge.tier)
+
+    // Escape closes the modal so the learner can dismiss without hunting
+    // for the × button. Backdrop click is wired below via the dialog
+    // wrapper's onClick.
+    useEffect(() => {
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') onClose()
+        }
+        document.addEventListener('keydown', onKey)
+        return () => document.removeEventListener('keydown', onKey)
+    }, [onClose])
 
     const baseFilename = `bitpilot-${badge.tier}-${badgeId}`
 

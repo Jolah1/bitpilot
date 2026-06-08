@@ -9,7 +9,7 @@
  * backdrop, if they didn't claim). Intentionally a big interrupt — the
  * moment of earning is the one we want to celebrate hard.
  */
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Badge, RewardClaim, Tier } from '../lib/types'
 import { TIERS } from '../lib/types'
 import { TierBadgeCard, badgeIdFor } from './TierBadgeCard'
@@ -70,14 +70,40 @@ export function BadgeCelebrationModal({
     const [shareOpen, setShareOpen] = useState(false)
     const claim = badge.reward_claim
     const badgeId = badgeIdFor(participantId, badge.tier as Tier)
+    const continueBtnRef = useRef<HTMLButtonElement | null>(null)
+
+    // Make the modal easy to dismiss so the learner can get back to the next
+    // mission. Escape closes it; clicking the backdrop closes it; and the
+    // Continue button is auto-focused so Enter dismisses too.
+    useEffect(() => {
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key === 'Escape' && !claimOpen && !shareOpen) {
+                e.preventDefault()
+                onClose()
+            }
+        }
+        document.addEventListener('keydown', onKey)
+        // Defer focus until after the pop-in animation settles so iOS doesn't
+        // scroll the modal off-screen trying to keep the button visible.
+        const t = window.setTimeout(() => continueBtnRef.current?.focus(), 300)
+        return () => {
+            document.removeEventListener('keydown', onKey)
+            window.clearTimeout(t)
+        }
+    }, [onClose, claimOpen, shareOpen])
+
+    // Backdrop click: dismiss. Stop propagation on the inner card so clicks
+    // inside the card don't bubble up and close the modal.
+    const onBackdropClick = (e: React.MouseEvent) => {
+        if (e.target === e.currentTarget) onClose()
+    }
 
     return (
         <div
             role="dialog"
             aria-modal="true"
             aria-labelledby="bp-celebrate-title"
-            // Don't close on backdrop click here. The user must hit Exit
-            // explicitly so they don't accidentally lose the claim affordance.
+            onClick={onBackdropClick}
             style={{
                 position: 'fixed',
                 inset: 0,
@@ -251,9 +277,19 @@ export function BadgeCelebrationModal({
                     <button onClick={() => setShareOpen(true)} style={secondary()}>
                         Save badge
                     </button>
-                    <button onClick={onClose} style={ghost()}>
-                        Exit
+                    <button ref={continueBtnRef} onClick={onClose} style={ghost()}>
+                        Continue mission →
                     </button>
+                </div>
+                <div
+                    style={{
+                        fontSize: 11,
+                        color: 'rgba(255,255,255,0.55)',
+                        textAlign: 'center',
+                        marginTop: 2,
+                    }}
+                >
+                    Tap outside, press Esc, or hit Continue to return to your next mission.
                 </div>
             </div>
 

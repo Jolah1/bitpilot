@@ -267,10 +267,13 @@ export const TierBadgeCard = forwardRef<SVGSVGElement, TierBadgeCardProps>(
                         <stop offset="0" stopColor={theme.accentLight} />
                         <stop offset="1" stopColor={theme.accent} />
                     </linearGradient>
+                    {/* Name-ribbon gradient is a fixed bold green for every
+                        tier, Tando-style — it pops against any tier accent
+                        and gives the participant's name its own visual seat. */}
                     <linearGradient id={`ribbon-${tier}`} x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0" stopColor={theme.accentLight} />
-                        <stop offset="0.5" stopColor={theme.accent} />
-                        <stop offset="1" stopColor={theme.accentDim} />
+                        <stop offset="0" stopColor="#4FE2A8" />
+                        <stop offset="0.5" stopColor="#10C57E" />
+                        <stop offset="1" stopColor="#066E47" />
                     </linearGradient>
                     <path id={ringTextId} d={ringTextPath} />
                 </defs>
@@ -384,7 +387,7 @@ export const TierBadgeCard = forwardRef<SVGSVGElement, TierBadgeCardProps>(
                     textAnchor="middle"
                     fill={theme.accentLight}
                     fontFamily="ui-sans-serif, system-ui, sans-serif"
-                    fontWeight="700"
+                    fontWeight="800"
                     fontSize="13"
                     letterSpacing="3"
                 >
@@ -444,7 +447,7 @@ export const TierBadgeCard = forwardRef<SVGSVGElement, TierBadgeCardProps>(
                 <text
                     fill={theme.accentLight}
                     fontFamily="ui-sans-serif, system-ui, sans-serif"
-                    fontWeight="700"
+                    fontWeight="800"
                     fontSize="11"
                     letterSpacing="3"
                 >
@@ -531,8 +534,10 @@ export const TierBadgeCard = forwardRef<SVGSVGElement, TierBadgeCardProps>(
                         `Z`
                     return (
                         <>
-                            {/* tails (slightly behind) */}
-                            <path d={d} fill={theme.accentDim} />
+                            {/* tails (slightly behind) — darker green so they
+                                read as the ribbon's fold instead of the tier
+                                accent color. */}
+                            <path d={d} fill="#044A2F" />
                             {/* main bar */}
                             <rect
                                 x={rx}
@@ -556,11 +561,11 @@ export const TierBadgeCard = forwardRef<SVGSVGElement, TierBadgeCardProps>(
                                 x={CX}
                                 y={ry + rh / 2 + 6}
                                 textAnchor="middle"
-                                fill="#0A0A0B"
+                                fill="#FFFFFF"
                                 fontFamily="ui-sans-serif, system-ui, sans-serif"
-                                fontWeight="800"
-                                fontSize="18"
-                                letterSpacing="1"
+                                fontWeight="900"
+                                fontSize="19"
+                                letterSpacing="1.5"
                             >
                                 {safeName}
                             </text>
@@ -578,7 +583,7 @@ export const TierBadgeCard = forwardRef<SVGSVGElement, TierBadgeCardProps>(
                         textAnchor="middle"
                         fill={theme.accentLight}
                         fontFamily="ui-sans-serif, system-ui, sans-serif"
-                        fontWeight="700"
+                        fontWeight="800"
                         fontSize="10"
                         letterSpacing="3"
                     >
@@ -593,7 +598,7 @@ export const TierBadgeCard = forwardRef<SVGSVGElement, TierBadgeCardProps>(
                     textAnchor="middle"
                     fill={theme.accent}
                     fontFamily="ui-sans-serif, system-ui, sans-serif"
-                    fontWeight="700"
+                    fontWeight="800"
                     fontSize="10"
                     letterSpacing="4"
                 >
@@ -603,9 +608,9 @@ export const TierBadgeCard = forwardRef<SVGSVGElement, TierBadgeCardProps>(
                     x={CX}
                     y={664}
                     textAnchor="middle"
-                    fill="#E8E8EB"
+                    fill="#FFFFFF"
                     fontFamily="ui-sans-serif, system-ui, sans-serif"
-                    fontWeight="500"
+                    fontWeight="700"
                     fontSize="14"
                 >
                     {theme.achievement[0]}
@@ -614,9 +619,9 @@ export const TierBadgeCard = forwardRef<SVGSVGElement, TierBadgeCardProps>(
                     x={CX}
                     y={684}
                     textAnchor="middle"
-                    fill="#E8E8EB"
+                    fill="#FFFFFF"
                     fontFamily="ui-sans-serif, system-ui, sans-serif"
-                    fontWeight="500"
+                    fontWeight="700"
                     fontSize="14"
                 >
                     {theme.achievement[1]}
@@ -639,7 +644,7 @@ export const TierBadgeCard = forwardRef<SVGSVGElement, TierBadgeCardProps>(
                     textAnchor="middle"
                     fill="#FFFFFF"
                     fontFamily="ui-monospace, monospace"
-                    fontWeight="700"
+                    fontWeight="800"
                     fontSize="13"
                     letterSpacing="1"
                 >
@@ -651,9 +656,9 @@ export const TierBadgeCard = forwardRef<SVGSVGElement, TierBadgeCardProps>(
                     x={CX}
                     y={774}
                     textAnchor="middle"
-                    fill="rgba(255,255,255,0.45)"
+                    fill="rgba(255,255,255,0.6)"
                     fontFamily="ui-sans-serif, system-ui, sans-serif"
-                    fontWeight="700"
+                    fontWeight="800"
                     fontSize="9"
                     letterSpacing="4"
                 >
