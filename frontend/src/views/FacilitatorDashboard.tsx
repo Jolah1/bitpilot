@@ -210,6 +210,9 @@ export default function FacilitatorDashboard({ sessionId }: { sessionId: string 
                 ))}
             </section>
 
+            {/* Mission distribution — answers "where is everyone right now?" */}
+            {participants.length > 0 && <MissionHistogram participants={participants} />}
+
             {/* Participant rows */}
             <section
                 aria-label="Participant progress"
@@ -280,6 +283,108 @@ function Stat({
                 {label}
             </div>
         </div>
+    )
+}
+
+function MissionHistogram({ participants }: { participants: Participant[] }) {
+    const finished = participants.filter((p) => p.completed_missions.length === MISSION_COUNT).length
+    const active = participants.length - finished
+    const counts = new Array(MISSION_COUNT).fill(0) as number[]
+    for (const p of participants) {
+        if (p.completed_missions.length === MISSION_COUNT) continue
+        const m = p.current_mission
+        if (m >= 0 && m < MISSION_COUNT) counts[m] += 1
+    }
+    const max = Math.max(1, ...counts)
+    const modeIdx = counts.indexOf(max)
+    const modeTier = tierFor(modeIdx)
+    return (
+        <section aria-label="Mission distribution" style={{ ...card, padding: 12 }}>
+            <div
+                style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'baseline',
+                    marginBottom: 10,
+                    gap: 8,
+                    flexWrap: 'wrap',
+                }}
+            >
+                <h2
+                    style={{
+                        margin: 0,
+                        fontSize: 13,
+                        fontWeight: 700,
+                        letterSpacing: '0.02em',
+                    }}
+                >
+                    Where is everyone?
+                </h2>
+                <span
+                    style={{
+                        fontSize: 11,
+                        color: 'var(--muted)',
+                        fontFamily: 'var(--font-mono)',
+                    }}
+                >
+                    {active} active
+                    {finished > 0 && ` · ${finished} finished`}
+                    {active > 0 && ` · most on M${modeIdx} (${modeTier.label})`}
+                </span>
+            </div>
+            <div
+                role="img"
+                aria-label={`Distribution of learners across missions. Most learners on mission ${modeIdx} with ${max}.`}
+                style={{
+                    display: 'grid',
+                    gridTemplateColumns: `repeat(${MISSION_COUNT}, 1fr)`,
+                    alignItems: 'end',
+                    gap: 2,
+                    height: 64,
+                }}
+            >
+                {counts.map((c, idx) => {
+                    const heightPct = c === 0 ? 6 : 6 + (c / max) * 94
+                    const t = tierFor(idx)
+                    return (
+                        <div
+                            key={idx}
+                            title={`Mission ${idx} (${t.label}) — ${c} learner${c === 1 ? '' : 's'}`}
+                            style={{
+                                height: `${heightPct}%`,
+                                background:
+                                    c === 0
+                                        ? 'var(--border)'
+                                        : c === max
+                                          ? techGradient('bitcoin')
+                                          : 'var(--bitcoin)',
+                                borderRadius: 2,
+                                minHeight: 2,
+                                opacity: c === 0 ? 0.5 : 1,
+                            }}
+                        />
+                    )
+                })}
+            </div>
+            <div
+                aria-hidden="true"
+                style={{
+                    display: 'grid',
+                    gridTemplateColumns: `repeat(${MISSION_COUNT}, 1fr)`,
+                    gap: 2,
+                    marginTop: 6,
+                    fontSize: 10,
+                    color: 'var(--muted)',
+                    fontFamily: 'var(--font-mono)',
+                }}
+            >
+                {Array.from({ length: MISSION_COUNT }, (_, i) => (
+                    <span key={i} style={{ textAlign: 'center' }}>
+                        {i % 10 === 0 ? i : ''}
+                    </span>
+                ))}
+            </div>
+        </section>
     )
 }
 
