@@ -111,6 +111,14 @@ export interface PaymentResponse {
     simulated: boolean
 }
 
+export interface ClaimTierRewardResponse {
+    tier: string
+    amount_sats: number
+    payment_hash: string
+    simulated: boolean
+    paid_at: number
+}
+
 /**
  * Returned by `registerNostrIdentity`. The backend only stores the npub —
  * the nsec stays in the browser. `simulated: false` because the keypair is
@@ -207,6 +215,15 @@ export const api = {
     /** Tier badges, derived server-side from the completion ledger. */
     getMyBadges: () =>
         request<Badge[]>('/participants/me/badges', { auth: 'participant' }),
+
+    /** Claim the one-shot tier-completion bonus by paying an invoice the
+     *  learner generated in their own wallet. Server enforces tier-earned,
+     *  not-already-claimed, and (when payouts are real) exact amount. */
+    claimTierReward: (tier: string, invoice: string) =>
+        request<ClaimTierRewardResponse>(
+            `/participants/me/tier-rewards/${encodeURIComponent(tier)}/claim`,
+            { method: 'POST', body: { invoice }, auth: 'participant' },
+        ),
 
     completeMission: (mission: number, proof: string) =>
         request<CompleteMissionResponse>('/missions/complete', {

@@ -47,3 +47,26 @@ jobs:
               run: flyctl deploy --remote-only
               env:
                   FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+            - name: post-deploy smoke
+              # `flyctl deploy` returns once a machine reports healthy via
+              # the internal check, but auto_stop_machines=stop can spin
+              # the machine back down before external traffic arrives, and
+              # the internal check only sees the HTTP server (not the DB).
+              # Hit the public URL — wakes the machine if asleep and
+              # asserts /api/health (now DB-backed) actually returns 200.
+              # Without this, broken deploys ship green (which is exactly
+              # how the 1..=10 validator bug stayed live for weeks).
+              run: |
+                  for i in 1 2 3 4 5 6 7 8 9 10; do
+                      code=$(curl -s -o /tmp/health -w "%{http_code}" -m 10 https://bitpilot.fly.dev/api/health || echo 000)
+                      echo "attempt $i: HTTP $code"
+                      if [ "$code" = "200" ]; then
+                          cat /tmp/health
+                          echo
+                          exit 0
+                      fi
+                      sleep 3
+                  done
+                  echo "::error::/api/health did not return 200 after 10 attempts"
+                  exit 1

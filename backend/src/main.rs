@@ -5,7 +5,12 @@ mod routes;
 mod services;
 mod state;
 
-use axum::{http::HeaderValue, routing::get, Router};
+use axum::{
+    extract::State,
+    http::{HeaderValue, StatusCode},
+    routing::get,
+    Router,
+};
 use std::sync::Arc;
 use std::time::Duration;
 use tower_governor::{governor::GovernorConfigBuilder, GovernorLayer};
@@ -243,6 +248,19 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn health() -> &'static str {
-    "BitPilot is running"
+// Fly polls this every 30s. A trivial `SELECT 1` proves the SQLite pool
+// is alive end-to-end, so a wedged DB (locked, missing volume mount,
+// litestream restore that left a corrupt file) marks the machine
+// unhealthy instead of silently serving 500s on real traffic.
+async fn health(State(state): State<Arc<AppState>>) -> (StatusCode, &'static str) {
+    match sqlx::query_scalar::<_, i64>("SELECT 1")
+        .fetch_one(&state.db)
+        .await
+    {
+        Ok(_) => (StatusCode::OK, "BitPilot is running"),
+        Err(e) => {
+            tracing::error!("health check db query failed: {e}");
+            (StatusCode::SERVICE_UNAVAILABLE, "db unreachable")
+        }
+    }
 }

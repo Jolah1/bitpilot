@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+    <!-- BitPilot favicon. The name pairs aviation ("Pilot") with Bitcoin.
+         A paper plane carries a Bitcoin ₿ glyph in its body. Visible at
+         16px because the silhouette stays simple and the ₿ sits at the
+         optical center. -->
+    <defs>
+        <linearGradient id="bp-fav-bg" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#F7931A" />
+            <stop offset="1" stop-color="#E07A0A" />
+        </linearGradient>
+    </defs>
+    <!-- Rounded-square background — works well in browser tabs and home-screen icons. -->
+    <rect x="0" y="0" width="64" height="64" rx="12" fill="url(#bp-fav-bg)" />
+    <!-- Paper-plane silhouette, off-white, pointed up-right like the
+         BitPilot wordmark icon. Three triangles approximate the folded paper. -->
+    <g fill="#FFFFFF" fill-rule="evenodd">
+        <!-- Main wing -->
+        <path d="M 50 12 L 14 30 L 26 36 L 50 12 Z" />
+        <!-- Underwing / shadow side -->
+        <path d="M 50 12 L 26 36 L 32 52 L 50 12 Z" opacity="0.78" />
+        <!-- Fuselage edge highlight -->
+        <path d="M 50 12 L 30 44 L 26 36 Z" opacity="0.55" />
+    </g>
+    <!-- Bitcoin ₿ glyph in the lower-left, anchored where the plane's body
+         "carries" it. Bold weight so it reads at 16px. -->
+    <text x="13" y="56" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif"
+        font-weight="900" font-size="22" fill="#0A0A0B">₿</text>
+</svg>

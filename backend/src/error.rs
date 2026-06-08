@@ -20,6 +20,9 @@ pub enum AppError {
     #[error("Forbidden")]
     Forbidden,
 
+    #[error("Conflict: {0}")]
+    Conflict(String),
+
     #[error("Lightning error: {0}")]
     Lightning(String),
 
@@ -40,6 +43,7 @@ impl IntoResponse for AppError {
             AppError::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg.clone()),
             AppError::Unauthorized => (StatusCode::UNAUTHORIZED, self.to_string()),
             AppError::Forbidden => (StatusCode::FORBIDDEN, self.to_string()),
+            AppError::Conflict(msg) => (StatusCode::CONFLICT, msg.clone()),
             AppError::Lightning(msg) => (StatusCode::BAD_GATEWAY, msg.clone()),
             AppError::Nostr(msg) => (StatusCode::BAD_GATEWAY, msg.clone()),
             // sqlx::Error::RowNotFound is the canonical "no such row" case;

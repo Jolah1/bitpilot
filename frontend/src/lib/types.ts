@@ -65,6 +65,17 @@ export interface Badge {
     required: number
     earned: boolean
     earned_at: number | null
+    /** Tier-completion bonus in sats. Mirrors `TIERS[].reward`. */
+    reward_sats: number
+    /** Null until the learner claims via /api/participants/me/tier-rewards/:tier/claim. */
+    reward_claim: RewardClaim | null
+}
+
+export interface RewardClaim {
+    amount_sats: number
+    payment_hash: string
+    simulated: boolean
+    paid_at: number
 }
 
 // ─── Frontend mission catalogue ──────────────────────────────────────────────

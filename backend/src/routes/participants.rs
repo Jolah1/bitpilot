@@ -12,7 +12,8 @@ use crate::auth::{
     generate_token, hash_token, require_facilitator, require_participant, AuthedParticipant,
 };
 use crate::error::AppError;
-use crate::models::{now, Badge, Participant, Session};
+use crate::models::mission::Tier;
+use crate::models::{now, Badge, Participant, RewardClaim, Session};
 use crate::state::AppState;
 
 /// `/api/sessions` — facilitator-side routes. `POST /` is open (anyone can
@@ -38,6 +39,7 @@ pub fn router(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .route("/me", get(get_self))
         .route("/me/completions", get(list_completions))
         .route("/me/badges", get(list_badges))
+        .route("/me/tier-rewards/:tier/claim", post(claim_tier_reward))
         .layer(from_fn_with_state(state, require_participant));
     public.merge(authed)
 }
@@ -290,7 +292,193 @@ async fn list_badges(
     .fetch_all(&state.db)
     .await?;
     let completions: Vec<(u8, i64)> = rows.into_iter().map(|(m, t)| (m as u8, t)).collect();
-    Ok(Json(Badge::all_for(&completions)))
+    let claims = load_tier_claims(&state.db, &authed.participant_id).await?;
+    Ok(Json(Badge::all_for(&completions, &claims)))
+}
+
+/// Load all tier-reward claim rows for a participant, in the shape
+/// `Badge::all_for` expects.
+async fn load_tier_claims(
+    db: &sqlx::SqlitePool,
+    participant_id: &str,
+) -> Result<Vec<(Tier, RewardClaim)>, AppError> {
+    let rows: Vec<(String, i64, String, i64, i64)> = sqlx::query_as(
+        "SELECT tier, amount_sats, payment_hash, simulated, paid_at \
+         FROM tier_reward_claims WHERE participant_id = ?",
+    )
+    .bind(participant_id)
+    .fetch_all(db)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .filter_map(|(tier, amount, hash, sim, paid)| {
+            tier_from_str(&tier).map(|t| {
+                (
+                    t,
+                    RewardClaim {
+                        amount_sats: amount.max(0) as u64,
+                        payment_hash: hash,
+                        simulated: sim != 0,
+                        paid_at: paid,
+                    },
+                )
+            })
+        })
+        .collect())
+}
+
+/// Parse a lowercase tier string as written by `serde(rename_all = "lowercase")`.
+/// Unknown values are dropped (badge list just omits the claim) rather than
+/// crashing — the CHECK constraint on the table is the real guarantee.
+fn tier_from_str(s: &str) -> Option<Tier> {
+    match s {
+        "novice" => Some(Tier::Novice),
+        "apprentice" => Some(Tier::Apprentice),
+        "pilot" => Some(Tier::Pilot),
+        "navigator" => Some(Tier::Navigator),
+        "captain" => Some(Tier::Captain),
+        _ => None,
+    }
+}
+
+fn tier_to_str(t: Tier) -> &'static str {
+    match t {
+        Tier::Novice => "novice",
+        Tier::Apprentice => "apprentice",
+        Tier::Pilot => "pilot",
+        Tier::Navigator => "navigator",
+        Tier::Captain => "captain",
+    }
+}
+
+#[derive(Deserialize)]
+struct ClaimTierRewardRequest {
+    /// BOLT11 invoice the learner generated in their wallet for exactly
+    /// the tier's reward amount. We don't accept lightning addresses here
+    /// (no LNURL client in-tree); learners already know how to make
+    /// invoices from mission 23.
+    invoice: String,
+}
+
+#[derive(Serialize)]
+struct ClaimTierRewardResponse {
+    tier: Tier,
+    amount_sats: u64,
+    payment_hash: String,
+    /// `true` when LNbits is not configured or LIGHTNING_REAL_ALLOW_PAYOUTS
+    /// is unset. UI shows a clear "Simulated" badge in that case.
+    simulated: bool,
+    paid_at: i64,
+}
+
+/// `POST /api/participants/me/tier-rewards/:tier/claim`
+///
+/// Pays the tier-completion bonus (sats fixed per-tier in `Tier::reward`)
+/// to a learner-supplied BOLT11 invoice. One-shot per (participant, tier):
+/// the table PK enforces no double-claim.
+///
+/// Order of checks matters: validate inputs cheaply first, then check
+/// claim status (DB lookup), then verify the tier is actually earned
+/// (DB lookup + computation). This way bogus tier names and empty
+/// invoices fail without hitting the DB for completions.
+async fn claim_tier_reward(
+    State(state): State<Arc<AppState>>,
+    Extension(authed): Extension<AuthedParticipant>,
+    Path(tier_str): Path<String>,
+    Json(body): Json<ClaimTierRewardRequest>,
+) -> Result<Json<ClaimTierRewardResponse>, AppError> {
+    let tier = tier_from_str(&tier_str)
+        .ok_or_else(|| AppError::BadRequest(format!("unknown tier: {tier_str}")))?;
+
+    let invoice = body.invoice.trim();
+    if invoice.is_empty() {
+        return Err(AppError::BadRequest("invoice must not be empty".into()));
+    }
+
+    // Already claimed? Cheap point read on the PK.
+    let existing: Option<(i64,)> = sqlx::query_as(
+        "SELECT 1 FROM tier_reward_claims WHERE participant_id = ? AND tier = ?",
+    )
+    .bind(&authed.participant_id)
+    .bind(tier_to_str(tier))
+    .fetch_optional(&state.db)
+    .await?;
+    if existing.is_some() {
+        return Err(AppError::Conflict(format!(
+            "{} tier reward already claimed",
+            tier_to_str(tier)
+        )));
+    }
+
+    // Earned? Recompute from completions + claims = no drift with the
+    // GET /badges view.
+    let rows: Vec<(i64, i64)> = sqlx::query_as(
+        "SELECT mission, completed_at FROM mission_completions WHERE participant_id = ?",
+    )
+    .bind(&authed.participant_id)
+    .fetch_all(&state.db)
+    .await?;
+    let completions: Vec<(u8, i64)> = rows.into_iter().map(|(m, t)| (m as u8, t)).collect();
+    let badges = Badge::all_for(&completions, &[]);
+    let badge = badges
+        .iter()
+        .find(|b| b.tier == tier)
+        .expect("Badge::all_for always returns all 5 tiers");
+    if !badge.earned {
+        return Err(AppError::Forbidden);
+    }
+
+    let amount_sats = tier.reward();
+    let payouts_real = state.lightning.payouts_allowed;
+
+    // Real-payout path: decode to verify the invoice is for exactly the
+    // tier amount. Stops the learner from sneaking in a 10,000-sat
+    // invoice for a 10-sat Novice claim.
+    if payouts_real {
+        let decoded = state.lightning.decode_invoice(invoice).await.map_err(|e| {
+            tracing::warn!(error = %e, "tier reward: decode_invoice failed");
+            AppError::BadRequest("invoice could not be decoded".into())
+        })?;
+        if decoded != amount_sats {
+            return Err(AppError::BadRequest(format!(
+                "invoice amount must equal {amount_sats} sats, got {decoded}"
+            )));
+        }
+    }
+
+    let payment_hash = state.lightning.pay_invoice(invoice).await?;
+    let paid_at = now() as i64;
+    let simulated = !payouts_real;
+
+    // Insert AFTER the payment so a Lightning failure doesn't burn the
+    // one-shot. If LNbits returns ok but the row insert fails, the
+    // learner gets a 500 and can retry — at which point the claim
+    // exists in LNbits but not in our table. Acceptable: the only
+    // failure modes for the insert are DB-wide (disk full, schema gone)
+    // and the learner can re-attempt with the same invoice; LNbits
+    // dedupes by payment_hash.
+    sqlx::query(
+        "INSERT INTO tier_reward_claims \
+            (participant_id, tier, amount_sats, invoice, payment_hash, simulated, paid_at) \
+         VALUES (?, ?, ?, ?, ?, ?, ?)",
+    )
+    .bind(&authed.participant_id)
+    .bind(tier_to_str(tier))
+    .bind(amount_sats as i64)
+    .bind(invoice)
+    .bind(&payment_hash)
+    .bind(if simulated { 1_i64 } else { 0_i64 })
+    .bind(paid_at)
+    .execute(&state.db)
+    .await?;
+
+    Ok(Json(ClaimTierRewardResponse {
+        tier,
+        amount_sats,
+        payment_hash,
+        simulated,
+        paid_at,
+    }))
 }
 
 // ── Loaders ──────────────────────────────────────────────────────────────

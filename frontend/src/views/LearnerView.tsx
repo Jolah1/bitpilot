@@ -8,6 +8,7 @@ import {
     tierFor,
     type Badge,
     type MissionDef,
+    type RewardClaim,
 } from '../lib/types'
 import {
     callout,
@@ -35,6 +36,7 @@ import {
     generateNostrKeys,
     sha256Hex,
 } from '../lib/crypto'
+import { ShareBadgeModal } from '../components/ShareBadgeModal'
 
 type Phase = 'learn' | 'quiz' | 'do'
 
@@ -85,6 +87,11 @@ export default function LearnerView({ participantId }: { participantId: string }
     // shown a celebration for. `null` once dismissed. Persists across
     // the (missionIdx, phase) state churn that resets per-mission UI.
     const [justEarnedBadge, setJustEarnedBadge] = useState<Badge | null>(null)
+    // Participant display name — used on the shareable badge image. We
+    // capture it on hydrate so the share modal doesn't need to re-fetch.
+    const [participantName, setParticipantName] = useState<string>('')
+    // The badge currently displayed in the share/download modal, if any.
+    const [sharingBadge, setSharingBadge] = useState<Badge | null>(null)
 
     // The mission catalogue lookup is by id (mission number). missionIdx
     // is BOTH the position in MISSIONS *and* the mission number, because
@@ -129,6 +136,7 @@ export default function LearnerView({ participantId }: { participantId: string }
                 if (cancelled) return
                 setCompletedMissions(p.completed_missions ?? [])
                 setBadges(b)
+                setParticipantName(p.name ?? '')
                 // current_mission is the same as missionIdx (both 0-indexed
                 // in the new curriculum). Clamp defensively in case the
                 // catalogue shrank under a participant.
@@ -525,12 +533,37 @@ export default function LearnerView({ participantId }: { participantId: string }
         >
             <ProgressRail missionIdx={missionIdx} completed={completedMissions} />
 
-            <BadgesStrip badges={badges} />
+            <BadgesStrip badges={badges} onShareBadge={setSharingBadge} />
 
             {justEarnedBadge && (
                 <BadgeCelebration
                     badge={justEarnedBadge}
                     onDismiss={() => setJustEarnedBadge(null)}
+                    onShare={() => setSharingBadge(justEarnedBadge)}
+                    onClaimed={(claim) => {
+                        // Mirror the new claim into the badges list so the
+                        // BadgesStrip and any future re-open of this modal
+                        // both see the claim immediately, without re-fetching.
+                        setBadges((prev) =>
+                            prev.map((b) =>
+                                b.tier === justEarnedBadge.tier
+                                    ? { ...b, reward_claim: claim }
+                                    : b,
+                            ),
+                        )
+                        setJustEarnedBadge((j) =>
+                            j ? { ...j, reward_claim: claim } : j,
+                        )
+                    }}
+                />
+            )}
+
+            {sharingBadge && (
+                <ShareBadgeModal
+                    badge={sharingBadge}
+                    participantId={participantId}
+                    participantName={participantName}
+                    onClose={() => setSharingBadge(null)}
                 />
             )}
 
@@ -833,7 +866,13 @@ function ProgressRail({
  * Renders nothing on first paint before `getMyBadges()` resolves, so the
  * page doesn't flash a row of empty placeholders.
  */
-function BadgesStrip({ badges }: { badges: Badge[] }) {
+function BadgesStrip({
+    badges,
+    onShareBadge,
+}: {
+    badges: Badge[]
+    onShareBadge: (b: Badge) => void
+}) {
     if (badges.length === 0) return null
     const tierEmoji: Record<string, string> = {
         novice: '🥚',
@@ -855,14 +894,28 @@ function BadgesStrip({ badges }: { badges: Badge[] }) {
             {badges.map((b) => {
                 const tierMeta = TIERS.find((t) => t.key === b.tier)
                 const label = tierMeta?.label ?? b.tier
-                const title = b.earned
-                    ? `${label} earned · ${b.required}/${b.required} missions`
+                const interactive = b.earned
+                const title = interactive
+                    ? `${label} earned · ${b.required}/${b.required} missions · click to share`
                     : `${label} locked · ${b.completed}/${b.required} missions`
                 return (
                     <div
                         key={b.tier}
                         title={title}
                         aria-label={title}
+                        role={interactive ? 'button' : undefined}
+                        tabIndex={interactive ? 0 : -1}
+                        onClick={interactive ? () => onShareBadge(b) : undefined}
+                        onKeyDown={
+                            interactive
+                                ? (e) => {
+                                      if (e.key === 'Enter' || e.key === ' ') {
+                                          e.preventDefault()
+                                          onShareBadge(b)
+                                      }
+                                  }
+                                : undefined
+                        }
                         style={{
                             display: 'flex',
                             flexDirection: 'column',
@@ -875,6 +928,7 @@ function BadgesStrip({ badges }: { badges: Badge[] }) {
                                 ? '1px solid rgba(247, 147, 26, 0.35)'
                                 : '1px dashed var(--border)',
                             opacity: b.earned ? 1 : 0.55,
+                            cursor: interactive ? 'pointer' : 'default',
                         }}
                     >
                         <span style={{ fontSize: 18, lineHeight: 1 }} aria-hidden="true">
@@ -910,55 +964,342 @@ function BadgesStrip({ badges }: { badges: Badge[] }) {
 
 /**
  * One-shot celebration banner shown the moment a learner crosses a tier
- * boundary. Dismissable, doesn't persist — the BadgesStrip below it is
- * the durable record.
+ * boundary. Dismissable; the BadgesStrip above it is the durable record.
+ *
+ * Doubles as the entry point to the reward-claim flow: pressing "Claim N
+ * sats" opens a modal where the learner pastes a BOLT11 invoice their
+ * wallet generated, which the backend pays (or simulates depending on
+ * LIGHTNING_REAL_ALLOW_PAYOUTS).
  */
-function BadgeCelebration({ badge, onDismiss }: { badge: Badge; onDismiss: () => void }) {
+function BadgeCelebration({
+    badge,
+    onDismiss,
+    onShare,
+    onClaimed,
+}: {
+    badge: Badge
+    onDismiss: () => void
+    onShare: () => void
+    onClaimed: (claim: RewardClaim) => void
+}) {
     const tierMeta = TIERS.find((t) => t.key === badge.tier)
     const label = tierMeta?.label ?? badge.tier
+    const [claimOpen, setClaimOpen] = useState(false)
+    const claim = badge.reward_claim
+    return (
+        <>
+            <div
+                role="status"
+                aria-live="polite"
+                style={{
+                    marginTop: 10,
+                    padding: '12px 14px',
+                    borderRadius: 'var(--radius-2)',
+                    background: 'var(--gradient-bitcoin)',
+                    color: '#0A0A0B',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 10,
+                    boxShadow: '0 4px 20px rgba(247, 147, 26, 0.35)',
+                    fontFamily: 'var(--font-sans)',
+                    flexWrap: 'wrap',
+                }}
+            >
+                <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ fontWeight: 800, fontSize: 14, letterSpacing: '-0.005em' }}>
+                        🏆 {label} badge unlocked
+                    </div>
+                    <div style={{ fontSize: 12, opacity: 0.85 }}>
+                        You completed all {badge.required} missions in the {label} tier.
+                    </div>
+                </div>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    {claim ? (
+                        <span
+                            style={{
+                                background: 'rgba(10, 10, 11, 0.18)',
+                                color: '#0A0A0B',
+                                borderRadius: 'var(--radius-pill)',
+                                padding: '6px 14px',
+                                fontWeight: 700,
+                                fontSize: 12,
+                            }}
+                            title={`payment_hash: ${claim.payment_hash}`}
+                        >
+                            ✓ {claim.amount_sats} sats claimed
+                        </span>
+                    ) : (
+                        <button
+                            onClick={() => setClaimOpen(true)}
+                            style={{
+                                background: '#0A0A0B',
+                                color: 'var(--bitcoin)',
+                                border: 'none',
+                                borderRadius: 'var(--radius-pill)',
+                                padding: '6px 14px',
+                                fontWeight: 800,
+                                fontSize: 12,
+                                cursor: 'pointer',
+                                fontFamily: 'var(--font-sans)',
+                            }}
+                        >
+                            Claim {badge.reward_sats} sats
+                        </button>
+                    )}
+                    <button
+                        onClick={onShare}
+                        style={{
+                            background: 'rgba(10, 10, 11, 0.85)',
+                            color: '#FFFFFF',
+                            border: 'none',
+                            borderRadius: 'var(--radius-pill)',
+                            padding: '6px 14px',
+                            fontWeight: 700,
+                            fontSize: 12,
+                            cursor: 'pointer',
+                            fontFamily: 'var(--font-sans)',
+                        }}
+                    >
+                        Save badge
+                    </button>
+                    <button
+                        onClick={onDismiss}
+                        aria-label="Dismiss badge celebration"
+                        style={{
+                            background: 'rgba(10, 10, 11, 0.15)',
+                            color: '#0A0A0B',
+                            border: 'none',
+                            borderRadius: 'var(--radius-pill)',
+                            padding: '6px 14px',
+                            fontWeight: 700,
+                            fontSize: 12,
+                            cursor: 'pointer',
+                            fontFamily: 'var(--font-sans)',
+                        }}
+                    >
+                        Nice
+                    </button>
+                </div>
+            </div>
+            {claimOpen && (
+                <TierRewardClaimModal
+                    badge={badge}
+                    onClose={() => setClaimOpen(false)}
+                    onClaimed={onClaimed}
+                />
+            )}
+        </>
+    )
+}
+
+/**
+ * Claim modal: paste a BOLT11 invoice, backend pays it (real or simulated),
+ * we surface payment_hash + amount + sim/real on success. The modal stays
+ * open after a successful claim so the learner can read the result; closing
+ * it leaves the inline banner showing the "✓ N sats claimed" pill.
+ */
+function TierRewardClaimModal({
+    badge,
+    onClose,
+    onClaimed,
+}: {
+    badge: Badge
+    onClose: () => void
+    onClaimed: (claim: RewardClaim) => void
+}) {
+    const tierMeta = TIERS.find((t) => t.key === badge.tier)
+    const label = tierMeta?.label ?? badge.tier
+    const [invoice, setInvoice] = useState('')
+    const [claiming, setClaiming] = useState(false)
+    const [error, setError] = useState<string | null>(null)
+    const [localClaim, setLocalClaim] = useState<RewardClaim | null>(null)
+    const claim = localClaim ?? badge.reward_claim
+
+    const submitClaim = async () => {
+        if (!invoice.trim()) {
+            setError('Paste a Lightning invoice from your wallet first.')
+            return
+        }
+        setClaiming(true)
+        setError(null)
+        try {
+            const r = await api.claimTierReward(badge.tier, invoice.trim())
+            const c: RewardClaim = {
+                amount_sats: r.amount_sats,
+                payment_hash: r.payment_hash,
+                simulated: r.simulated,
+                paid_at: r.paid_at,
+            }
+            setLocalClaim(c)
+            onClaimed(c)
+        } catch (e) {
+            setError(
+                e instanceof ApiError
+                    ? e.message
+                    : "Couldn't claim the reward. Try again in a moment.",
+            )
+        } finally {
+            setClaiming(false)
+        }
+    }
+
     return (
         <div
-            role="status"
-            aria-live="polite"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="tier-reward-title"
+            onClick={onClose}
             style={{
-                marginTop: 10,
-                padding: '12px 14px',
-                borderRadius: 'var(--radius-2)',
-                background: 'var(--gradient-bitcoin)',
-                color: '#0A0A0B',
+                position: 'fixed',
+                inset: 0,
+                background: 'rgba(0, 0, 0, 0.65)',
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: 10,
-                boxShadow: '0 4px 20px rgba(247, 147, 26, 0.35)',
+                justifyContent: 'center',
+                padding: 16,
+                zIndex: 1000,
                 fontFamily: 'var(--font-sans)',
             }}
         >
-            <div>
-                <div style={{ fontWeight: 800, fontSize: 14, letterSpacing: '-0.005em' }}>
-                    🏆 {label} badge unlocked
-                </div>
-                <div style={{ fontSize: 12, opacity: 0.85 }}>
-                    You completed all {badge.required} missions in the {label} tier.
-                </div>
-            </div>
-            <button
-                onClick={onDismiss}
-                aria-label="Dismiss badge celebration"
+            <div
+                onClick={(e) => e.stopPropagation()}
                 style={{
-                    background: 'rgba(10, 10, 11, 0.15)',
-                    color: '#0A0A0B',
-                    border: 'none',
-                    borderRadius: 'var(--radius-pill)',
-                    padding: '6px 14px',
-                    fontWeight: 700,
-                    fontSize: 12,
-                    cursor: 'pointer',
-                    fontFamily: 'var(--font-sans)',
+                    width: '100%',
+                    maxWidth: 440,
+                    borderRadius: 'var(--radius-3)',
+                    background: 'var(--surface)',
+                    border: '1px solid var(--border)',
+                    boxShadow: '0 24px 60px rgba(0,0,0,0.5)',
+                    overflow: 'hidden',
+                    maxHeight: '90vh',
+                    display: 'flex',
+                    flexDirection: 'column',
                 }}
             >
-                Nice
-            </button>
+                <div
+                    style={{
+                        padding: '18px 22px',
+                        background: 'var(--gradient-bitcoin)',
+                        color: '#0A0A0B',
+                    }}
+                >
+                    <div
+                        id="tier-reward-title"
+                        style={{ fontWeight: 800, fontSize: 16, letterSpacing: '-0.01em' }}
+                    >
+                        Claim your {label} reward
+                    </div>
+                    <div style={{ fontSize: 12, opacity: 0.85, marginTop: 2 }}>
+                        {badge.reward_sats} sats — paid to a Lightning invoice you choose.
+                    </div>
+                </div>
+
+                <div
+                    style={{
+                        padding: '18px 22px 20px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 12,
+                        overflowY: 'auto',
+                    }}
+                >
+                    {claim ? (
+                        <div
+                            style={{
+                                ...callout('success'),
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: 6,
+                            }}
+                        >
+                            <div style={{ fontWeight: 700, fontSize: 14 }}>
+                                ✓ {claim.amount_sats} sats sent
+                                {claim.simulated && (
+                                    <span
+                                        style={{
+                                            ...chip('neutral'),
+                                            fontSize: 9,
+                                            marginLeft: 8,
+                                        }}
+                                    >
+                                        Simulated
+                                    </span>
+                                )}
+                            </div>
+                            <div
+                                style={{
+                                    fontFamily: 'var(--font-mono)',
+                                    fontSize: 10,
+                                    color: 'var(--muted)',
+                                    wordBreak: 'break-all',
+                                }}
+                            >
+                                payment_hash: {claim.payment_hash}
+                            </div>
+                            {claim.simulated && (
+                                <div style={{ fontSize: 11, color: 'var(--muted)' }}>
+                                    Real payouts are off in this environment. The badge is
+                                    yours; sats will land once the facilitator enables
+                                    real Lightning payouts.
+                                </div>
+                            )}
+                        </div>
+                    ) : (
+                        <>
+                            <div
+                                style={{
+                                    fontSize: 13,
+                                    color: 'var(--text)',
+                                    lineHeight: 1.5,
+                                }}
+                            >
+                                Open your Lightning wallet, create an invoice for exactly{' '}
+                                <strong>{badge.reward_sats} sats</strong>, and paste it
+                                below.
+                            </div>
+                            <label style={{ ...labelStyle, fontSize: 10 }}>
+                                BOLT11 invoice
+                            </label>
+                            <textarea
+                                value={invoice}
+                                onChange={(e) => {
+                                    setInvoice(e.target.value)
+                                    if (error) setError(null)
+                                }}
+                                placeholder="lnbc..."
+                                rows={3}
+                                spellCheck={false}
+                                disabled={claiming}
+                                style={{
+                                    ...inputMono,
+                                    resize: 'vertical',
+                                    minHeight: 72,
+                                }}
+                            />
+                            {error && (
+                                <div
+                                    role="alert"
+                                    style={{ ...callout('danger'), fontSize: 12 }}
+                                >
+                                    {error}
+                                </div>
+                            )}
+                            <button
+                                onClick={submitClaim}
+                                disabled={claiming || !invoice.trim()}
+                                style={primaryButton(claiming || !invoice.trim())}
+                            >
+                                {claiming ? 'Paying…' : `Claim ${badge.reward_sats} sats`}
+                            </button>
+                        </>
+                    )}
+
+                    <button onClick={onClose} style={{ ...ghostButton, marginTop: 4 }}>
+                        {claim ? 'Close' : 'Cancel'}
+                    </button>
+                </div>
+            </div>
         </div>
     )
 }
