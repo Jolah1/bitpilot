@@ -108,7 +108,7 @@ export interface MissionQuiz {
  *   4. add any new ledger table in a migration
  */
 export type DoKind =
-    | 'knowledge'         /* no API call — user clicks "I get it" to claim reward */
+    | 'knowledge'         /* no API call — user clicks an affirm button to credit the mission */
     | 'nostr-identity'    /* POST /api/nostr/identity (client-side keygen, then proof to backend) */
     | 'invoice'           /* POST /api/invoice */
     | 'pay'               /* POST /api/pay (needs lightning-address text input) */
@@ -164,7 +164,7 @@ export interface MissionDef {
 
 // ── Quick-build helpers ─────────────────────────────────────────────────────
 // Most knowledge missions are 95% the same shape: a heading, body, tip, a
-// 3-option multiple-choice, and a "Got it" button. Building each one as a
+// 3-option multiple-choice, and a "You got it" button. Building each one as a
 // 30-line literal is unreadable; these helpers keep the catalogue scannable.
 
 interface KnowledgeOpts {
@@ -193,7 +193,7 @@ function knowledge(o: KnowledgeOpts): MissionDef {
         quiz: o.quiz,
         do: {
             kind: 'knowledge',
-            actionLabel: o.actionLabel ?? 'I get it — claim sats',
+            actionLabel: o.actionLabel ?? 'You got it →',
             helper: o.helper ?? "Knowledge mission. Understanding *is* the goal; the button just credits you.",
         },
     }

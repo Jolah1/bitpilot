@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
 import LearnerView from './views/LearnerView'
 import FacilitatorDashboard from './views/FacilitatorDashboard'
+import SoloProgressView from './views/SoloProgressView'
 import { ThemeToggle } from './components/ThemeToggle'
 import { applyTheme, getSavedTheme, saveTheme, type Theme } from './lib/theme'
 import { api, ApiError } from './lib/api'
@@ -1701,6 +1702,20 @@ function AppShell({
         return () => mq.removeEventListener('change', onChange)
     }, [])
 
+    // Solo detection: a solo session has the sentinel name "__solo__". When
+    // it does, the second view becomes a personal "Achievements" dashboard
+    // rather than the multi-participant facilitator dashboard.
+    const { data: session } = useQuery({
+        queryKey: ['session', sessionId],
+        queryFn: () => api.getSession(sessionId!),
+        enabled: !!sessionId,
+        staleTime: 60_000,
+    })
+    const isSolo = isSoloSessionName(session?.session?.name)
+    // Label for the second tab. Facilitator views never see "Achievements"
+    // since they only show up in solo sessions.
+    const secondViewLabel = isSolo ? 'Achievements' : 'Facilitator'
+
     // Close the menu after any selection so mobile users get a clean state.
     const pick = (action: () => void) => {
         action()
@@ -1805,7 +1820,7 @@ function AppShell({
                                 style={tabBtn(v)}
                                 aria-pressed={view === v}
                             >
-                                {v}
+                                {v === 'facilitator' ? secondViewLabel : v}
                             </button>
                         ))}
                         <ThemeToggle theme={theme} onToggle={onToggleTheme} />
@@ -1869,7 +1884,7 @@ function AppShell({
                             aria-pressed={view === v}
                             role="menuitem"
                         >
-                            {v}
+                            {v === 'facilitator' ? secondViewLabel : v}
                         </button>
                     ))}
                     <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
@@ -1897,6 +1912,8 @@ function AppShell({
             >
                 {view === 'learner' ? (
                     <LearnerView participantId={participantId!} />
+                ) : isSolo ? (
+                    <SoloProgressView participantId={participantId!} />
                 ) : (
                     <FacilitatorDashboard sessionId={sessionId!} />
                 )}

@@ -7,17 +7,27 @@
  * onto a 1200x1600 offscreen canvas (2x retina) for a crisp social-share
  * image. No third-party libs.
  *
- * "Share on X" uses the twitter intent URL with pre-filled text. We can't
- * attach an image to that link (Twitter requires an upload), so the flow
- * is: user clicks "Download PNG" first, then "Share on X" opens the
- * compose page with text and they attach the PNG manually. The buttons
- * are ordered to make that obvious.
+ * "Share on X" tries the Web Share API first with the PNG as a File. That
+ * lets mobile and Safari attach the image directly to the tweet draft —
+ * the most common share path today. When Web Share isn't supported (most
+ * desktop Chrome/Firefox), we fall back to downloading the PNG AND
+ * opening the X compose URL so the user can drag the image into the
+ * tweet. Either way the image ends up in the post.
  */
 import { useRef, useState } from 'react'
 import type { Badge } from '../lib/types'
 import { TierBadgeCard, badgeIdFor } from './TierBadgeCard'
 
 const PNG_SCALE = 2 // 2x the 600x800 SVG => 1200x1600 PNG
+
+/** Tier label used in the share text. Title-cased. */
+function tierLabelOf(tier: string): string {
+    return tier[0].toUpperCase() + tier.slice(1)
+}
+
+function buildShareText(tier: string, badgeId: string): string {
+    return `I just earned my ${tierLabelOf(tier)} badge on @bitpilot — learning Bitcoin by doing.\n\nBadge ID: ${badgeId}`
+}
 
 export function ShareBadgeModal({
     badge,
@@ -31,8 +41,9 @@ export function ShareBadgeModal({
     onClose: () => void
 }) {
     const svgRef = useRef<SVGSVGElement | null>(null)
-    const [downloading, setDownloading] = useState<'png' | 'svg' | null>(null)
+    const [downloading, setDownloading] = useState<'png' | 'svg' | 'share' | null>(null)
     const [error, setError] = useState<string | null>(null)
+    const [status, setStatus] = useState<string | null>(null)
     const badgeId = badgeIdFor(participantId, badge.tier)
 
     const baseFilename = `bitpilot-${badge.tier}-${badgeId}`
@@ -74,66 +85,133 @@ export function ShareBadgeModal({
         }
     }
 
-    const downloadPng = () => {
-        setError(null)
-        const src = serializeSvg()
-        if (!src) {
-            setError('Could not read badge image. Try reopening this dialog.')
-            return
-        }
-        setDownloading('png')
-        const W = 600 * PNG_SCALE
-        const H = 800 * PNG_SCALE
-        const blob = new Blob([src], { type: 'image/svg+xml;charset=utf-8' })
-        const url = URL.createObjectURL(blob)
-        const img = new Image()
-        img.onload = () => {
-            try {
-                const canvas = document.createElement('canvas')
-                canvas.width = W
-                canvas.height = H
-                const ctx = canvas.getContext('2d')
-                if (!ctx) {
-                    setError('Your browser refused to render PNGs. Try Chrome or Firefox.')
-                    setDownloading(null)
-                    URL.revokeObjectURL(url)
-                    return
-                }
-                ctx.drawImage(img, 0, 0, W, H)
-                canvas.toBlob((png) => {
-                    if (!png) {
-                        setError("Couldn't encode PNG. Try Download SVG instead.")
-                    } else {
-                        const pngUrl = URL.createObjectURL(png)
-                        triggerDownload(pngUrl, `${baseFilename}.png`)
-                        URL.revokeObjectURL(pngUrl)
-                    }
-                    URL.revokeObjectURL(url)
-                    setDownloading(null)
-                }, 'image/png')
-            } catch (e) {
-                setError(
-                    e instanceof Error
-                        ? `PNG export failed: ${e.message}`
-                        : 'PNG export failed.',
-                )
-                URL.revokeObjectURL(url)
-                setDownloading(null)
+    /**
+     * Rasterize the in-DOM SVG to a PNG Blob. Resolves with the blob (and
+     * keeps the intermediate object URL revoked) or rejects with an Error.
+     */
+    const renderPng = (): Promise<Blob> =>
+        new Promise((resolve, reject) => {
+            const src = serializeSvg()
+            if (!src) {
+                reject(new Error('Could not read badge image. Try reopening this dialog.'))
+                return
             }
-        }
-        img.onerror = () => {
-            setError('Browser refused to load the badge image. Try Download SVG.')
-            URL.revokeObjectURL(url)
+            const W = 600 * PNG_SCALE
+            const H = 800 * PNG_SCALE
+            const blob = new Blob([src], { type: 'image/svg+xml;charset=utf-8' })
+            const url = URL.createObjectURL(blob)
+            const img = new Image()
+            img.onload = () => {
+                try {
+                    const canvas = document.createElement('canvas')
+                    canvas.width = W
+                    canvas.height = H
+                    const ctx = canvas.getContext('2d')
+                    if (!ctx) {
+                        URL.revokeObjectURL(url)
+                        reject(new Error('Your browser refused to render PNGs.'))
+                        return
+                    }
+                    ctx.drawImage(img, 0, 0, W, H)
+                    canvas.toBlob((png) => {
+                        URL.revokeObjectURL(url)
+                        if (!png) reject(new Error("Couldn't encode PNG."))
+                        else resolve(png)
+                    }, 'image/png')
+                } catch (e) {
+                    URL.revokeObjectURL(url)
+                    reject(e instanceof Error ? e : new Error('PNG export failed.'))
+                }
+            }
+            img.onerror = () => {
+                URL.revokeObjectURL(url)
+                reject(new Error('Browser refused to load the badge image.'))
+            }
+            img.src = url
+        })
+
+    const downloadPng = async () => {
+        setError(null)
+        setStatus(null)
+        setDownloading('png')
+        try {
+            const png = await renderPng()
+            const pngUrl = URL.createObjectURL(png)
+            triggerDownload(pngUrl, `${baseFilename}.png`)
+            URL.revokeObjectURL(pngUrl)
+        } catch (e) {
+            setError(e instanceof Error ? e.message : 'PNG export failed.')
+        } finally {
             setDownloading(null)
         }
-        img.src = url
     }
 
-    const shareOnX = () => {
-        const tierLabel = badge.tier[0].toUpperCase() + badge.tier.slice(1)
-        const text = `I just earned my ${tierLabel} badge on @bitpilot — learning Bitcoin by doing.\n\nBadge ID: ${badgeId}`
-        const u = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`
-        window.open(u, '_blank', 'noopener,noreferrer')
+    /**
+     * Share on X with the PNG attached.
+     *
+     * Strategy:
+     *   1. Render the PNG.
+     *   2. If the browser supports Web Share API for files (mobile,
+     *      Safari, recent Edge), call navigator.share({ files: [png] })
+     *      so the OS sheet opens with the image already attached.
+     *   3. Otherwise, save the PNG to the user's downloads AND open the
+     *      X compose page with prefilled text. We surface a status line
+     *      pointing the user to drag the freshly-downloaded PNG in.
+     */
+    const shareOnX = async () => {
+        setError(null)
+        setStatus(null)
+        setDownloading('share')
+        try {
+            const png = await renderPng()
+            const filename = `${baseFilename}.png`
+            const text = buildShareText(badge.tier, badgeId)
+            const file = new File([png], filename, { type: 'image/png' })
+
+            // Web Share API with files: mobile + Safari + recent Edge.
+            // `navigator.canShare` itself is feature-detected; some browsers
+            // ship `navigator.share` without file support.
+            const nav = navigator as Navigator & {
+                canShare?: (data: { files?: File[] }) => boolean
+            }
+            if (
+                typeof nav.canShare === 'function' &&
+                nav.canShare({ files: [file] }) &&
+                typeof nav.share === 'function'
+            ) {
+                try {
+                    await nav.share({
+                        files: [file],
+                        text,
+                        title: 'My BitPilot badge',
+                    })
+                    setStatus('Opened your share sheet — pick X to post the badge.')
+                    return
+                } catch (e) {
+                    // User dismissed the share sheet. Don't treat that
+                    // as an error; just fall through to download fallback.
+                    if (e instanceof DOMException && e.name === 'AbortError') {
+                        return
+                    }
+                    // Other share failures: fall through to the download path.
+                }
+            }
+
+            // Fallback: download the PNG so the user has it locally, then
+            // open the X compose page so they can drag it into the tweet.
+            const pngUrl = URL.createObjectURL(png)
+            triggerDownload(pngUrl, filename)
+            URL.revokeObjectURL(pngUrl)
+            const u = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`
+            window.open(u, '_blank', 'noopener,noreferrer')
+            setStatus(
+                'PNG saved to your downloads and X opened — drag the image into the tweet.',
+            )
+        } catch (e) {
+            setError(e instanceof Error ? e.message : 'Share failed.')
+        } finally {
+            setDownloading(null)
+        }
     }
 
     return (
@@ -253,6 +331,28 @@ export function ShareBadgeModal({
                             {error}
                         </div>
                     )}
+                    {status && !error && (
+                        <div
+                            role="status"
+                            style={{
+                                background: 'rgba(16, 197, 126, 0.08)',
+                                border: '1px solid rgba(16, 197, 126, 0.30)',
+                                borderRadius: 'var(--radius-2)',
+                                color: 'var(--success)',
+                                padding: '10px 12px',
+                                fontSize: 12,
+                            }}
+                        >
+                            {status}
+                        </div>
+                    )}
+                    <button
+                        onClick={shareOnX}
+                        disabled={downloading !== null}
+                        style={shareButton('xshare', downloading !== null)}
+                    >
+                        {downloading === 'share' ? 'Preparing share…' : 'Share on X'}
+                    </button>
                     <div
                         style={{
                             display: 'grid',
@@ -275,9 +375,6 @@ export function ShareBadgeModal({
                             {downloading === 'svg' ? '…' : '⬇ SVG'}
                         </button>
                     </div>
-                    <button onClick={shareOnX} style={shareButton('xshare', false)}>
-                        Share on X
-                    </button>
                     <div
                         style={{
                             fontSize: 11,
@@ -286,9 +383,9 @@ export function ShareBadgeModal({
                             lineHeight: 1.5,
                         }}
                     >
-                        Download the PNG first, then attach it when X opens the
-                        compose dialog. Your badge ID is stable — re-downloads
-                        give the same image.
+                        On mobile, "Share on X" attaches the badge directly.
+                        On desktop it saves the PNG and opens X — drag the
+                        image into the tweet to post.
                     </div>
                 </div>
             </div>

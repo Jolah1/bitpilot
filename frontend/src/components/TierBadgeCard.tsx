@@ -1,15 +1,22 @@
 /**
  * Shareable tier-completion badge rendered as inline SVG.
  *
- * The SVG is self-contained: no external assets, no CSS variables — every
- * fill/stroke is a literal hex so the same DOM can be serialized to a .svg
- * file or rasterized through canvas to a .png. See ShareBadgeModal for the
- * download/share plumbing.
+ * Self-contained: no external fonts, no CSS variables — every fill/stroke
+ * is a literal hex so the same DOM can be serialized to .svg OR rasterized
+ * through canvas to .png. See ShareBadgeModal for the export plumbing.
  *
- * Sized 600x800 (portrait, ~3:4). Twitter card previews crop to a flexible
- * aspect, but a portrait image attached to a tweet renders close to full
- * height in the timeline. The card uses absolute coordinates so layout
- * doesn't depend on container CSS.
+ * Sized 600x800 portrait. Visual structure (top → bottom):
+ *
+ *   1. Concentric guilloché rings as a subtle textured background.
+ *   2. Tier number + decorative dashes header.
+ *   3. Big RANK heading and a one-line subtitle.
+ *   4. Feathered pilot wings flanking a central medallion. The medallion
+ *      has an outer ring with curved text, a starburst behind the inner
+ *      disc, and the tier glyph + name + rank stacked inside.
+ *   5. A ribbon with the participant's name.
+ *   6. An "EARNED ON" date strip.
+ *   7. Two-line achievement description.
+ *   8. Monospace badge ID line + footer brand.
  */
 import { forwardRef } from 'react'
 import type { Tier } from '../lib/types'
@@ -20,7 +27,9 @@ interface Theme {
     bg2: string
     /** Accent — borders, glyph disc, headings. */
     accent: string
-    /** Secondary accent — subtle highlights. */
+    /** Brighter accent for highlights (light side of metallic shimmer). */
+    accentLight: string
+    /** Dimmed accent — subtle highlights / 35% alpha equivalent. */
     accentDim: string
     /** Single character / emoji placed on the medallion disc. */
     glyph: string
@@ -35,50 +44,54 @@ interface Theme {
 const THEMES: Record<Tier, Theme> = {
     novice: {
         bg1: '#1A1410',
-        bg2: '#0A0A0B',
+        bg2: '#070708',
         accent: '#F7931A',
-        accentDim: 'rgba(247, 147, 26, 0.35)',
+        accentLight: '#FFB958',
+        accentDim: '#7A4A0E',
         glyph: '₿',
-        subtitle: 'Completed Bitcoin Fundamentals',
+        subtitle: 'Bitcoin Fundamentals',
         achievement: [
             'Generated keys, learned wallets,',
-            'and completed first Bitcoin missions.',
+            'completed first Bitcoin missions.',
         ],
         number: 1,
     },
     apprentice: {
-        bg1: '#0F1A14',
-        bg2: '#0A0A0B',
+        bg1: '#0E1A14',
+        bg2: '#060808',
         accent: '#10C57E',
-        accentDim: 'rgba(16, 197, 126, 0.35)',
+        accentLight: '#4FE2A8',
+        accentDim: '#0A6240',
         glyph: '⚿',
-        subtitle: 'Completed Wallet & Signing Training',
+        subtitle: 'Wallets & Signing',
         achievement: [
-            'Sent and received real transactions;',
-            'learned to safeguard private keys.',
+            'Sent and received transactions,',
+            'safeguarded private keys.',
         ],
         number: 2,
     },
     pilot: {
-        bg1: '#181410',
-        bg2: '#0A0A0B',
+        bg1: '#1A1608',
+        bg2: '#070707',
         accent: '#FFD23F',
-        accentDim: 'rgba(255, 210, 63, 0.35)',
+        accentLight: '#FFE680',
+        accentDim: '#7F6A20',
         glyph: '⚡',
-        subtitle: 'Completed Lightning & Nostr Training',
+        subtitle: 'Lightning & Nostr',
         achievement: [
-            'Routed Lightning payments and published',
-            'Nostr notes to real public relays.',
+            'Routed Lightning payments,',
+            'published Nostr notes to relays.',
         ],
         number: 3,
     },
     navigator: {
-        bg1: '#161024',
-        bg2: '#0A0A0B',
+        bg1: '#15102A',
+        bg2: '#060509',
         accent: '#A78BFA',
-        accentDim: 'rgba(167, 139, 250, 0.35)',
+        accentLight: '#C9B5FE',
+        accentDim: '#54467D',
         glyph: '\u{1F9ED}',
-        subtitle: 'Completed eCash & Ecosystem Training',
+        subtitle: 'eCash & Ecosystem',
         achievement: [
             'Mastered private mint-and-redeem,',
             'zaps, and the wider Nostr ecosystem.',
@@ -86,15 +99,16 @@ const THEMES: Record<Tier, Theme> = {
         number: 4,
     },
     captain: {
-        bg1: '#1A0F0F',
-        bg2: '#0A0A0B',
+        bg1: '#1F0E0E',
+        bg2: '#070606',
         accent: '#E76F51',
-        accentDim: 'rgba(231, 111, 81, 0.35)',
+        accentLight: '#F39A82',
+        accentDim: '#733829',
         glyph: '\u{1F3F4}',
-        subtitle: 'Completed Sovereignty Training',
+        subtitle: 'Sovereignty',
         achievement: [
-            'Demonstrated practical sovereignty:',
-            'signet on-chain, security, the long game.',
+            'Practical sovereignty: signet,',
+            'security, and the long game.',
         ],
         number: 5,
     },
@@ -110,8 +124,7 @@ const RANK_LABEL: Record<Tier, string> = {
 
 /**
  * Stable, short badge ID derived from participantId + tier. Looks like
- * `BP-NOV-A3F4B2C1`. Deterministic so the same learner viewing or
- * re-downloading the badge always sees the same identifier.
+ * `BP-NOV-A3F4B2C1`. Deterministic so re-downloads always show the same id.
  */
 export function badgeIdFor(participantId: string, tier: Tier): string {
     const prefix = tier.slice(0, 3).toUpperCase()
@@ -139,18 +152,91 @@ export interface TierBadgeCardProps {
     scale?: number
 }
 
+const W = 600
+const H = 800
+const CX = W / 2
+const MEDAL_CY = 348
+const MEDAL_R_OUTER = 138
+const MEDAL_R_RING = 116
+const MEDAL_R_DISC = 92
+
 /**
- * Renders the badge as an SVG element. Wrapped in forwardRef so the parent
- * (ShareBadgeModal) can grab the raw <svg> node for serialization.
+ * Build one feathered wing as an array of <path>s. The fan has `count`
+ * feathers arranged in a small angular sweep, each tapered toward the
+ * outer tip. Mirror the result horizontally for the right wing.
+ *
+ * `side`: -1 (left) or +1 (right).
+ */
+function feathers(side: -1 | 1, accent: string, accentLight: string) {
+    const count = 7
+    const out: JSX.Element[] = []
+    const innerX = CX + side * (MEDAL_R_OUTER + 4)
+    const innerY = MEDAL_CY + 8
+    for (let i = 0; i < count; i += 1) {
+        // Angle sweep: top feathers angled up, bottom feathers angled down.
+        // Range -22deg .. +18deg from horizontal.
+        const t = i / (count - 1)
+        const angle = -22 + t * 40
+        const len = 165 - Math.abs(t - 0.4) * 70 // longest near top of fan
+        const rad = (angle * Math.PI) / 180
+        const tipX = innerX + side * Math.cos(rad) * len
+        const tipY = innerY + Math.sin(rad) * len
+        // A feather is a leaf shape: a quadratic curve out, then back. The
+        // perpendicular offset gives it width; we taper width with `len`.
+        const widthHalf = 7 + (1 - Math.abs(t - 0.4)) * 4
+        const perpRad = rad + Math.PI / 2
+        const offX = Math.cos(perpRad) * widthHalf
+        const offY = Math.sin(perpRad) * widthHalf
+        const midX = (innerX + tipX) / 2 - offX * 0.5
+        const midY = (innerY + tipY) / 2 - offY * 0.5
+        const midBackX = (innerX + tipX) / 2 + offX * 0.5
+        const midBackY = (innerY + tipY) / 2 + offY * 0.5
+        const d =
+            `M ${innerX.toFixed(1)} ${innerY.toFixed(1)} ` +
+            `Q ${midX.toFixed(1)} ${midY.toFixed(1)} ${tipX.toFixed(1)} ${tipY.toFixed(1)} ` +
+            `Q ${midBackX.toFixed(1)} ${midBackY.toFixed(1)} ${innerX.toFixed(1)} ${innerY.toFixed(1)} Z`
+        out.push(
+            <path
+                key={`f-${side}-${i}`}
+                d={d}
+                fill={i % 2 === 0 ? accent : accentLight}
+                opacity={0.82 - Math.abs(t - 0.4) * 0.35}
+            />,
+        )
+        // Quill highlight — a thin centerline that gives the feather depth.
+        out.push(
+            <line
+                key={`q-${side}-${i}`}
+                x1={innerX}
+                y1={innerY}
+                x2={tipX}
+                y2={tipY}
+                stroke="#0A0A0B"
+                strokeWidth="0.7"
+                opacity="0.45"
+            />,
+        )
+    }
+    return out
+}
+
+/**
+ * Renders the badge as a self-contained SVG. Wrapped in forwardRef so
+ * ShareBadgeModal can grab the raw <svg> for serialization.
  */
 export const TierBadgeCard = forwardRef<SVGSVGElement, TierBadgeCardProps>(
     function TierBadgeCard({ tier, participantName, earnedAt, badgeId, scale = 1 }, ref) {
         const theme = THEMES[tier]
         const label = RANK_LABEL[tier]
         const dateStr = formatBadgeDate(earnedAt)
-        const safeName = (participantName || 'Bitpilot Learner').trim().slice(0, 32)
-        const W = 600
-        const H = 800
+        const safeName = (participantName || 'BitPilot Learner').trim().slice(0, 28)
+        const ringTextId = `ring-${tier}`
+        // Build a circle path for the ring text. Reverse direction so text
+        // reads left-to-right along the top of the circle.
+        const ringTextPath =
+            `M ${CX - MEDAL_R_RING} ${MEDAL_CY} ` +
+            `a ${MEDAL_R_RING} ${MEDAL_R_RING} 0 1 1 ${MEDAL_R_RING * 2} 0 ` +
+            `a ${MEDAL_R_RING} ${MEDAL_R_RING} 0 1 1 ${-MEDAL_R_RING * 2} 0`
 
         return (
             <svg
@@ -167,324 +253,409 @@ export const TierBadgeCard = forwardRef<SVGSVGElement, TierBadgeCardProps>(
                         <stop offset="0" stopColor={theme.bg1} />
                         <stop offset="1" stopColor={theme.bg2} />
                     </linearGradient>
-                    <radialGradient id={`glow-${tier}`} cx="0.5" cy="0.5" r="0.6">
-                        <stop offset="0" stopColor={theme.accent} stopOpacity="0.35" />
+                    <radialGradient
+                        id={`glow-${tier}`}
+                        cx="0.5"
+                        cy={`${(MEDAL_CY / H).toFixed(3)}`}
+                        r="0.55"
+                    >
+                        <stop offset="0" stopColor={theme.accent} stopOpacity="0.30" />
+                        <stop offset="0.6" stopColor={theme.accent} stopOpacity="0.06" />
                         <stop offset="1" stopColor={theme.accent} stopOpacity="0" />
                     </radialGradient>
+                    <linearGradient id={`disc-${tier}`} x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0" stopColor={theme.accentLight} />
+                        <stop offset="1" stopColor={theme.accent} />
+                    </linearGradient>
+                    <linearGradient id={`ribbon-${tier}`} x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0" stopColor={theme.accentLight} />
+                        <stop offset="0.5" stopColor={theme.accent} />
+                        <stop offset="1" stopColor={theme.accentDim} />
+                    </linearGradient>
+                    <path id={ringTextId} d={ringTextPath} />
                 </defs>
 
-                {/* Card background */}
+                {/* Card background + double border */}
                 <rect x="0" y="0" width={W} height={H} fill={`url(#bg-${tier})`} />
+                <rect x="0" y="0" width={W} height={H} fill={`url(#glow-${tier})`} />
+
+                {/* Guilloché rings — concentric thin circles behind the medallion. */}
+                {Array.from({ length: 9 }, (_, i) => (
+                    <circle
+                        key={`g-${i}`}
+                        cx={CX}
+                        cy={MEDAL_CY}
+                        r={MEDAL_R_OUTER + 30 + i * 18}
+                        fill="none"
+                        stroke={theme.accent}
+                        strokeWidth="0.6"
+                        opacity={0.07 - i * 0.005}
+                    />
+                ))}
+
                 <rect
-                    x="14"
-                    y="14"
-                    width={W - 28}
-                    height={H - 28}
+                    x="16"
+                    y="16"
+                    width={W - 32}
+                    height={H - 32}
                     fill="none"
                     stroke={theme.accent}
-                    strokeWidth="2"
-                    rx="14"
+                    strokeWidth="2.2"
+                    rx="16"
                 />
                 <rect
-                    x="22"
-                    y="22"
-                    width={W - 44}
-                    height={H - 44}
+                    x="24"
+                    y="24"
+                    width={W - 48}
+                    height={H - 48}
                     fill="none"
                     stroke={theme.accentDim}
                     strokeWidth="1"
-                    rx="10"
+                    rx="11"
                 />
+                {/* Inner corner ornaments */}
+                {(
+                    [
+                        [38, 38, 1, 1],
+                        [W - 38, 38, -1, 1],
+                        [38, H - 38, 1, -1],
+                        [W - 38, H - 38, -1, -1],
+                    ] as const
+                ).map(([x, y, sx, sy], i) => (
+                    <g key={`corner-${i}`}>
+                        <path
+                            d={`M ${x} ${y + sy * 18} L ${x} ${y} L ${x + sx * 18} ${y}`}
+                            fill="none"
+                            stroke={theme.accent}
+                            strokeWidth="1.5"
+                            strokeLinecap="round"
+                        />
+                    </g>
+                ))}
 
-                {/* Header */}
+                {/* TIER N + flanking dashes */}
+                <line x1={CX - 90} y1={68} x2={CX - 50} y2={68} stroke={theme.accent} strokeWidth="1" />
+                <line x1={CX + 50} y1={68} x2={CX + 90} y2={68} stroke={theme.accent} strokeWidth="1" />
                 <text
-                    x={W / 2}
-                    y={68}
+                    x={CX}
+                    y={73}
                     textAnchor="middle"
                     fill={theme.accent}
                     fontFamily="ui-sans-serif, system-ui, sans-serif"
                     fontWeight="800"
-                    fontSize="13"
-                    letterSpacing="4"
+                    fontSize="12"
+                    letterSpacing="5"
                 >
                     TIER {theme.number}
                 </text>
+
+                {/* RANK heading */}
                 <text
-                    x={W / 2}
-                    y={114}
+                    x={CX}
+                    y={120}
                     textAnchor="middle"
                     fill="#FFFFFF"
                     fontFamily="ui-sans-serif, system-ui, sans-serif"
                     fontWeight="900"
-                    fontSize="40"
-                    letterSpacing="3"
+                    fontSize="44"
+                    letterSpacing="4"
                 >
                     {label}
                 </text>
+
+                {/* Star divider + subtitle */}
+                <g transform={`translate(${CX} 148)`}>
+                    <line x1="-110" y1="0" x2="-12" y2="0" stroke={theme.accent} strokeWidth="0.8" />
+                    <line x1="12" y1="0" x2="110" y2="0" stroke={theme.accent} strokeWidth="0.8" />
+                    <text
+                        x="0"
+                        y="3"
+                        textAnchor="middle"
+                        fill={theme.accent}
+                        fontSize="10"
+                        fontWeight="900"
+                    >
+                        ★
+                    </text>
+                </g>
                 <text
-                    x={W / 2}
-                    y={144}
+                    x={CX}
+                    y={172}
                     textAnchor="middle"
-                    fill={theme.accent}
+                    fill={theme.accentLight}
                     fontFamily="ui-sans-serif, system-ui, sans-serif"
                     fontWeight="700"
-                    fontSize="12"
-                    letterSpacing="2.5"
+                    fontSize="13"
+                    letterSpacing="3"
                 >
                     {theme.subtitle.toUpperCase()}
                 </text>
 
-                {/* Medallion */}
-                <circle cx={W / 2} cy={340} r="170" fill={`url(#glow-${tier})`} />
+                {/* ── Medallion stack ──────────────────────────────────────── */}
+
+                {/* Starburst behind the medallion: 24 short lines radiating out. */}
+                {Array.from({ length: 24 }, (_, i) => {
+                    const a = (i / 24) * 2 * Math.PI
+                    const rIn = MEDAL_R_OUTER + 18
+                    const rOut = MEDAL_R_OUTER + 36 + (i % 2 === 0 ? 8 : 0)
+                    const x1 = CX + Math.cos(a) * rIn
+                    const y1 = MEDAL_CY + Math.sin(a) * rIn
+                    const x2 = CX + Math.cos(a) * rOut
+                    const y2 = MEDAL_CY + Math.sin(a) * rOut
+                    return (
+                        <line
+                            key={`ray-${i}`}
+                            x1={x1.toFixed(1)}
+                            y1={y1.toFixed(1)}
+                            x2={x2.toFixed(1)}
+                            y2={y2.toFixed(1)}
+                            stroke={theme.accent}
+                            strokeWidth={i % 2 === 0 ? 1.4 : 0.7}
+                            opacity={i % 2 === 0 ? 0.55 : 0.25}
+                            strokeLinecap="round"
+                        />
+                    )
+                })}
+
+                {/* Wings (left + right). Drawn before the medallion so the disc
+                    overlaps the innermost feathers cleanly. */}
+                <g>{feathers(-1, theme.accent, theme.accentLight)}</g>
+                <g>{feathers(1, theme.accent, theme.accentLight)}</g>
+
+                {/* Outer medallion ring */}
                 <circle
-                    cx={W / 2}
-                    cy={340}
-                    r="138"
+                    cx={CX}
+                    cy={MEDAL_CY}
+                    r={MEDAL_R_OUTER}
                     fill="#0A0A0B"
                     stroke={theme.accent}
                     strokeWidth="3"
                 />
                 <circle
-                    cx={W / 2}
-                    cy={340}
-                    r="128"
+                    cx={CX}
+                    cy={MEDAL_CY}
+                    r={MEDAL_R_OUTER - 6}
                     fill="none"
                     stroke={theme.accentDim}
                     strokeWidth="1"
                 />
-                {/* Wings — abstracted as two stylized arcs */}
-                <path
-                    d={`M ${W / 2 - 200} 340 Q ${W / 2 - 150} 300 ${W / 2 - 138} 340`}
-                    stroke={theme.accent}
-                    strokeWidth="3"
-                    fill="none"
-                    strokeLinecap="round"
-                />
-                <path
-                    d={`M ${W / 2 + 200} 340 Q ${W / 2 + 150} 300 ${W / 2 + 138} 340`}
-                    stroke={theme.accent}
-                    strokeWidth="3"
-                    fill="none"
-                    strokeLinecap="round"
-                />
-                <path
-                    d={`M ${W / 2 - 180} 340 Q ${W / 2 - 140} 320 ${W / 2 - 138} 340`}
-                    stroke={theme.accentDim}
-                    strokeWidth="2"
-                    fill="none"
-                    strokeLinecap="round"
-                />
-                <path
-                    d={`M ${W / 2 + 180} 340 Q ${W / 2 + 140} 320 ${W / 2 + 138} 340`}
-                    stroke={theme.accentDim}
-                    strokeWidth="2"
-                    fill="none"
-                    strokeLinecap="round"
-                />
 
+                {/* Curved ring text */}
                 <text
-                    x={W / 2}
-                    y={278}
-                    textAnchor="middle"
-                    fill="#FFFFFF"
-                    fontFamily="ui-sans-serif, system-ui, sans-serif"
-                    fontWeight="800"
-                    fontSize="13"
-                    letterSpacing="3"
-                >
-                    BITPILOT
-                </text>
-                <text
-                    x={W / 2}
-                    y={314}
-                    textAnchor="middle"
-                    fill="#FFFFFF"
-                    fontFamily="ui-sans-serif, system-ui, sans-serif"
-                    fontWeight="900"
-                    fontSize="22"
-                    letterSpacing="2"
-                >
-                    {label}
-                </text>
-                {/* Glyph disc */}
-                <circle cx={W / 2} cy={372} r="40" fill={theme.accent} />
-                <text
-                    x={W / 2}
-                    y={388}
-                    textAnchor="middle"
-                    fill="#0A0A0B"
-                    fontFamily="ui-sans-serif, system-ui, sans-serif"
-                    fontWeight="900"
-                    fontSize="40"
-                >
-                    {theme.glyph}
-                </text>
-
-                {/* Name ribbon */}
-                <rect
-                    x={W / 2 - 140}
-                    y={440}
-                    width="280"
-                    height="36"
-                    fill="#0A0A0B"
-                    stroke={theme.accent}
-                    strokeWidth="1.5"
-                    rx="4"
-                />
-                <text
-                    x={W / 2}
-                    y={464}
-                    textAnchor="middle"
-                    fill={theme.accent}
-                    fontFamily="ui-sans-serif, system-ui, sans-serif"
-                    fontWeight="700"
-                    fontSize="14"
-                    letterSpacing="1"
-                >
-                    {safeName}
-                </text>
-
-                {/* Completed strip */}
-                <text
-                    x={W / 2}
-                    y={520}
-                    textAnchor="middle"
-                    fill={theme.accent}
+                    fill={theme.accentLight}
                     fontFamily="ui-sans-serif, system-ui, sans-serif"
                     fontWeight="700"
                     fontSize="11"
                     letterSpacing="3"
                 >
-                    COMPLETED
-                </text>
-                <text
-                    x={W / 2}
-                    y={544}
-                    textAnchor="middle"
-                    fill="#FFFFFF"
-                    fontFamily="ui-sans-serif, system-ui, sans-serif"
-                    fontWeight="700"
-                    fontSize="15"
-                    letterSpacing="1"
-                >
-                    {theme.subtitle.replace(/^Completed /, '')}
+                    <textPath href={`#${ringTextId}`} startOffset="50%" textAnchor="middle">
+                        ★ BITPILOT · LEARN BITCOIN BY DOING · ★
+                    </textPath>
                 </text>
 
-                {/* Date & Badge ID strip */}
-                <rect
-                    x="60"
-                    y={580}
-                    width={W - 120}
-                    height="64"
-                    fill="rgba(255,255,255,0.04)"
-                    stroke="rgba(255,255,255,0.10)"
-                    strokeWidth="1"
-                    rx="8"
+                {/* Inner ring divider */}
+                <circle
+                    cx={CX}
+                    cy={MEDAL_CY}
+                    r={MEDAL_R_DISC + 6}
+                    fill="none"
+                    stroke={theme.accent}
+                    strokeWidth="0.8"
+                    opacity="0.6"
                 />
+
+                {/* Inner disc — accent gradient */}
+                <circle
+                    cx={CX}
+                    cy={MEDAL_CY}
+                    r={MEDAL_R_DISC}
+                    fill={`url(#disc-${tier})`}
+                />
+                <circle
+                    cx={CX}
+                    cy={MEDAL_CY}
+                    r={MEDAL_R_DISC - 4}
+                    fill="none"
+                    stroke="#0A0A0B"
+                    strokeWidth="0.7"
+                    opacity="0.4"
+                />
+
+                {/* Glyph on disc */}
                 <text
-                    x="170"
-                    y={605}
+                    x={CX}
+                    y={MEDAL_CY - 8}
                     textAnchor="middle"
-                    fill="rgba(255,255,255,0.55)"
+                    fill="#0A0A0B"
                     fontFamily="ui-sans-serif, system-ui, sans-serif"
-                    fontWeight="700"
-                    fontSize="9"
-                    letterSpacing="2"
+                    fontWeight="900"
+                    fontSize="60"
                 >
-                    DATE
+                    {theme.glyph}
                 </text>
                 <text
-                    x="170"
-                    y={627}
+                    x={CX}
+                    y={MEDAL_CY + 36}
                     textAnchor="middle"
-                    fill="#FFFFFF"
+                    fill="#0A0A0B"
                     fontFamily="ui-sans-serif, system-ui, sans-serif"
-                    fontWeight="700"
-                    fontSize="13"
+                    fontWeight="800"
+                    fontSize="12"
+                    letterSpacing="3"
                 >
-                    {dateStr}
+                    {label}
                 </text>
+
+                {/* ── Ribbon ───────────────────────────────────────────────── */}
+                {/* Forked-end ribbon under the medallion */}
+                {(() => {
+                    const ry = 524
+                    const rx = CX - 156
+                    const rw = 312
+                    const rh = 44
+                    const tail = 16
+                    const cut = 18
+                    // Banner shape: rectangle with notched ends
+                    const d =
+                        `M ${rx - tail} ${ry} ` +
+                        `L ${rx} ${ry} ` +
+                        `L ${rx} ${ry + rh} ` +
+                        `L ${rx - tail} ${ry + rh} ` +
+                        `L ${rx - tail + cut} ${ry + rh / 2} ` +
+                        `Z ` +
+                        `M ${rx + rw} ${ry} ` +
+                        `L ${rx + rw + tail} ${ry} ` +
+                        `L ${rx + rw + tail - cut} ${ry + rh / 2} ` +
+                        `L ${rx + rw + tail} ${ry + rh} ` +
+                        `L ${rx + rw} ${ry + rh} ` +
+                        `Z`
+                    return (
+                        <>
+                            {/* tails (slightly behind) */}
+                            <path d={d} fill={theme.accentDim} />
+                            {/* main bar */}
+                            <rect
+                                x={rx}
+                                y={ry}
+                                width={rw}
+                                height={rh}
+                                fill={`url(#ribbon-${tier})`}
+                            />
+                            <rect
+                                x={rx + 3}
+                                y={ry + 3}
+                                width={rw - 6}
+                                height={rh - 6}
+                                fill="none"
+                                stroke="#0A0A0B"
+                                strokeWidth="0.8"
+                                opacity="0.6"
+                                rx="2"
+                            />
+                            <text
+                                x={CX}
+                                y={ry + rh / 2 + 6}
+                                textAnchor="middle"
+                                fill="#0A0A0B"
+                                fontFamily="ui-sans-serif, system-ui, sans-serif"
+                                fontWeight="800"
+                                fontSize="18"
+                                letterSpacing="1"
+                            >
+                                {safeName}
+                            </text>
+                        </>
+                    )
+                })()}
+
+                {/* ── Earned-on date strip ─────────────────────────────────── */}
+                <g transform={`translate(${CX} 600)`}>
+                    <line x1="-150" y1="0" x2="-58" y2="0" stroke={theme.accentDim} strokeWidth="1" />
+                    <line x1="58" y1="0" x2="150" y2="0" stroke={theme.accentDim} strokeWidth="1" />
+                    <text
+                        x="0"
+                        y="4"
+                        textAnchor="middle"
+                        fill={theme.accentLight}
+                        fontFamily="ui-sans-serif, system-ui, sans-serif"
+                        fontWeight="700"
+                        fontSize="10"
+                        letterSpacing="3"
+                    >
+                        EARNED · {dateStr.toUpperCase()}
+                    </text>
+                </g>
+
+                {/* ── Achievement text ─────────────────────────────────────── */}
                 <text
-                    x={W / 2}
-                    y={622}
+                    x={CX}
+                    y={638}
                     textAnchor="middle"
                     fill={theme.accent}
                     fontFamily="ui-sans-serif, system-ui, sans-serif"
-                    fontWeight="900"
-                    fontSize="22"
-                >
-                    {'★'}
-                </text>
-                <text
-                    x={W - 170}
-                    y={605}
-                    textAnchor="middle"
-                    fill="rgba(255,255,255,0.55)"
-                    fontFamily="ui-sans-serif, system-ui, sans-serif"
                     fontWeight="700"
-                    fontSize="9"
-                    letterSpacing="2"
+                    fontSize="10"
+                    letterSpacing="4"
                 >
-                    BADGE ID
+                    ACHIEVEMENT
                 </text>
                 <text
-                    x={W - 170}
-                    y={627}
+                    x={CX}
+                    y={664}
+                    textAnchor="middle"
+                    fill="#E8E8EB"
+                    fontFamily="ui-sans-serif, system-ui, sans-serif"
+                    fontWeight="500"
+                    fontSize="14"
+                >
+                    {theme.achievement[0]}
+                </text>
+                <text
+                    x={CX}
+                    y={684}
+                    textAnchor="middle"
+                    fill="#E8E8EB"
+                    fontFamily="ui-sans-serif, system-ui, sans-serif"
+                    fontWeight="500"
+                    fontSize="14"
+                >
+                    {theme.achievement[1]}
+                </text>
+
+                {/* ── Badge ID strip ───────────────────────────────────────── */}
+                <rect
+                    x={CX - 130}
+                    y={714}
+                    width={260}
+                    height={32}
+                    fill="rgba(255,255,255,0.04)"
+                    stroke={theme.accentDim}
+                    strokeWidth="1"
+                    rx="6"
+                />
+                <text
+                    x={CX}
+                    y={735}
                     textAnchor="middle"
                     fill="#FFFFFF"
                     fontFamily="ui-monospace, monospace"
                     fontWeight="700"
                     fontSize="13"
+                    letterSpacing="1"
                 >
                     {badgeId}
                 </text>
 
-                {/* Achievement */}
-                <text
-                    x={W / 2}
-                    y={684}
-                    textAnchor="middle"
-                    fill={theme.accent}
-                    fontFamily="ui-sans-serif, system-ui, sans-serif"
-                    fontWeight="700"
-                    fontSize="11"
-                    letterSpacing="3"
-                >
-                    ACHIEVEMENT
-                </text>
-                <text
-                    x={W / 2}
-                    y={708}
-                    textAnchor="middle"
-                    fill="#CFCFD2"
-                    fontFamily="ui-sans-serif, system-ui, sans-serif"
-                    fontWeight="500"
-                    fontSize="13"
-                >
-                    {theme.achievement[0]}
-                </text>
-                <text
-                    x={W / 2}
-                    y={728}
-                    textAnchor="middle"
-                    fill="#CFCFD2"
-                    fontFamily="ui-sans-serif, system-ui, sans-serif"
-                    fontWeight="500"
-                    fontSize="13"
-                >
-                    {theme.achievement[1]}
-                </text>
-
                 {/* Footer brand */}
                 <text
-                    x={W / 2}
-                    y={776}
+                    x={CX}
+                    y={774}
                     textAnchor="middle"
                     fill="rgba(255,255,255,0.45)"
                     fontFamily="ui-sans-serif, system-ui, sans-serif"
                     fontWeight="700"
-                    fontSize="10"
-                    letterSpacing="3"
+                    fontSize="9"
+                    letterSpacing="4"
                 >
                     BITPILOT · LEARN BITCOIN BY DOING
                 </text>
