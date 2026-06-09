@@ -534,9 +534,55 @@ export default function LearnerView({ participantId }: { participantId: string }
         setLoading(false)
     }
 
+    // Modals rendered outside the screen ternary so the Captain-tier
+    // celebration still fires on top of the FinishedScreen — earlier
+    // versions returned FinishedScreen before the modal could render,
+    // and the final celebration was silently swallowed.
+    const modals = (
+        <Suspense fallback={null}>
+            {justEarnedBadge && (
+                <BadgeCelebrationModal
+                    badge={justEarnedBadge}
+                    participantId={participantId}
+                    participantName={participantName}
+                    onClose={() => setJustEarnedBadge(null)}
+                    onClaimed={(claim) => {
+                        // Mirror the new claim into the badges list so the
+                        // BadgesStrip and the celebration modal both see the
+                        // claim immediately, without re-fetching.
+                        setBadges((prev) =>
+                            prev.map((b) =>
+                                b.tier === justEarnedBadge.tier
+                                    ? { ...b, reward_claim: claim }
+                                    : b,
+                            ),
+                        )
+                        setJustEarnedBadge((j) =>
+                            j ? { ...j, reward_claim: claim } : j,
+                        )
+                    }}
+                />
+            )}
+
+            {sharingBadge && (
+                <ShareBadgeModal
+                    badge={sharingBadge}
+                    participantId={participantId}
+                    participantName={participantName}
+                    onClose={() => setSharingBadge(null)}
+                />
+            )}
+        </Suspense>
+    )
+
     // ── Final celebration screen ──
     if (allDone && isLast && doOutcome) {
-        return <FinishedScreen />
+        return (
+            <>
+                <FinishedScreen />
+                {modals}
+            </>
+        )
     }
 
     return (
@@ -555,42 +601,7 @@ export default function LearnerView({ participantId }: { participantId: string }
 
             <BadgesStrip badges={badges} onShareBadge={setSharingBadge} />
 
-            {/* No fallback UI: modals open after explicit user action.
-                Network is fine, a tiny extra delay is invisible. */}
-            <Suspense fallback={null}>
-                {justEarnedBadge && (
-                    <BadgeCelebrationModal
-                        badge={justEarnedBadge}
-                        participantId={participantId}
-                        participantName={participantName}
-                        onClose={() => setJustEarnedBadge(null)}
-                        onClaimed={(claim) => {
-                            // Mirror the new claim into the badges list so
-                            // the BadgesStrip and the celebration modal both
-                            // see the claim immediately, without re-fetching.
-                            setBadges((prev) =>
-                                prev.map((b) =>
-                                    b.tier === justEarnedBadge.tier
-                                        ? { ...b, reward_claim: claim }
-                                        : b,
-                                ),
-                            )
-                            setJustEarnedBadge((j) =>
-                                j ? { ...j, reward_claim: claim } : j,
-                            )
-                        }}
-                    />
-                )}
-
-                {sharingBadge && (
-                    <ShareBadgeModal
-                        badge={sharingBadge}
-                        participantId={participantId}
-                        participantName={participantName}
-                        onClose={() => setSharingBadge(null)}
-                    />
-                )}
-            </Suspense>
+            {modals}
 
             <MissionNav
                 missionIdx={missionIdx}
@@ -1179,6 +1190,29 @@ function PhaseTabs({
 }
 
 function LearnPanel({ mission, onAdvance }: { mission: MissionDef; onAdvance: () => void }) {
+    // Scaled min dwell so learners can't speed-click through the lesson.
+    // ~50 wpm reading floor at 220 chars/sec; clamped 5s..20s. Resets
+    // every time this panel mounts (i.e. on mission change AND after a
+    // wrong quiz answer routes the learner back here).
+    const dwellSec = Math.max(
+        5,
+        Math.min(20, Math.ceil(mission.learn.body.length / 220)),
+    )
+    const [remaining, setRemaining] = useState(dwellSec)
+    useEffect(() => {
+        const start = Date.now()
+        const tick = () => {
+            const left = Math.max(
+                0,
+                dwellSec - Math.floor((Date.now() - start) / 1000),
+            )
+            setRemaining(left)
+            if (left === 0) window.clearInterval(id)
+        }
+        const id = window.setInterval(tick, 250)
+        return () => window.clearInterval(id)
+    }, [mission.id, dwellSec])
+    const ready = remaining === 0
     return (
         <>
             <h3
@@ -1208,11 +1242,38 @@ function LearnPanel({ mission, onAdvance }: { mission: MissionDef; onAdvance: ()
             <div style={callout('info')}>
                 <strong style={{ marginRight: 6 }}>Tip:</strong> {mission.learn.tip}
             </div>
-            <button style={{ ...primaryButton(), width: '100%' }} onClick={onAdvance}>
-                Got it — take the quiz →
+            <button
+                style={{ ...primaryButton(!ready), width: '100%' }}
+                onClick={onAdvance}
+                disabled={!ready}
+                aria-live="polite"
+            >
+                {ready
+                    ? 'Got it — take the quiz →'
+                    : `Read the lesson… ${remaining}s`}
             </button>
         </>
     )
+}
+
+/**
+ * Deterministic, seeded permutation of [0..n-1]. Fisher-Yates with a
+ * linear-congruential RNG seeded by `seed`. Used to scramble quiz
+ * options per-mission so position alone (e.g. "always B") can never be
+ * the right answer.
+ *
+ * Constants are the standard Park-Miller-ish LCG; quality is irrelevant
+ * — we just need a stable shuffle, not crypto.
+ */
+function shuffleSeeded(n: number, seed: number): number[] {
+    const order = Array.from({ length: n }, (_, i) => i)
+    let s = (seed * 9301 + 49297) & 0x7fffffff
+    for (let i = n - 1; i > 0; i--) {
+        s = (s * 9301 + 49297) & 0x7fffffff
+        const j = s % (i + 1)
+        ;[order[i], order[j]] = [order[j], order[i]]
+    }
+    return order
 }
 
 function QuizPanel({
@@ -1230,6 +1291,16 @@ function QuizPanel({
     onSubmit: () => void
     onRetry: () => void
 }) {
+    // Stable per-mission option permutation. Mission authors tend to put
+    // the correct answer in position B more than chance — and learners
+    // clock the pattern within a few missions and stop reading. The
+    // shuffle is keyed on mission.id so it's the same order across
+    // re-renders (no jarring reshuffle if the learner switches tabs and
+    // returns) but different across missions.
+    const displayOrder = useMemo(
+        () => shuffleSeeded(mission.quiz.options.length, mission.id),
+        [mission.id, mission.quiz.options.length],
+    )
     return (
         <>
             <p style={{ fontSize: 16, fontWeight: 600, lineHeight: 1.4, margin: 0 }}>
@@ -1247,7 +1318,9 @@ function QuizPanel({
                     gap: 8,
                 }}
             >
-                {mission.quiz.options.map((opt, i) => {
+                {displayOrder.map((originalIdx, displayIdx) => {
+                    const opt = mission.quiz.options[originalIdx]
+                    const i = originalIdx // backend / parent still refer to source index
                     const isChosen = selected === i
                     const isCorrect = quizResult === 'correct' && opt.correct
                     const isWrong = quizResult === 'wrong' && isChosen
@@ -1309,7 +1382,7 @@ function QuizPanel({
                                         fontFamily: 'var(--font-mono)',
                                     }}
                                 >
-                                    {['A', 'B', 'C', 'D'][i]}
+                                    {['A', 'B', 'C', 'D'][displayIdx]}
                                 </span>
                                 <span style={{ flex: 1, lineHeight: 1.45 }}>{opt.text}</span>
                             </button>

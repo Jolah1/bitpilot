@@ -190,6 +190,73 @@ export function TierRewardClaimModal({
                                 <strong>{badge.reward_sats} sats</strong>, and paste it
                                 below.
                             </div>
+                            <details
+                                style={{
+                                    fontSize: 12,
+                                    color: 'var(--muted)',
+                                    background: 'var(--bg)',
+                                    border: '1px solid var(--border)',
+                                    borderRadius: 'var(--radius-2)',
+                                    padding: '8px 12px',
+                                }}
+                            >
+                                <summary
+                                    style={{
+                                        cursor: 'pointer',
+                                        color: 'var(--text)',
+                                        fontWeight: 600,
+                                    }}
+                                >
+                                    Don't have a Lightning wallet?
+                                </summary>
+                                <div style={{ marginTop: 8, lineHeight: 1.6 }}>
+                                    Any of these work (free, no signup):
+                                    <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
+                                        <li>
+                                            <a
+                                                href="https://walletofsatoshi.com"
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                style={{ color: 'var(--bitcoin)' }}
+                                            >
+                                                Wallet of Satoshi
+                                            </a>
+                                            {' '}— easiest, custodial
+                                        </li>
+                                        <li>
+                                            <a
+                                                href="https://phoenix.acinq.co"
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                style={{ color: 'var(--bitcoin)' }}
+                                            >
+                                                Phoenix
+                                            </a>
+                                            {' '}— self-custodial
+                                        </li>
+                                        <li>
+                                            <a
+                                                href="https://getalby.com"
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                style={{ color: 'var(--bitcoin)' }}
+                                            >
+                                                Alby
+                                            </a>
+                                            {' '}— browser-based
+                                        </li>
+                                    </ul>
+                                    <div style={{ marginTop: 8 }}>
+                                        In your wallet, tap <strong>Receive</strong>, set the
+                                        amount to <strong>{badge.reward_sats} sats</strong>,
+                                        and copy the long string starting with{' '}
+                                        <code style={{ fontFamily: 'var(--font-mono)' }}>
+                                            lnbc…
+                                        </code>
+                                        . Paste it here.
+                                    </div>
+                                </div>
+                            </details>
                             <label style={{ ...labelStyle, fontSize: 10 }}>
                                 BOLT11 invoice
                             </label>
