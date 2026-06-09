@@ -232,7 +232,9 @@ export default function SoloProgressView({ participantId }: { participantId: str
                         marginBottom: 14,
                     }}
                 >
-                    Tap an earned badge to download or share it.
+                    {earnedBadges === 0
+                        ? `Finish your first ${TIERS[0].range[1] + 1} missions to unlock the ${TIERS[0].label} medallion.`
+                        : 'Tap an earned badge to download or share it.'}
                 </p>
                 <div
                     style={{
@@ -386,18 +388,22 @@ function Stat({
     accent?: boolean
 }) {
     return (
-        <div style={{ ...card, padding: '14px 16px' }}>
+        <div style={{ ...card, padding: '18px 18px 16px' }}>
             <div
                 style={{
-                    fontSize: 24,
-                    fontWeight: 800,
+                    // Display-size numeric: scales from phone to desktop.
+                    // The big number is the "wow" — the label is supporting.
+                    fontSize: 'clamp(30px, 7vw, 44px)',
+                    fontWeight: 900,
                     lineHeight: 1,
+                    letterSpacing: '-0.025em',
                     background: accent ? 'var(--gradient-bitcoin)' : undefined,
                     WebkitBackgroundClip: accent ? 'text' : undefined,
                     backgroundClip: accent ? 'text' : undefined,
                     WebkitTextFillColor: accent ? 'transparent' : undefined,
                     color: accent ? 'transparent' : 'var(--text)',
-                    fontFamily: 'var(--font-mono)',
+                    fontFamily: 'var(--font-sans)',
+                    fontVariantNumeric: 'tabular-nums',
                 }}
             >
                 {value}
@@ -405,11 +411,11 @@ function Stat({
             <div
                 style={{
                     fontSize: 10,
-                    letterSpacing: '0.08em',
+                    letterSpacing: '0.1em',
                     textTransform: 'uppercase',
                     color: 'var(--muted)',
-                    marginTop: 6,
-                    fontWeight: 600,
+                    marginTop: 10,
+                    fontWeight: 700,
                 }}
             >
                 {label}

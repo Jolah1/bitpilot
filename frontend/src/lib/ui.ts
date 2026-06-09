@@ -5,15 +5,22 @@
 
 import type { CSSProperties } from 'react'
 
+// A layered background paints a 1px translucent highlight along the top
+// edge over the surface colour. It's the trick that makes the card read
+// as a screen bezel rather than a flat rectangle — CSS pseudo-elements
+// don't work in inline styles, but a gradient layer does.
+const TOP_EDGE_HIGHLIGHT =
+    'linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0px, transparent 1.5px)'
+
 export const card: CSSProperties = {
-    background: 'var(--surface)',
+    background: `${TOP_EDGE_HIGHLIGHT}, var(--surface)`,
     border: '1px solid var(--border)',
     borderRadius: 'var(--radius-3)',
     boxShadow: 'var(--shadow-1)',
 }
 
 export const cardElevated: CSSProperties = {
-    background: 'var(--bg-elevated)',
+    background: `${TOP_EDGE_HIGHLIGHT}, var(--bg-elevated)`,
     border: '1px solid var(--border)',
     borderRadius: 'var(--radius-3)',
     boxShadow: 'var(--shadow-2)',

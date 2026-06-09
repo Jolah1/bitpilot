@@ -224,17 +224,43 @@ export default function FacilitatorDashboard({ sessionId }: { sessionId: string 
                             display: 'flex',
                             flexDirection: 'column',
                             alignItems: 'center',
-                            gap: 8,
-                            padding: '3rem 1rem',
+                            gap: 10,
+                            padding: '3.5rem 1rem',
                             color: 'var(--muted)',
                             fontSize: 14,
+                            textAlign: 'center',
                         }}
                     >
-                        <span aria-hidden="true" style={{ fontSize: 28 }}>
-                            ⏳
+                        <span
+                            aria-hidden="true"
+                            style={{
+                                width: 56,
+                                height: 56,
+                                borderRadius: '50%',
+                                background:
+                                    'linear-gradient(135deg, rgba(247,147,26,0.18), rgba(167,139,250,0.10))',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: 28,
+                            }}
+                        >
+                            👥
                         </span>
-                        <p style={{ margin: 0 }}>Waiting for participants to join…</p>
-                        <p style={{ margin: 0, fontSize: 12, opacity: 0.7 }}>Share the QR code above.</p>
+                        <p
+                            style={{
+                                margin: 0,
+                                fontSize: 15,
+                                fontWeight: 700,
+                                color: 'var(--text)',
+                            }}
+                        >
+                            Nobody here yet
+                        </p>
+                        <p style={{ margin: 0, maxWidth: 320, lineHeight: 1.55 }}>
+                            Share the QR code above. As learners join you'll see them
+                            show up live, one row per learner.
+                        </p>
                     </div>
                 ) : (
                     participants.map((p) => <ParticipantRow key={p.id} participant={p} />)
@@ -254,18 +280,20 @@ function Stat({
     accent?: boolean
 }) {
     return (
-        <div style={{ ...card, padding: '14px 16px' }}>
+        <div style={{ ...card, padding: '18px 18px 16px' }}>
             <div
                 style={{
-                    fontSize: 26,
-                    fontWeight: 800,
+                    fontSize: 'clamp(28px, 6vw, 38px)',
+                    fontWeight: 900,
                     lineHeight: 1,
+                    letterSpacing: '-0.025em',
                     background: accent ? 'var(--gradient-bitcoin)' : undefined,
                     WebkitBackgroundClip: accent ? 'text' : undefined,
                     backgroundClip: accent ? 'text' : undefined,
                     WebkitTextFillColor: accent ? 'transparent' : undefined,
                     color: accent ? 'transparent' : 'var(--text)',
-                    fontFamily: 'var(--font-mono)',
+                    fontFamily: 'var(--font-sans)',
+                    fontVariantNumeric: 'tabular-nums',
                 }}
             >
                 {value}
@@ -273,11 +301,11 @@ function Stat({
             <div
                 style={{
                     fontSize: 10,
-                    letterSpacing: '0.08em',
+                    letterSpacing: '0.1em',
                     textTransform: 'uppercase',
                     color: 'var(--muted)',
-                    marginTop: 6,
-                    fontWeight: 600,
+                    marginTop: 10,
+                    fontWeight: 700,
                 }}
             >
                 {label}
