@@ -1,4 +1,13 @@
-import { useEffect, useMemo, useRef, useState, Fragment, type CSSProperties } from 'react'
+import {
+    Fragment,
+    Suspense,
+    lazy,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+    type CSSProperties,
+} from 'react'
 import { api, ApiError } from '../lib/api'
 import { useIsTechReal } from '../lib/runtime'
 import {
@@ -35,8 +44,19 @@ import {
     generateNostrKeys,
     sha256Hex,
 } from '../lib/crypto'
-import { ShareBadgeModal } from '../components/ShareBadgeModal'
-import { BadgeCelebrationModal } from '../components/BadgeCelebrationModal'
+// Badge modals only render after a tier completes. Lazy-load so the
+// first ~10 missions (where no badge can be earned yet) don't pay for
+// the SVG renderer + PNG rasteriser + share UI.
+const BadgeCelebrationModal = lazy(() =>
+    import('../components/BadgeCelebrationModal').then((m) => ({
+        default: m.BadgeCelebrationModal,
+    })),
+)
+const ShareBadgeModal = lazy(() =>
+    import('../components/ShareBadgeModal').then((m) => ({
+        default: m.ShareBadgeModal,
+    })),
+)
 
 type Phase = 'learn' | 'quiz' | 'do'
 
@@ -535,38 +555,42 @@ export default function LearnerView({ participantId }: { participantId: string }
 
             <BadgesStrip badges={badges} onShareBadge={setSharingBadge} />
 
-            {justEarnedBadge && (
-                <BadgeCelebrationModal
-                    badge={justEarnedBadge}
-                    participantId={participantId}
-                    participantName={participantName}
-                    onClose={() => setJustEarnedBadge(null)}
-                    onClaimed={(claim) => {
-                        // Mirror the new claim into the badges list so the
-                        // BadgesStrip and the celebration modal both see
-                        // the claim immediately, without re-fetching.
-                        setBadges((prev) =>
-                            prev.map((b) =>
-                                b.tier === justEarnedBadge.tier
-                                    ? { ...b, reward_claim: claim }
-                                    : b,
-                            ),
-                        )
-                        setJustEarnedBadge((j) =>
-                            j ? { ...j, reward_claim: claim } : j,
-                        )
-                    }}
-                />
-            )}
+            {/* No fallback UI: modals open after explicit user action.
+                Network is fine, a tiny extra delay is invisible. */}
+            <Suspense fallback={null}>
+                {justEarnedBadge && (
+                    <BadgeCelebrationModal
+                        badge={justEarnedBadge}
+                        participantId={participantId}
+                        participantName={participantName}
+                        onClose={() => setJustEarnedBadge(null)}
+                        onClaimed={(claim) => {
+                            // Mirror the new claim into the badges list so
+                            // the BadgesStrip and the celebration modal both
+                            // see the claim immediately, without re-fetching.
+                            setBadges((prev) =>
+                                prev.map((b) =>
+                                    b.tier === justEarnedBadge.tier
+                                        ? { ...b, reward_claim: claim }
+                                        : b,
+                                ),
+                            )
+                            setJustEarnedBadge((j) =>
+                                j ? { ...j, reward_claim: claim } : j,
+                            )
+                        }}
+                    />
+                )}
 
-            {sharingBadge && (
-                <ShareBadgeModal
-                    badge={sharingBadge}
-                    participantId={participantId}
-                    participantName={participantName}
-                    onClose={() => setSharingBadge(null)}
-                />
-            )}
+                {sharingBadge && (
+                    <ShareBadgeModal
+                        badge={sharingBadge}
+                        participantId={participantId}
+                        participantName={participantName}
+                        onClose={() => setSharingBadge(null)}
+                    />
+                )}
+            </Suspense>
 
             <MissionNav
                 missionIdx={missionIdx}

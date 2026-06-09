@@ -1,8 +1,17 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react'
+import {
+    Suspense,
+    lazy,
+    useEffect,
+    useRef,
+    useState,
+    type CSSProperties,
+} from 'react'
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
 import LearnerView from './views/LearnerView'
-import FacilitatorDashboard from './views/FacilitatorDashboard'
-import SoloProgressView from './views/SoloProgressView'
+// Facilitator + solo views aren't part of the default learner path. Lazy-load
+// them so a fresh learner doesn't pay for ~30KB of code they may never open.
+const FacilitatorDashboard = lazy(() => import('./views/FacilitatorDashboard'))
+const SoloProgressView = lazy(() => import('./views/SoloProgressView'))
 import { ThemeToggle } from './components/ThemeToggle'
 import { applyTheme, getSavedTheme, saveTheme, type Theme } from './lib/theme'
 import { api, ApiError } from './lib/api'
@@ -1656,6 +1665,38 @@ function Field({
     )
 }
 
+// Lightweight Suspense fallback for the lazy-loaded views. Renders a soft
+// pulsing card so the layout doesn't jump while the chunk arrives.
+function ViewLoading() {
+    return (
+        <div
+            role="status"
+            aria-live="polite"
+            aria-label="Loading"
+            style={{
+                maxWidth: 720,
+                margin: '32px auto',
+                padding: '0 clamp(0.5rem, 3vw, 1rem)',
+            }}
+        >
+            <div
+                style={{
+                    height: 160,
+                    borderRadius: 'var(--radius-3)',
+                    background: 'var(--surface)',
+                    border: '1px solid var(--border)',
+                    opacity: 0.7,
+                    animation: 'bp-skeleton-pulse 1.4s ease-in-out infinite',
+                }}
+            />
+            <style>{`@keyframes bp-skeleton-pulse {
+                0%, 100% { opacity: 0.45; }
+                50% { opacity: 0.8; }
+            }`}</style>
+        </div>
+    )
+}
+
 // ─── App shell (top bar + active view) ───────────────────────────────────────
 
 /**
@@ -1912,10 +1953,14 @@ function AppShell({
             >
                 {view === 'learner' ? (
                     <LearnerView participantId={participantId!} />
-                ) : isSolo ? (
-                    <SoloProgressView participantId={participantId!} />
                 ) : (
-                    <FacilitatorDashboard sessionId={sessionId!} />
+                    <Suspense fallback={<ViewLoading />}>
+                        {isSolo ? (
+                            <SoloProgressView participantId={participantId!} />
+                        ) : (
+                            <FacilitatorDashboard sessionId={sessionId!} />
+                        )}
+                    </Suspense>
                 )}
             </div>
         </>
