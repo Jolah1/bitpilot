@@ -941,6 +941,7 @@ function BadgesStrip({
                         aria-label={title}
                         role={interactive ? 'button' : undefined}
                         tabIndex={interactive ? 0 : -1}
+                        className={interactive ? 'bp-tile' : undefined}
                         onClick={interactive ? () => onShareBadge(b) : undefined}
                         onKeyDown={
                             interactive
@@ -1243,6 +1244,7 @@ function LearnPanel({ mission, onAdvance }: { mission: MissionDef; onAdvance: ()
                 <strong style={{ marginRight: 6 }}>Tip:</strong> {mission.learn.tip}
             </div>
             <button
+                className="bp-press"
                 style={{ ...primaryButton(!ready), width: '100%' }}
                 onClick={onAdvance}
                 disabled={!ready}
@@ -1414,6 +1416,7 @@ function QuizPanel({
 
             {!quizResult && (
                 <button
+                    className="bp-press"
                     style={{ ...primaryButton(selected === null), width: '100%' }}
                     onClick={onSubmit}
                     disabled={selected === null}
@@ -1482,7 +1485,11 @@ function DoPanel({
                     Use Previous/Next above to navigate, or jump back to your current
                     mission below.
                 </div>
-                <button style={{ ...primaryButton(), width: '100%' }} onClick={onReviewNext}>
+                <button
+                    className="bp-press"
+                    style={{ ...primaryButton(), width: '100%' }}
+                    onClick={onReviewNext}
+                >
                     {nextMissionName ? `Next: ${nextMissionName} →` : 'Forward →'}
                 </button>
             </>
@@ -1574,11 +1581,16 @@ function DoPanel({
             )}
 
             {outcome ? (
-                <button style={{ ...primaryButton(), width: '100%' }} onClick={onNext}>
+                <button
+                    className="bp-press"
+                    style={{ ...primaryButton(), width: '100%' }}
+                    onClick={onNext}
+                >
                     {isLast ? '🎉 Finish BitPilot' : `Next: ${nextMissionName} →`}
                 </button>
             ) : (
                 <button
+                    className="bp-press"
                     style={{ ...primaryButton(loading), width: '100%' }}
                     onClick={onSubmit}
                     disabled={loading}

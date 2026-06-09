@@ -425,6 +425,7 @@ function Hero({
             >
                 {hasResumable && (
                     <button
+                        className="bp-press"
                         style={{
                             ...primaryButton(),
                             padding: '14px 24px',
@@ -437,6 +438,7 @@ function Hero({
                     </button>
                 )}
                 <button
+                    className="bp-press"
                     style={{
                         ...(hasResumable ? ghostButton : primaryButton()),
                         padding: '14px 24px',
@@ -1104,6 +1106,7 @@ function FinalCTA({
                 }}
             >
                 <button
+                    className="bp-press"
                     style={{
                         ...primaryButton(),
                         padding: '14px 24px',
@@ -1409,6 +1412,7 @@ function TopNav({
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <ThemeToggle theme={theme} onToggle={onToggleTheme} />
                 <button
+                    className="bp-press"
                     style={{
                         ...primaryButton(),
                         padding: '10px 16px',
@@ -1596,6 +1600,7 @@ function Setup({
                         )}
 
                         <button
+                            className="bp-press"
                             style={{
                                 ...primaryButton(loading || !participantName.trim()),
                                 width: '100%',

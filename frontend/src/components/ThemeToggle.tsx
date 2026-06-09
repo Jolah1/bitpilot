@@ -8,10 +8,9 @@ interface Props {
 /**
  * Accessible theme toggle.
  *
- * - Rendered as a real <button> with `aria-pressed` so screen readers
- *   announce the current state.
- * - Visible label switches between Dark/Light so sighted users get
- *   the same affordance as the SR users.
+ * Switch-only: no visible Dark/Light text. The track colour, thumb
+ * position, and aria-label together communicate state. Screen readers
+ * still announce "Switch to light/dark mode" via the aria-label.
  */
 export function ThemeToggle({ theme, onToggle }: Props) {
     const isDark = theme === 'dark'
@@ -22,19 +21,13 @@ export function ThemeToggle({ theme, onToggle }: Props) {
             aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
             title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
             style={{
-                display: 'flex',
+                display: 'inline-flex',
                 alignItems: 'center',
-                gap: 8,
-                padding: '6px 10px 6px 6px',
+                padding: 4,
                 background: 'var(--surface2)',
                 border: '1px solid var(--border-strong)',
                 borderRadius: 'var(--radius-pill)',
                 cursor: 'pointer',
-                fontFamily: 'var(--font-mono)',
-                fontSize: 11,
-                color: 'var(--muted)',
-                letterSpacing: '0.06em',
-                textTransform: 'uppercase',
                 transition: 'background 0.15s ease, border-color 0.15s ease',
             }}
         >
@@ -42,8 +35,8 @@ export function ThemeToggle({ theme, onToggle }: Props) {
             <span
                 aria-hidden="true"
                 style={{
-                    width: 30,
-                    height: 16,
+                    width: 34,
+                    height: 18,
                     borderRadius: 'var(--radius-pill)',
                     background: isDark ? 'var(--bitcoin-dim)' : 'var(--sat-green-dim)',
                     border: `1px solid ${isDark ? 'var(--bitcoin)' : 'var(--sat-green)'}`,
@@ -57,16 +50,17 @@ export function ThemeToggle({ theme, onToggle }: Props) {
                     style={{
                         position: 'absolute',
                         top: 1,
-                        left: isDark ? 1 : 13,
-                        width: 12,
-                        height: 12,
+                        left: isDark ? 1 : 15,
+                        width: 14,
+                        height: 14,
                         borderRadius: '50%',
                         background: isDark ? 'var(--bitcoin)' : 'var(--sat-green)',
                         transition: 'left 0.15s ease',
+                        boxShadow:
+                            '0 1px 2px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.2)',
                     }}
                 />
             </span>
-            <span aria-hidden="true">{isDark ? 'Dark' : 'Light'}</span>
         </button>
     )
 }

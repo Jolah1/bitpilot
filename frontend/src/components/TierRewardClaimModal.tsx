@@ -285,6 +285,7 @@ export function TierRewardClaimModal({
                                 </div>
                             )}
                             <button
+                                className="bp-press"
                                 onClick={submitClaim}
                                 disabled={claiming || !invoice.trim()}
                                 style={primaryButton(claiming || !invoice.trim())}

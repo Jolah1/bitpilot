@@ -251,6 +251,7 @@ export default function SoloProgressView({ participantId }: { participantId: str
                                 key={b.tier}
                                 type="button"
                                 disabled={!interactive}
+                                className={interactive ? 'bp-tile' : undefined}
                                 onClick={interactive ? () => setSharing(b) : undefined}
                                 aria-label={
                                     interactive

@@ -277,14 +277,27 @@ export function BadgeCelebrationModal({
                             ✓ {claim.amount_sats} sats claimed
                         </span>
                     ) : (
-                        <button onClick={() => setClaimOpen(true)} style={primary(false)}>
+                        <button
+                            className="bp-press"
+                            onClick={() => setClaimOpen(true)}
+                            style={primary(false)}
+                        >
                             Claim {badge.reward_sats} sats
                         </button>
                     )}
-                    <button onClick={() => setShareOpen(true)} style={secondary()}>
+                    <button
+                        className="bp-press"
+                        onClick={() => setShareOpen(true)}
+                        style={secondary()}
+                    >
                         Save badge
                     </button>
-                    <button ref={continueBtnRef} onClick={onClose} style={ghost()}>
+                    <button
+                        ref={continueBtnRef}
+                        className="bp-press"
+                        onClick={onClose}
+                        style={ghost()}
+                    >
                         Continue mission →
                     </button>
                 </div>
