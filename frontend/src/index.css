@@ -230,3 +230,63 @@ input, textarea, select {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.4; }
 }
+
+/* ─── Bitnob-slick polish layer ─────────────────────────────────────────────
+   Inline styles can't express pseudo-classes, so the few interactions that
+   make a UI feel "alive" (hover lift, press-down) live here. Each class
+   pairs with a token in src/lib/ui.ts, so the inline style still owns
+   colour/spacing and this layer only handles motion. */
+
+/* Primary CTA: subtle lift on hover, press-down on active. Respects
+   reduced-motion via the global rule above. */
+.bp-press {
+    transition: transform 0.12s ease, box-shadow 0.12s ease, opacity 0.12s ease;
+}
+.bp-press:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.1),
+                0 6px 22px rgba(247, 147, 26, 0.32),
+                inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+.bp-press:active:not(:disabled) {
+    transform: translateY(0);
+    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.1),
+                0 2px 8px rgba(247, 147, 26, 0.22),
+                inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+
+/* Tile lift: for interactive cards (badge medallions, stat tiles).
+   A soft transform + warmer border on hover signals "click me" without
+   shouting. */
+.bp-tile {
+    transition: transform 0.15s ease, box-shadow 0.15s ease,
+                border-color 0.15s ease;
+}
+.bp-tile:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.30);
+    border-color: var(--border-strong);
+}
+
+/* Card depth: a 1px translucent highlight at the top edge that catches
+   the eye like a screen bezel. Stacks under whatever border the card
+   already has. */
+.bp-card-edge {
+    position: relative;
+}
+.bp-card-edge::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 12px;
+    right: 12px;
+    height: 1px;
+    background: linear-gradient(
+        90deg,
+        transparent 0%,
+        rgba(255, 255, 255, 0.10) 50%,
+        transparent 100%
+    );
+    pointer-events: none;
+    border-radius: inherit;
+}

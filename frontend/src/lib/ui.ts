@@ -54,9 +54,17 @@ export const primaryButton = (disabled = false): CSSProperties => ({
     justifyContent: 'center',
     gap: 8,
     opacity: disabled ? 0.5 : 1,
-    transition: 'transform 0.12s ease, opacity 0.12s ease, box-shadow 0.12s ease',
-    boxShadow: '0 1px 0 rgba(0,0,0,0.1), 0 4px 16px rgba(247, 147, 26, 0.25)',
+    // The top inset highlight is what makes the button look like a
+    // physical chip rather than a coloured rectangle. Hover/active
+    // transforms live in .bp-press in index.css — pair this style with
+    // className="bp-press" to get the lift on hover.
+    boxShadow:
+        '0 1px 0 rgba(0,0,0,0.1), 0 4px 16px rgba(247, 147, 26, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.18)',
 })
+
+/** className to pair with primaryButton / ghostButton for hover + press
+ *  microinteractions. Pure CSS so reduced-motion users opt out for free. */
+export const pressClass = 'bp-press'
 
 export const ghostButton: CSSProperties = {
     background: 'transparent',
