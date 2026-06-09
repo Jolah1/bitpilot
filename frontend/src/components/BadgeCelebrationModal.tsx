@@ -12,6 +12,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Badge, RewardClaim, Tier } from '../lib/types'
 import { TIERS } from '../lib/types'
+import { useFocusTrap } from '../lib/useFocusTrap'
 import { TierBadgeCard, badgeIdFor } from './TierBadgeCard'
 import { ShareBadgeModal } from './ShareBadgeModal'
 import { TierRewardClaimModal } from './TierRewardClaimModal'
@@ -71,6 +72,11 @@ export function BadgeCelebrationModal({
     const claim = badge.reward_claim
     const badgeId = badgeIdFor(participantId, badge.tier as Tier)
     const continueBtnRef = useRef<HTMLButtonElement | null>(null)
+    const dialogRef = useRef<HTMLDivElement | null>(null)
+    // Trap only while no nested modal is open. When the claim/share modal
+    // mounts, it takes over the trap; nesting two traps would fight over
+    // every Tab keypress.
+    useFocusTrap(dialogRef, !claimOpen && !shareOpen)
 
     // Make the modal easy to dismiss so the learner can get back to the next
     // mission. Escape closes it; clicking the backdrop closes it; and the
@@ -100,6 +106,7 @@ export function BadgeCelebrationModal({
 
     return (
         <div
+            ref={dialogRef}
             role="dialog"
             aria-modal="true"
             aria-labelledby="bp-celebrate-title"

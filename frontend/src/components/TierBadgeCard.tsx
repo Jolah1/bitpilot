@@ -246,7 +246,11 @@ export const TierBadgeCard = forwardRef<SVGSVGElement, TierBadgeCardProps>(
                 height={H * scale}
                 viewBox={`0 0 ${W} ${H}`}
                 role="img"
-                aria-label={`${label} tier badge for ${safeName}`}
+                aria-label={
+                    earnedAt
+                        ? `${label} tier badge for ${safeName}, earned ${dateStr}. Badge ID ${badgeId}.`
+                        : `${label} tier badge for ${safeName}. Badge ID ${badgeId}.`
+                }
             >
                 <defs>
                     <linearGradient id={`bg-${tier}`} x1="0" y1="0" x2="0" y2="1">

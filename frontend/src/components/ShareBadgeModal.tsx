@@ -16,6 +16,7 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import type { Badge } from '../lib/types'
+import { useFocusTrap } from '../lib/useFocusTrap'
 import { TierBadgeCard, badgeIdFor } from './TierBadgeCard'
 
 const PNG_SCALE = 2 // 2x the 600x800 SVG => 1200x1600 PNG
@@ -41,10 +42,12 @@ export function ShareBadgeModal({
     onClose: () => void
 }) {
     const svgRef = useRef<SVGSVGElement | null>(null)
+    const dialogRef = useRef<HTMLDivElement | null>(null)
     const [downloading, setDownloading] = useState<'png' | 'svg' | 'share' | null>(null)
     const [error, setError] = useState<string | null>(null)
     const [status, setStatus] = useState<string | null>(null)
     const badgeId = badgeIdFor(participantId, badge.tier)
+    useFocusTrap(dialogRef, true)
 
     // Escape closes the modal so the learner can dismiss without hunting
     // for the × button. Backdrop click is wired below via the dialog
@@ -227,6 +230,7 @@ export function ShareBadgeModal({
 
     return (
         <div
+            ref={dialogRef}
             role="dialog"
             aria-modal="true"
             aria-labelledby="share-badge-title"

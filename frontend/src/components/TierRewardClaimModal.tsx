@@ -5,9 +5,10 @@
  * payment_hash + amount on success. The modal stays open so the learner
  * can read the result; closing it returns control to whatever opened it.
  */
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { api, ApiError } from '../lib/api'
 import { TIERS, type Badge, type RewardClaim } from '../lib/types'
+import { useFocusTrap } from '../lib/useFocusTrap'
 import {
     callout,
     chip,
@@ -33,6 +34,8 @@ export function TierRewardClaimModal({
     const [error, setError] = useState<string | null>(null)
     const [localClaim, setLocalClaim] = useState<RewardClaim | null>(null)
     const claim = localClaim ?? badge.reward_claim
+    const dialogRef = useRef<HTMLDivElement | null>(null)
+    useFocusTrap(dialogRef, true)
 
     // Escape closes the modal — but only when we're not mid-claim, so the
     // learner can't accidentally cancel a payout that's already in flight.
@@ -74,6 +77,7 @@ export function TierRewardClaimModal({
 
     return (
         <div
+            ref={dialogRef}
             role="dialog"
             aria-modal="true"
             aria-labelledby="tier-reward-title"
