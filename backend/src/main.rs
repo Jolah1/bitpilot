@@ -16,9 +16,11 @@ use std::time::Duration;
 use tower_governor::{governor::GovernorConfigBuilder, GovernorLayer};
 use tower_http::cors::CorsLayer;
 use tower_http::limit::RequestBodyLimitLayer;
+use tower_http::request_id::{MakeRequestUuid, PropagateRequestIdLayer, SetRequestIdLayer};
 use tower_http::set_header::SetResponseHeaderLayer;
 use tower_http::timeout::TimeoutLayer;
-use tower_http::trace::TraceLayer;
+use tower_http::trace::{DefaultOnResponse, TraceLayer};
+use tracing::Level;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use state::AppState;
@@ -45,12 +47,38 @@ async fn main() -> anyhow::Result<()> {
 
     // ── Tracing ──────────────────────────────────────────────────────────
     // Default in production should be quiet. RUST_LOG overrides freely.
-    tracing_subscriber::registry()
-        .with(tracing_subscriber::EnvFilter::new(
-            std::env::var("RUST_LOG").unwrap_or_else(|_| "bitpilot=info,tower_http=warn".into()),
-        ))
-        .with(tracing_subscriber::fmt::layer())
-        .init();
+    //
+    // tower_http is left at info by default because TraceLayer's
+    // per-request completion event lives under that target — that's the
+    // line you'll grep for in prod ("status=… latency=…"). Bumping it to
+    // warn silences those.
+    //
+    // LOG_FORMAT=json emits one JSON object per line. Set this in Fly
+    // secrets so log shippers (Logflare, Better Stack, etc.) get
+    // structured payloads. Default is the pretty text formatter for dev.
+    let env_filter = tracing_subscriber::EnvFilter::new(
+        std::env::var("RUST_LOG").unwrap_or_else(|_| "bitpilot=info,tower_http=info".into()),
+    );
+    let json_logs = std::env::var("LOG_FORMAT")
+        .ok()
+        .map(|s| s.eq_ignore_ascii_case("json"))
+        .unwrap_or(false);
+    if json_logs {
+        tracing_subscriber::registry()
+            .with(env_filter)
+            .with(
+                tracing_subscriber::fmt::layer()
+                    .json()
+                    .with_current_span(true)
+                    .with_span_list(false),
+            )
+            .init();
+    } else {
+        tracing_subscriber::registry()
+            .with(env_filter)
+            .with(tracing_subscriber::fmt::layer())
+            .init();
+    }
 
     tracing::info!("Starting BitPilot backend...");
     let state = Arc::new(AppState::new().await?);
@@ -193,12 +221,36 @@ async fn main() -> anyhow::Result<()> {
         );
     }
 
+    // ── Request id + trace span ──────────────────────────────────────────
+    // Every request gets an `x-request-id` (uuid v4) if the caller didn't
+    // supply one. The id is woven into the per-request tracing span and
+    // echoed back on the response so a 500 in the logs can be matched to
+    // a complaint in support. Fly's own `Fly-Request-Id` is left alone;
+    // correlate via timestamp + this header.
+    let trace_layer = TraceLayer::new_for_http()
+        .make_span_with(|req: &axum::http::Request<_>| {
+            let request_id = req
+                .headers()
+                .get("x-request-id")
+                .and_then(|v| v.to_str().ok())
+                .unwrap_or("-");
+            tracing::info_span!(
+                "http",
+                request_id = %request_id,
+                method = %req.method(),
+                path = %req.uri().path(),
+            )
+        })
+        .on_response(DefaultOnResponse::new().level(Level::INFO));
+
     // ── App router ───────────────────────────────────────────────────────
     // Layer order matters: each `.layer(...)` wraps everything below it, so
     // the *last* one written is the outermost. We want:
     //   CORS (outermost; must see all responses incl. errors from inner layers)
     //   → security headers
+    //   → set-request-id  (must run before TraceLayer so the span sees it)
     //   → trace
+    //   → propagate-request-id  (copies the id onto the response)
     //   → timeout
     //   → body limit
     //   → rate limit (innermost; runs first, rejects before any work)
@@ -225,7 +277,9 @@ async fn main() -> anyhow::Result<()> {
         })
         .layer(RequestBodyLimitLayer::new(body_limit_bytes))
         .layer(TimeoutLayer::new(Duration::from_secs(request_timeout_secs)))
-        .layer(TraceLayer::new_for_http())
+        .layer(PropagateRequestIdLayer::x_request_id())
+        .layer(trace_layer)
+        .layer(SetRequestIdLayer::x_request_id(MakeRequestUuid))
         .layer(security_headers)
         .layer(cors);
 

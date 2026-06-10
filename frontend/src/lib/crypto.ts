@@ -10,7 +10,8 @@
 //
 // Everything synchronous; nothing here makes network calls.
 
-import { generateSecretKey, getPublicKey, nip19 } from 'nostr-tools'
+import { finalizeEvent, generateSecretKey, getPublicKey, nip19 } from 'nostr-tools'
+import type { VerifiedEvent } from 'nostr-tools'
 import { generateMnemonic, mnemonicToSeedSync, wordlist as _wl } from './_bip39wordlist'
 import { HDKey } from '@scure/bip32'
 
@@ -60,6 +61,92 @@ export function generateNostrKeys(): NostrKeypair {
         nsec: nip19.nsecEncode(sk),
         npub: nip19.npubEncode(pkHex),
     }
+}
+
+/**
+ * Decode an nsec back into the 32-byte secret key. Throws on anything
+ * that isn't a valid bech32 `nsec1…`. Used only inside this module to
+ * feed `finalizeEvent`; callers should never see the raw bytes.
+ */
+function nsecToBytes(nsec: string): Uint8Array {
+    const decoded = nip19.decode(nsec)
+    if (decoded.type !== 'nsec') {
+        throw new Error(`expected nsec bech32, got ${decoded.type}`)
+    }
+    return decoded.data
+}
+
+/**
+ * Sign a Nostr event in the browser. Returns a fully-formed `VerifiedEvent`
+ * (id + pubkey + signature filled in). Pass the result to
+ * `api.broadcastNostrEvent` to push it to relays via the backend.
+ *
+ * Signing happens entirely client-side — the nsec never leaves this
+ * function. The backend receives only the signed event, which it cannot
+ * tamper with (any tampering invalidates the signature, and the broadcast
+ * endpoint re-verifies before publishing).
+ *
+ * Three thin wrappers below produce the curriculum's three event kinds.
+ * They differ only in how they fill `kind`, `content`, and `tags`.
+ */
+function signNostrEvent(
+    nsec: string,
+    template: { kind: number; content: string; tags: string[][] },
+): VerifiedEvent {
+    const sk = nsecToBytes(nsec)
+    return finalizeEvent(
+        {
+            kind: template.kind,
+            tags: template.tags,
+            content: template.content,
+            created_at: Math.floor(Date.now() / 1000),
+        },
+        sk,
+    )
+}
+
+/** Kind-1 short text note. */
+export function signNostrTextNote(nsec: string, content: string): VerifiedEvent {
+    return signNostrEvent(nsec, { kind: 1, content, tags: [] })
+}
+
+/**
+ * Kind-0 profile metadata. The content is a NIP-01 JSON object; the
+ * spec only mandates `name`, `about`, and `picture` as recognised
+ * fields, and missing fields are simply absent from the object.
+ */
+export function signNostrProfile(
+    nsec: string,
+    name: string,
+    about: string | null,
+): VerifiedEvent {
+    const metadata: Record<string, string> = { name }
+    if (about && about.trim().length > 0) {
+        metadata.about = about.trim()
+    }
+    return signNostrEvent(nsec, {
+        kind: 0,
+        content: JSON.stringify(metadata),
+        tags: [],
+    })
+}
+
+/**
+ * Kind-3 contact list with exactly one followee. Each followee becomes a
+ * `["p", "<hex pubkey>"]` tag (NIP-02). We accept the bech32 npub and
+ * convert it to hex here so the caller doesn't have to know about either
+ * encoding.
+ */
+export function signNostrFollow(nsec: string, followedNpub: string): VerifiedEvent {
+    const decoded = nip19.decode(followedNpub)
+    if (decoded.type !== 'npub') {
+        throw new Error(`expected npub bech32, got ${decoded.type}`)
+    }
+    return signNostrEvent(nsec, {
+        kind: 3,
+        content: '',
+        tags: [['p', decoded.data]],
+    })
 }
 
 // ─── BIP39 / BIP32 / BIP84 ────────────────────────────────────────────────

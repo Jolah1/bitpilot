@@ -111,9 +111,7 @@ pub fn router(state: Arc<AppState>) -> Router<Arc<AppState>> {
         // Nostr — every signing-capable endpoint takes nsec per-call. The
         // backend never persists it.
         .route("/nostr/register", post(register_nostr_identity))
-        .route("/nostr/publish", post(publish_nostr_note))
-        .route("/nostr/profile", post(publish_nostr_profile))
-        .route("/nostr/follow", post(publish_nostr_follow))
+        .route("/nostr/broadcast", post(broadcast_nostr_event))
         .route("/nostr/zap", post(simulate_nostr_zap))
         .route("/ecash/mint", post(mint_ecash))
         .route("/ecash/redeem", post(redeem_ecash))
@@ -342,19 +340,22 @@ async fn pay_invoice(
 
 // ── Nostr ────────────────────────────────────────────────────────────────────
 //
-// SECURITY MODEL FOR NSEC:
-// The participant generates their keypair in the browser (see frontend
-// missions 14). The npub is registered server-side via /nostr/register so
-// later proofs can be checked against it. The nsec is stored ONLY in the
-// browser (localStorage). For any signing call (publish, profile, follow),
-// the browser sends the nsec in the request body; the backend signs+
-// broadcasts, then discards the nsec — it is never persisted.
+// SECURITY MODEL:
+// All signing happens in the browser (see frontend `lib/crypto.ts`). The
+// nsec is generated in the browser, lives only in localStorage, and is
+// used to produce a fully-signed `nostr_sdk::Event` JSON object. That
+// signed event is posted to /api/nostr/broadcast, which:
 //
-// This is still imperfect (the nsec touches the backend in transit + memory)
-// but it's a strict improvement over the prior code, where the backend
-// generated the keys and returned the nsec to the browser. A future
-// hardening pass should do the signing in the browser too with nostr-tools
-// and have the backend just relay the pre-signed event.
+//   1. Verifies the event's id matches the canonical hash of its fields.
+//   2. Verifies the signature against the embedded pubkey (Event::verify).
+//   3. Checks the embedded pubkey matches the participant's registered
+//      npub — so the bearer token can't be used to broadcast as someone
+//      else.
+//   4. Forwards to the configured relays.
+//
+// The nsec never leaves the browser. The backend cannot forge or tamper
+// with an event because any tampering invalidates the signature, and
+// /broadcast rejects unsigned and re-signed events alike.
 
 #[derive(Deserialize)]
 struct RegisterIdentityRequest {
@@ -398,86 +399,76 @@ async fn register_nostr_identity(
 }
 
 #[derive(Deserialize)]
-struct PublishNoteRequest {
-    content: String,
-    nsec: String,
+struct BroadcastEventRequest {
+    /// A fully-signed Nostr event from the browser. Shape:
+    /// `{ id, pubkey, created_at, kind, tags, content, sig }`.
+    event: serde_json::Value,
 }
 
 #[derive(Serialize)]
-struct PublishNoteResponse {
+struct BroadcastEventResponse {
     event_id: String,
     participant_id: String,
     status: String,
-    /// Relays the note was broadcast to. The UI shows these so the user
-    /// can verify their note exists on Nostr.
+    /// Relays the event was broadcast to. The UI shows these so the user
+    /// can verify their event exists on Nostr.
     relays: Vec<String>,
     simulated: bool,
 }
 
-async fn publish_nostr_note(
+/// `POST /api/nostr/broadcast` — relay an already-signed event.
+///
+/// The handler enforces:
+///   * The event verifies (id matches canonical hash, signature matches pubkey).
+///   * The event's pubkey matches the participant's registered npub.
+///   * The kind is one of the curriculum's allowed kinds (0 metadata,
+///     1 text note, 3 contact list). Other kinds are rejected because we
+///     don't want to be a general-purpose Nostr relay proxy.
+async fn broadcast_nostr_event(
     State(state): State<Arc<AppState>>,
     Extension(authed): Extension<AuthedParticipant>,
-    Json(body): Json<PublishNoteRequest>,
-) -> Result<Json<PublishNoteResponse>, AppError> {
-    if body.content.trim().is_empty() {
-        return Err(AppError::BadRequest("content must not be empty".into()));
-    }
-    if body.content.len() > 8000 {
-        return Err(AppError::BadRequest("content too long".into()));
-    }
-    let event_id = state.nostr.publish_note(&body.nsec, &body.content).await?;
+    Json(body): Json<BroadcastEventRequest>,
+) -> Result<Json<BroadcastEventResponse>, AppError> {
+    // 1. Look up the participant's registered npub. Without one, there's
+    //    nothing to compare the event's pubkey against, so refuse.
+    let row: Option<(Option<String>,)> =
+        sqlx::query_as("SELECT nostr_pubkey FROM participants WHERE id = ?")
+            .bind(&authed.participant_id)
+            .fetch_optional(&state.db)
+            .await?;
+    let stored_npub = row
+        .and_then(|(npub,)| npub)
+        .ok_or_else(|| AppError::BadRequest(
+            "register your nostr identity first (POST /nostr/register)".into(),
+        ))?;
+    let stored_pk = nostr_sdk::PublicKey::parse(&stored_npub).map_err(|e| {
+        AppError::Internal(anyhow::anyhow!("stored npub is malformed: {e}"))
+    })?;
 
-    sqlx::query("INSERT INTO nostr_log (event_id, participant_id, created_at) VALUES (?, ?, ?)")
-        .bind(&event_id)
-        .bind(&authed.participant_id)
-        .bind(now() as i64)
-        .execute(&state.db)
-        .await?;
+    // 2. Parse + verify the signed event. `broadcast_signed_event` does the
+    //    id+signature check and returns the parsed Event back.
+    let event = state.nostr.broadcast_signed_event(body.event).await?;
 
-    Ok(Json(PublishNoteResponse {
-        event_id,
-        participant_id: authed.participant_id,
-        status: "published".into(),
-        relays: state.nostr.relays().to_vec(),
-        simulated: false,
-    }))
-}
-
-#[derive(Deserialize)]
-struct PublishProfileRequest {
-    name: String,
-    about: Option<String>,
-    nsec: String,
-}
-
-async fn publish_nostr_profile(
-    State(state): State<Arc<AppState>>,
-    Extension(authed): Extension<AuthedParticipant>,
-    Json(body): Json<PublishProfileRequest>,
-) -> Result<Json<PublishNoteResponse>, AppError> {
-    let name = body.name.trim();
-    if name.is_empty() {
-        return Err(AppError::BadRequest("name must not be empty".into()));
+    // 3. The event's signing pubkey must match the participant's identity.
+    //    Otherwise a participant could trick us into broadcasting events
+    //    signed by a different key — pointless but easy to defend against.
+    if event.pubkey != stored_pk {
+        return Err(AppError::Forbidden);
     }
-    if name.len() > 80 {
-        return Err(AppError::BadRequest("name too long (max 80)".into()));
-    }
-    let about = body
-        .about
-        .as_deref()
-        .map(|s| s.trim())
-        .filter(|s| !s.is_empty());
-    if let Some(a) = about {
-        if a.len() > 400 {
-            return Err(AppError::BadRequest("about too long (max 400)".into()));
+
+    // 4. Kind allowlist — keep the proxy scoped to the curriculum.
+    match event.kind.as_u16() {
+        0 | 1 | 3 => (),
+        other => {
+            return Err(AppError::BadRequest(format!(
+                "event kind {other} is not allowed via this endpoint"
+            )));
         }
     }
 
-    let event_id = state
-        .nostr
-        .publish_profile(&body.nsec, name, about)
-        .await?;
+    let event_id = event.id.to_hex();
 
+    // 5. Audit log so the mission verifier can grade the proof later.
     sqlx::query("INSERT INTO nostr_log (event_id, participant_id, created_at) VALUES (?, ?, ?)")
         .bind(&event_id)
         .bind(&authed.participant_id)
@@ -485,44 +476,7 @@ async fn publish_nostr_profile(
         .execute(&state.db)
         .await?;
 
-    Ok(Json(PublishNoteResponse {
-        event_id,
-        participant_id: authed.participant_id,
-        status: "published".into(),
-        relays: state.nostr.relays().to_vec(),
-        simulated: false,
-    }))
-}
-
-#[derive(Deserialize)]
-struct PublishFollowRequest {
-    /// The npub the participant is choosing to follow.
-    followed_npub: String,
-    nsec: String,
-}
-
-async fn publish_nostr_follow(
-    State(state): State<Arc<AppState>>,
-    Extension(authed): Extension<AuthedParticipant>,
-    Json(body): Json<PublishFollowRequest>,
-) -> Result<Json<PublishNoteResponse>, AppError> {
-    let target = body.followed_npub.trim();
-    if !target.starts_with("npub1") || target.len() < 32 || target.len() > 90 {
-        return Err(AppError::BadRequest(
-            "followed_npub must be a bech32 npub".into(),
-        ));
-    }
-
-    let event_id = state.nostr.publish_follow(&body.nsec, target).await?;
-
-    sqlx::query("INSERT INTO nostr_log (event_id, participant_id, created_at) VALUES (?, ?, ?)")
-        .bind(&event_id)
-        .bind(&authed.participant_id)
-        .bind(now() as i64)
-        .execute(&state.db)
-        .await?;
-
-    Ok(Json(PublishNoteResponse {
+    Ok(Json(BroadcastEventResponse {
         event_id,
         participant_id: authed.participant_id,
         status: "published".into(),

@@ -9,10 +9,10 @@ tokio             = { version = "1",   features = ["full"] }
 serde             = { version = "1",   features = ["derive"] }
 serde_json        = "1"
 tower             = "0.4"
-tower-http        = { version = "0.5", features = ["cors", "trace", "limit", "timeout", "set-header"] }
+tower-http        = { version = "0.5", features = ["cors", "trace", "limit", "timeout", "set-header", "request-id"] }
 tower_governor    = "0.4"
 tracing           = "0.1"
-tracing-subscriber= { version = "0.3", features = ["env-filter"] }
+tracing-subscriber= { version = "0.3", features = ["env-filter", "json"] }
 uuid              = { version = "1",   features = ["v4"] }
 thiserror         = "1"
 anyhow            = "1"

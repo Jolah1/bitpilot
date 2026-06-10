@@ -43,6 +43,9 @@ import {
     generateBip39Mnemonic,
     generateNostrKeys,
     sha256Hex,
+    signNostrFollow,
+    signNostrProfile,
+    signNostrTextNote,
 } from '../lib/crypto'
 // Badge modals only render after a tier completes. Lazy-load so the
 // first ~10 missions (where no badge can be earned yet) don't pay for
@@ -377,10 +380,13 @@ export default function LearnerView({ participantId }: { participantId: string }
                         setLoading(false)
                         return
                     }
-                    const r = await api.publishNostrNote(doInput.trim(), nsec)
+                    // Sign in the browser → backend just relays. The nsec
+                    // never leaves this scope.
+                    const event = signNostrTextNote(nsec, doInput.trim())
+                    const r = await api.broadcastNostrEvent(event)
                     proof = r.event_id
                     outcome = {
-                        summary: 'Note signed and broadcast to public Nostr relays.',
+                        summary: 'Note signed in your browser and broadcast to public Nostr relays.',
                         details: [
                             { label: 'event_id', value: r.event_id },
                             { label: 'relays', value: r.relays.join(', ') },
@@ -403,10 +409,11 @@ export default function LearnerView({ participantId }: { participantId: string }
                         return
                     }
                     const about = doInputB.trim() || null
-                    const r = await api.publishNostrProfile(doInput.trim(), about, nsec)
+                    const event = signNostrProfile(nsec, doInput.trim(), about)
+                    const r = await api.broadcastNostrEvent(event)
                     proof = r.event_id
                     outcome = {
-                        summary: 'Profile (kind-0) published to public relays.',
+                        summary: 'Profile (kind-0) signed in your browser and published to public relays.',
                         details: [
                             { label: 'event_id', value: r.event_id },
                             { label: 'name', value: doInput.trim() },
@@ -433,10 +440,11 @@ export default function LearnerView({ participantId }: { participantId: string }
                     }
                     const chosen = doInput.trim() || 'fiatjaf'
                     const target = FOLLOW_TARGETS[chosen] ?? FOLLOW_TARGETS.fiatjaf
-                    const r = await api.publishNostrFollow(target, nsec)
+                    const event = signNostrFollow(nsec, target)
+                    const r = await api.broadcastNostrEvent(event)
                     proof = r.event_id
                     outcome = {
-                        summary: `Follow list (kind-3) published — following ${chosen}.`,
+                        summary: `Follow list (kind-3) signed in your browser — following ${chosen}.`,
                         details: [
                             { label: 'followed npub', value: target },
                             { label: 'event_id', value: r.event_id },

@@ -360,57 +360,76 @@ function MissionHistogram({ participants }: { participants: Participant[] }) {
                     {active > 0 && ` · most on M${modeIdx} (${modeTier.label})`}
                 </span>
             </div>
+            {/* At 51 missions a `repeat(MISSION_COUNT, 1fr)` grid produces
+                ~7px columns on a 360px viewport — bars vanish. Wrap in a
+                horizontal scroller with a min-width so each bar gets at
+                least ~10px even on mobile; the inner grid still pays the
+                tier color cue, the scroll lets a touch user investigate. */}
             <div
-                role="img"
-                aria-label={`Distribution of learners across missions. Most learners on mission ${modeIdx} with ${max}.`}
+                className="no-scrollbar"
                 style={{
-                    display: 'grid',
-                    gridTemplateColumns: `repeat(${MISSION_COUNT}, 1fr)`,
-                    alignItems: 'end',
-                    gap: 2,
-                    height: 64,
+                    overflowX: 'auto',
+                    WebkitOverflowScrolling: 'touch',
+                    marginLeft: -4,
+                    marginRight: -4,
+                    paddingLeft: 4,
+                    paddingRight: 4,
                 }}
             >
-                {counts.map((c, idx) => {
-                    const heightPct = c === 0 ? 6 : 6 + (c / max) * 94
-                    const t = tierFor(idx)
-                    return (
-                        <div
-                            key={idx}
-                            title={`Mission ${idx} (${t.label}) — ${c} learner${c === 1 ? '' : 's'}`}
-                            style={{
-                                height: `${heightPct}%`,
-                                background:
-                                    c === 0
-                                        ? 'var(--border)'
-                                        : c === max
-                                          ? techGradient('bitcoin')
-                                          : 'var(--bitcoin)',
-                                borderRadius: 2,
-                                minHeight: 2,
-                                opacity: c === 0 ? 0.5 : 1,
-                            }}
-                        />
-                    )
-                })}
-            </div>
-            <div
-                aria-hidden="true"
-                style={{
-                    display: 'grid',
-                    gridTemplateColumns: `repeat(${MISSION_COUNT}, 1fr)`,
-                    gap: 2,
-                    marginTop: 6,
-                    fontSize: 10,
-                    color: 'var(--muted)',
-                    fontFamily: 'var(--font-mono)',
-                }}
-            >
-                {Array.from({ length: MISSION_COUNT }, (_, i) => (
-                    <span key={i} style={{ textAlign: 'center' }}>
-                        {i % 10 === 0 ? i : ''}
-                    </span>
-                ))}
+                <div style={{ minWidth: MISSION_COUNT * 10 }}>
+                    <div
+                        role="img"
+                        aria-label={`Distribution of learners across missions. Most learners on mission ${modeIdx} with ${max}.`}
+                        style={{
+                            display: 'grid',
+                            gridTemplateColumns: `repeat(${MISSION_COUNT}, 1fr)`,
+                            alignItems: 'end',
+                            gap: 2,
+                            height: 64,
+                        }}
+                    >
+                        {counts.map((c, idx) => {
+                            const heightPct = c === 0 ? 6 : 6 + (c / max) * 94
+                            const t = tierFor(idx)
+                            return (
+                                <div
+                                    key={idx}
+                                    title={`Mission ${idx} (${t.label}) — ${c} learner${c === 1 ? '' : 's'}`}
+                                    style={{
+                                        height: `${heightPct}%`,
+                                        background:
+                                            c === 0
+                                                ? 'var(--border)'
+                                                : c === max
+                                                  ? techGradient('bitcoin')
+                                                  : 'var(--bitcoin)',
+                                        borderRadius: 2,
+                                        minHeight: 2,
+                                        opacity: c === 0 ? 0.5 : 1,
+                                    }}
+                                />
+                            )
+                        })}
+                    </div>
+                    <div
+                        aria-hidden="true"
+                        style={{
+                            display: 'grid',
+                            gridTemplateColumns: `repeat(${MISSION_COUNT}, 1fr)`,
+                            gap: 2,
+                            marginTop: 6,
+                            fontSize: 10,
+                            color: 'var(--muted)',
+                            fontFamily: 'var(--font-mono)',
+                        }}
+                    >
+                        {Array.from({ length: MISSION_COUNT }, (_, i) => (
+                            <span key={i} style={{ textAlign: 'center' }}>
+                                {i % 10 === 0 ? i : ''}
+                            </span>
+                        ))}
+                    </div>
+                </div>
             </div>
         </section>
     )

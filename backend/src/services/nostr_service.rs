@@ -2,14 +2,19 @@ use crate::error::AppError;
 use nostr_sdk::prelude::*;
 use std::time::Duration;
 
-/// Real Nostr service.
+/// Real Nostr service — relay broadcaster only.
 ///
-/// Signs and publishes events on behalf of a participant given their nsec.
-/// The nsec is passed in per call — the service never persists it and the
-/// HTTP handlers above don't either (see security note in routes/lightning.rs).
+/// Signing happens entirely in the browser (see frontend `lib/crypto.ts`).
+/// The backend's job is to take an already-signed event, verify the
+/// signature, and forward it to a fixed set of public relays. The nsec
+/// never touches this server.
 ///
-/// Key generation moved to the browser: the backend never sees an nsec it
-/// generated. The browser is the only place a private key originates.
+/// Why we still have a server in the loop at all:
+///   * Browsers can open WSS to relays directly, but for a curriculum
+///     app we want one consistent set of relays + a server-side audit
+///     trail (`nostr_log`) so the mission verifier can grade later.
+///   * Some classroom networks block outbound WSS to non-standard hosts;
+///     proxying through the backend's HTTPS keeps the lesson working.
 pub struct NostrService {
     relays: Vec<String>,
 }
@@ -40,60 +45,30 @@ impl NostrService {
         &self.relays
     }
 
-    /// Publish a kind-1 text note signed with the caller's `nsec`.
-    /// Returns the hex event id.
-    pub async fn publish_note(&self, nsec: &str, content: &str) -> Result<String, AppError> {
-        if content.trim().is_empty() {
-            return Err(AppError::BadRequest(
-                "note content must not be empty".into(),
-            ));
-        }
-        self.publish_event(nsec, EventBuilder::text_note(content))
-            .await
-    }
-
-    /// Publish a kind-0 profile metadata event. `about` is optional.
-    pub async fn publish_profile(
+    /// Broadcast an already-signed event to all configured relays.
+    ///
+    /// The event must:
+    ///   * deserialize into a valid `nostr_sdk::Event`,
+    ///   * pass `verify()` (id matches the canonical hash, signature
+    ///     verifies against the embedded pubkey).
+    ///
+    /// Returns the parsed `Event` so the handler can compare its pubkey
+    /// against the participant's registered npub (that check is the
+    /// handler's responsibility, not this service's).
+    pub async fn broadcast_signed_event(
         &self,
-        nsec: &str,
-        name: &str,
-        about: Option<&str>,
-    ) -> Result<String, AppError> {
-        // Construct the standard NIP-01 metadata JSON. We use a fresh
-        // `Metadata` builder so any future NIP-01 fields (picture, nip05,
-        // lud16, …) become a one-liner.
-        let mut metadata = Metadata::new().name(name);
-        if let Some(a) = about {
-            metadata = metadata.about(a);
-        }
-        self.publish_event(nsec, EventBuilder::metadata(&metadata))
-            .await
-    }
+        event_json: serde_json::Value,
+    ) -> Result<Event, AppError> {
+        let event: Event = serde_json::from_value(event_json)
+            .map_err(|e| AppError::BadRequest(format!("malformed nostr event: {e}")))?;
+        event
+            .verify()
+            .map_err(|e| AppError::BadRequest(format!("invalid nostr event signature: {e}")))?;
 
-    /// Publish a kind-3 contact list with exactly one followee. We could
-    /// support multiple in future; for the curriculum's "follow one famous
-    /// person" mission, one is enough.
-    pub async fn publish_follow(&self, nsec: &str, followed_npub: &str) -> Result<String, AppError> {
-        // Decode the npub into a `PublicKey` so we can tag it correctly.
-        let pk = PublicKey::from_bech32(followed_npub)
-            .map_err(|e| AppError::BadRequest(format!("invalid followed npub: {e}")))?;
-        let contact = Contact::new(pk);
-        self.publish_event(nsec, EventBuilder::contact_list(vec![contact]))
-            .await
-    }
-
-    /// Internal: sign + broadcast any EventBuilder to all configured relays.
-    /// Returns the event_id (hex) on success. Errors if not a single relay
-    /// accepts — we'd rather fail loudly than pretend the event landed.
-    async fn publish_event(
-        &self,
-        nsec: &str,
-        builder: EventBuilder,
-    ) -> Result<String, AppError> {
-        let keys =
-            Keys::parse(nsec).map_err(|e| AppError::Nostr(format!("invalid nsec: {e}")))?;
-
-        let client = Client::new(keys);
+        // The Client wants *some* signer to construct, but we never call
+        // any signing path here — `send_event` takes the event as-is.
+        // Throwaway keys are fine.
+        let client = Client::new(Keys::generate());
         for relay in &self.relays {
             if let Err(e) = client.add_relay(relay).await {
                 tracing::warn!(relay = %relay, error = %e, "could not add relay");
@@ -105,11 +80,9 @@ impl NostrService {
         tokio::time::sleep(Duration::from_millis(400)).await;
 
         let output = client
-            .send_event_builder(builder)
+            .send_event(&event)
             .await
-            .map_err(|e| AppError::Nostr(format!("publish failed: {e}")))?;
-
-        let event_id = output.val.to_hex();
+            .map_err(|e| AppError::Nostr(format!("broadcast failed: {e}")))?;
         let _ = client.disconnect().await;
 
         if output.success.is_empty() {
@@ -119,6 +92,6 @@ impl NostrService {
             )));
         }
 
-        Ok(event_id)
+        Ok(event)
     }
 }

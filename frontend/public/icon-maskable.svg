@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+    <!-- Maskable icon: same BitPilot mark as favicon, but with a generous
+         safe zone so the OS can crop it to any shape (circle, squircle,
+         rounded square) without clipping. The actual icon lives inside
+         the inner 320x320 region centered on the canvas — leaving an
+         80px border on every side as recommended by the spec. -->
+    <defs>
+        <linearGradient id="bp-mask-bg" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#F7931A" />
+            <stop offset="1" stop-color="#E07A0A" />
+        </linearGradient>
+    </defs>
+    <rect x="0" y="0" width="512" height="512" fill="url(#bp-mask-bg)" />
+    <!-- Inner mark scaled-up paper plane + ₿. Positioned inside the
+         320x320 safe zone (96..416 on each axis). -->
+    <g transform="translate(96 96) scale(5)">
+        <g fill="#FFFFFF" fill-rule="evenodd">
+            <path d="M 50 12 L 14 30 L 26 36 L 50 12 Z" />
+            <path d="M 50 12 L 26 36 L 32 52 L 50 12 Z" opacity="0.78" />
+            <path d="M 50 12 L 30 44 L 26 36 Z" opacity="0.55" />
+        </g>
+        <text x="13" y="56" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif"
+            font-weight="900" font-size="22" fill="#0A0A0B">₿</text>
+    </g>
+</svg>

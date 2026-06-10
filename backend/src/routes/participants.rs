@@ -297,14 +297,16 @@ async fn list_badges(
 }
 
 /// Load all tier-reward claim rows for a participant, in the shape
-/// `Badge::all_for` expects.
+/// `Badge::all_for` expects. Pending reservations (status='pending') are
+/// excluded — the UI should treat them as "not yet claimed" because the
+/// LNbits payout may still fail.
 async fn load_tier_claims(
     db: &sqlx::SqlitePool,
     participant_id: &str,
 ) -> Result<Vec<(Tier, RewardClaim)>, AppError> {
     let rows: Vec<(String, i64, String, i64, i64)> = sqlx::query_as(
         "SELECT tier, amount_sats, payment_hash, simulated, paid_at \
-         FROM tier_reward_claims WHERE participant_id = ?",
+         FROM tier_reward_claims WHERE participant_id = ? AND status = 'paid'",
     )
     .bind(participant_id)
     .fetch_all(db)
@@ -395,20 +397,44 @@ async fn claim_tier_reward(
         return Err(AppError::BadRequest("invoice must not be empty".into()));
     }
 
-    // Already claimed? Cheap point read on the PK.
-    let existing: Option<(i64,)> = sqlx::query_as(
-        "SELECT 1 FROM tier_reward_claims WHERE participant_id = ? AND tier = ?",
+    // Reservation pattern. Three outcomes for the existence check:
+    //   - row with status='paid'    → 409 (one-shot, already claimed)
+    //   - row with status='pending' AND invoice matches → resume
+    //                                  the in-flight claim (LNbits
+    //                                  dedupes by payment_hash so
+    //                                  re-calling pay_invoice is safe)
+    //   - row with status='pending' AND invoice differs → 409 (we
+    //                                  must NOT pay a second invoice
+    //                                  while the first is in limbo —
+    //                                  that's the double-payment we
+    //                                  introduced reservations to stop)
+    //   - no row                    → fresh claim, insert pending below
+    let existing: Option<(String, String)> = sqlx::query_as(
+        "SELECT status, invoice FROM tier_reward_claims \
+         WHERE participant_id = ? AND tier = ?",
     )
     .bind(&authed.participant_id)
     .bind(tier_to_str(tier))
     .fetch_optional(&state.db)
     .await?;
-    if existing.is_some() {
-        return Err(AppError::Conflict(format!(
-            "{} tier reward already claimed",
-            tier_to_str(tier)
-        )));
-    }
+
+    let resuming = match &existing {
+        Some((status, _)) if status == "paid" => {
+            return Err(AppError::Conflict(format!(
+                "{} tier reward already claimed",
+                tier_to_str(tier)
+            )));
+        }
+        Some((_, existing_invoice)) if existing_invoice != invoice => {
+            return Err(AppError::Conflict(
+                "a claim for this tier is in flight with a different \
+                 invoice; retry with the original invoice or wait a moment"
+                    .into(),
+            ));
+        }
+        Some(_) => true,
+        None => false,
+    };
 
     // Earned? Recompute from completions + claims = no drift with the
     // GET /badges view.
@@ -446,29 +472,60 @@ async fn claim_tier_reward(
         }
     }
 
-    let payment_hash = state.lightning.pay_invoice(invoice).await?;
-    let paid_at = now() as i64;
+    // Pre-insert the reservation row BEFORE talking to LNbits. If the
+    // process dies between this insert and the UPDATE below, the row
+    // hangs around as 'pending' and blocks a retry with a different
+    // invoice from double-paying. A retry with the same invoice will
+    // resume (LNbits dedupes by payment_hash).
     let simulated = !payouts_real;
+    if !resuming {
+        sqlx::query(
+            "INSERT INTO tier_reward_claims \
+                (participant_id, tier, amount_sats, invoice, payment_hash, \
+                 simulated, paid_at, status) \
+             VALUES (?, ?, ?, ?, '', ?, 0, 'pending')",
+        )
+        .bind(&authed.participant_id)
+        .bind(tier_to_str(tier))
+        .bind(amount_sats as i64)
+        .bind(invoice)
+        .bind(if simulated { 1_i64 } else { 0_i64 })
+        .execute(&state.db)
+        .await?;
+    }
 
-    // Insert AFTER the payment so a Lightning failure doesn't burn the
-    // one-shot. If LNbits returns ok but the row insert fails, the
-    // learner gets a 500 and can retry — at which point the claim
-    // exists in LNbits but not in our table. Acceptable: the only
-    // failure modes for the insert are DB-wide (disk full, schema gone)
-    // and the learner can re-attempt with the same invoice; LNbits
-    // dedupes by payment_hash.
+    let payment_hash = match state.lightning.pay_invoice(invoice).await {
+        Ok(h) => h,
+        Err(e) => {
+            // Roll back the pending reservation so the learner can retry
+            // cleanly. Only clear our own reservation — never touch a
+            // row that's already 'paid'.
+            let _ = sqlx::query(
+                "DELETE FROM tier_reward_claims \
+                 WHERE participant_id = ? AND tier = ? AND status = 'pending'",
+            )
+            .bind(&authed.participant_id)
+            .bind(tier_to_str(tier))
+            .execute(&state.db)
+            .await;
+            return Err(e);
+        }
+    };
+    let paid_at = now() as i64;
+
+    // Commit the reservation → paid. If this UPDATE fails the row stays
+    // pending; the learner sees a 500 but a retry with the same invoice
+    // will hit LNbits's payment dedupe and complete the UPDATE on the
+    // second pass. The row PK + invoice equality check above gates this.
     sqlx::query(
-        "INSERT INTO tier_reward_claims \
-            (participant_id, tier, amount_sats, invoice, payment_hash, simulated, paid_at) \
-         VALUES (?, ?, ?, ?, ?, ?, ?)",
+        "UPDATE tier_reward_claims \
+         SET payment_hash = ?, paid_at = ?, status = 'paid' \
+         WHERE participant_id = ? AND tier = ?",
     )
+    .bind(&payment_hash)
+    .bind(paid_at)
     .bind(&authed.participant_id)
     .bind(tier_to_str(tier))
-    .bind(amount_sats as i64)
-    .bind(invoice)
-    .bind(&payment_hash)
-    .bind(if simulated { 1_i64 } else { 0_i64 })
-    .bind(paid_at)
     .execute(&state.db)
     .await?;
 

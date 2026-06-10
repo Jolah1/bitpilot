@@ -258,24 +258,17 @@ export const api = {
             auth: 'participant',
         }),
 
-    publishNostrNote: (content: string, nsec: string) =>
-        request<NostrPublishResponse>('/nostr/publish', {
+    /**
+     * Broadcast an already-signed Nostr event. The event is built and
+     * signed in the browser via the helpers in `./crypto.ts`; the backend
+     * verifies the signature, checks the embedded pubkey against the
+     * participant's registered npub, and forwards to the configured
+     * relays. The nsec never leaves the browser.
+     */
+    broadcastNostrEvent: (event: unknown) =>
+        request<NostrPublishResponse>('/nostr/broadcast', {
             method: 'POST',
-            body: { content, nsec },
-            auth: 'participant',
-        }),
-
-    publishNostrProfile: (name: string, about: string | null, nsec: string) =>
-        request<NostrPublishResponse>('/nostr/profile', {
-            method: 'POST',
-            body: { name, about, nsec },
-            auth: 'participant',
-        }),
-
-    publishNostrFollow: (followedNpub: string, nsec: string) =>
-        request<NostrPublishResponse>('/nostr/follow', {
-            method: 'POST',
-            body: { followed_npub: followedNpub, nsec },
+            body: { event },
             auth: 'participant',
         }),
 
