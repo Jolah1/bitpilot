@@ -83,6 +83,11 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!("Starting BitPilot backend...");
     let state = Arc::new(AppState::new().await?);
 
+    // Background sweeper that deletes empty `sessions` rows older than the
+    // configured grace period. Sized so a facilitator who created a session
+    // and never invited anyone doesn't leave that row in the table forever.
+    services::prune::spawn_session_pruner(state.db.clone());
+
     // ── CORS ─────────────────────────────────────────────────────────────
     let allowed_origins: Vec<HeaderValue> = std::env::var("CORS_ALLOWED_ORIGINS")
         .ok()
