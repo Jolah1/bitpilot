@@ -1,28 +1,44 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
-    <!-- BitPilot favicon. The name pairs aviation ("Pilot") with Bitcoin.
-         A paper plane carries a Bitcoin ₿ glyph in its body. Visible at
-         16px because the silhouette stays simple and the ₿ sits at the
-         optical center. -->
+    <title>BitPilot</title>
+    <!-- BitPilot mark: an 8-point compass star wraps a Bitcoin ₿ medallion.
+         The compass points to "Bitcoin as a destination you can navigate to";
+         the orange→gold gradient nods to canonical Bitcoin while the navy
+         field reads as the premium fintech aesthetic in the brand guide.
+         Reads at 16px because the central circle + ₿ stay dominant; the
+         compass points become a halo at that size. -->
     <defs>
-        <linearGradient id="bp-fav-bg" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stop-color="#F7931A" />
-            <stop offset="1" stop-color="#E07A0A" />
+        <radialGradient id="bp-fav-bg" cx="50%" cy="38%" r="70%">
+            <stop offset="0%" stop-color="#1A2845" />
+            <stop offset="100%" stop-color="#0B1220" />
+        </radialGradient>
+        <linearGradient id="bp-fav-star" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#FFD27A" />
+            <stop offset="55%" stop-color="#F7931A" />
+            <stop offset="100%" stop-color="#E07A0A" />
         </linearGradient>
     </defs>
-    <!-- Rounded-square background — works well in browser tabs and home-screen icons. -->
-    <rect x="0" y="0" width="64" height="64" rx="12" fill="url(#bp-fav-bg)" />
-    <!-- Paper-plane silhouette, off-white, pointed up-right like the
-         BitPilot wordmark icon. Three triangles approximate the folded paper. -->
-    <g fill="#FFFFFF" fill-rule="evenodd">
-        <!-- Main wing -->
-        <path d="M 50 12 L 14 30 L 26 36 L 50 12 Z" />
-        <!-- Underwing / shadow side -->
-        <path d="M 50 12 L 26 36 L 32 52 L 50 12 Z" opacity="0.78" />
-        <!-- Fuselage edge highlight -->
-        <path d="M 50 12 L 30 44 L 26 36 Z" opacity="0.55" />
+    <!-- Rounded navy square works in tabs, home-screen icons, and macOS docks. -->
+    <rect width="64" height="64" rx="12" fill="url(#bp-fav-bg)" />
+    <!-- Cardinal compass points (N/E/S/W): long, thin diamonds. -->
+    <g transform="translate(32 32)" fill="url(#bp-fav-star)">
+        <polygon points="0,-25 4.5,-7 0,-5 -4.5,-7" />
+        <polygon points="25,0 7,4.5 5,0 7,-4.5" />
+        <polygon points="0,25 -4.5,7 0,5 4.5,7" />
+        <polygon points="-25,0 -7,-4.5 -5,0 -7,4.5" />
     </g>
-    <!-- Bitcoin ₿ glyph in the lower-left, anchored where the plane's body
-         "carries" it. Bold weight so it reads at 16px. -->
-    <text x="13" y="56" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif"
-        font-weight="900" font-size="22" fill="#0A0A0B">₿</text>
+    <!-- Diagonal compass points (NE/SE/SW/NW): shorter, dimmer. -->
+    <g transform="translate(32 32) rotate(45)" fill="url(#bp-fav-star)" opacity="0.55">
+        <polygon points="0,-17 3,-5 0,-3 -3,-5" />
+        <polygon points="17,0 5,3 3,0 5,-3" />
+        <polygon points="0,17 -3,5 0,3 3,5" />
+        <polygon points="-17,0 -5,-3 -3,0 -5,3" />
+    </g>
+    <!-- Central medallion: navy fill with an orange rim that catches the eye
+         at small sizes. -->
+    <circle cx="32" cy="32" r="14" fill="#0B1220" stroke="#F7931A" stroke-width="1.5" />
+    <!-- Bitcoin ₿. Cream rather than pure white so it picks up the gold
+         accent from the star points instead of looking sterile. -->
+    <text x="32" y="40" text-anchor="middle"
+        font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif"
+        font-weight="900" font-size="20" fill="#FFE7C2">₿</text>
 </svg>

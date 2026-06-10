@@ -41,10 +41,15 @@
    on `document.documentElement` whenever the theme changes. Both states must
    keep contrast ratios at WCAG AA (4.5:1) for text on backgrounds. */
 :root {
-    /* Dark theme defaults */
+    /* Dark theme defaults — deep navy + Bitcoin orange + gold.
+       The navy field comes from the brand-mark medallion; orange is the
+       canonical Bitcoin colour; gold is the warm accent for tier badges
+       and CTAs that needs to feel earned, not just clickable. */
     --bitcoin: #F7931A;
     --bitcoin-strong: #FFA940;
     --bitcoin-dim: #6B3D06;
+    --gold: #FFD27A;
+    --gold-strong: #FFE7C2;
     --sat-green: #10C57E;
     --sat-green-dim: #0A3D2A;
     --nostr-purple: #A78BFA;
@@ -52,12 +57,12 @@
     --ecash-cyan: #5EEAD4;
     --ecash-dim: #0F3D38;
 
-    --bg: #0A0A0B;
-    --bg-elevated: #131316;
-    --surface: #18181C;
-    --surface2: #1F1F25;
-    --border: #2A2A33;
-    --border-strong: #3B3B47;
+    --bg: #0B1220;
+    --bg-elevated: #121A30;
+    --surface: #16203A;
+    --surface2: #1C2945;
+    --border: #2A3656;
+    --border-strong: #3A4A75;
 
     --text: #F4F2EE;
     --text-soft: #CFCCC6;
@@ -68,11 +73,11 @@
 
     /* Gradients — used sparingly, only for accents/CTAs, never for body text. */
     --gradient-bitcoin: linear-gradient(135deg, #F7931A 0%, #FFB74D 100%);
-    --gradient-lightning: linear-gradient(135deg, #F7931A 0%, #A78BFA 100%);
+    --gradient-lightning: linear-gradient(135deg, #F7931A 0%, #FFD27A 100%);
     --gradient-nostr: linear-gradient(135deg, #A78BFA 0%, #5EEAD4 100%);
     --gradient-ecash: linear-gradient(135deg, #5EEAD4 0%, #10C57E 100%);
-    --gradient-hero: linear-gradient(135deg, #F7931A 0%, #A78BFA 50%, #5EEAD4 100%);
-    --gradient-surface: linear-gradient(180deg, rgba(247, 147, 26, 0.04) 0%, rgba(167, 139, 250, 0.02) 100%);
+    --gradient-hero: linear-gradient(135deg, #F7931A 0%, #FFD27A 100%);
+    --gradient-surface: linear-gradient(180deg, rgba(247, 147, 26, 0.05) 0%, rgba(11, 18, 32, 0.0) 100%);
 
     /* Spacing scale (8px base) */
     --space-1: 4px;
@@ -96,8 +101,8 @@
     --font-mono: 'JetBrains Mono Variable', ui-monospace, 'SF Mono', 'Cascadia Mono', monospace;
 
     /* Shadows */
-    --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.3);
-    --shadow-2: 0 6px 24px rgba(0, 0, 0, 0.25);
+    --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-2: 0 6px 24px rgba(0, 0, 0, 0.35);
     --shadow-focus: 0 0 0 3px rgba(247, 147, 26, 0.45);
 }
 
