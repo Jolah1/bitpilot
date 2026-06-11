@@ -3,21 +3,20 @@
  *
  * Pops up the moment a learner crosses a tier boundary. The whole screen
  * dims, the badge swings front-and-center, and confetti drops behind it.
- * Three actions: Claim sats, Save badge (→ ShareBadgeModal), Exit.
+ * Two actions: Save badge (→ ShareBadgeModal) and Continue mission.
  *
- * Stays open until the learner explicitly dismisses via Exit (or the
- * backdrop, if they didn't claim). Intentionally a big interrupt — the
- * moment of earning is the one we want to celebrate hard.
+ * Stays open until the learner explicitly dismisses via Continue (or the
+ * backdrop / Escape). Intentionally a big interrupt — the moment of
+ * earning is the one we want to celebrate hard.
  */
 import { useEffect, useRef, useState } from 'react'
-import type { Badge, RewardClaim, Tier } from '../lib/types'
+import type { Badge, Tier } from '../lib/types'
 import { TIERS } from '../lib/types'
 import { useFocusTrap } from '../lib/useFocusTrap'
 import { TierBadgeCard, badgeIdFor } from './TierBadgeCard'
 import { ShareBadgeModal } from './ShareBadgeModal'
-import { TierRewardClaimModal } from './TierRewardClaimModal'
 
-const CONFETTI_COLORS = ['#F7931A', '#FFD23F', '#10C57E', '#A78BFA', '#FFFFFF']
+const CONFETTI_COLORS = ['#F7931A', '#FFD27A', '#FFE7C2', '#FFFFFF']
 const CONFETTI_COUNT = 36
 
 /**
@@ -55,7 +54,6 @@ export interface BadgeCelebrationModalProps {
     participantId: string
     participantName: string
     onClose: () => void
-    onClaimed: (claim: RewardClaim) => void
 }
 
 export function BadgeCelebrationModal({
@@ -63,27 +61,23 @@ export function BadgeCelebrationModal({
     participantId,
     participantName,
     onClose,
-    onClaimed,
 }: BadgeCelebrationModalProps) {
     const tierMeta = TIERS.find((t) => t.key === badge.tier)
     const label = tierMeta?.label ?? badge.tier
-    const [claimOpen, setClaimOpen] = useState(false)
     const [shareOpen, setShareOpen] = useState(false)
-    const claim = badge.reward_claim
     const badgeId = badgeIdFor(participantId, badge.tier as Tier)
     const continueBtnRef = useRef<HTMLButtonElement | null>(null)
     const dialogRef = useRef<HTMLDivElement | null>(null)
-    // Trap only while no nested modal is open. When the claim/share modal
-    // mounts, it takes over the trap; nesting two traps would fight over
-    // every Tab keypress.
-    useFocusTrap(dialogRef, !claimOpen && !shareOpen)
+    // Trap only while no nested modal is open. When the share modal mounts
+    // it takes over the trap; nesting two traps would fight over every Tab.
+    useFocusTrap(dialogRef, !shareOpen)
 
     // Make the modal easy to dismiss so the learner can get back to the next
     // mission. Escape closes it; clicking the backdrop closes it; and the
     // Continue button is auto-focused so Enter dismisses too.
     useEffect(() => {
         const onKey = (e: KeyboardEvent) => {
-            if (e.key === 'Escape' && !claimOpen && !shareOpen) {
+            if (e.key === 'Escape' && !shareOpen) {
                 e.preventDefault()
                 onClose()
             }
@@ -96,7 +90,7 @@ export function BadgeCelebrationModal({
             document.removeEventListener('keydown', onKey)
             window.clearTimeout(t)
         }
-    }, [onClose, claimOpen, shareOpen])
+    }, [onClose, shareOpen])
 
     // Backdrop click: dismiss. Stop propagation on the inner card so clicks
     // inside the card don't bubble up and close the modal.
@@ -115,7 +109,7 @@ export function BadgeCelebrationModal({
                 position: 'fixed',
                 inset: 0,
                 background:
-                    'radial-gradient(ellipse at top, rgba(247,147,26,0.18), rgba(0,0,0,0.86) 55%)',
+                    'radial-gradient(ellipse at top, rgba(247,147,26,0.18), rgba(11,18,32,0.92) 55%)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -182,7 +176,7 @@ export function BadgeCelebrationModal({
                         fontSize: 12,
                         fontWeight: 800,
                         letterSpacing: '0.32em',
-                        color: '#FFD23F',
+                        color: '#FFD27A',
                         textTransform: 'uppercase',
                     }}
                 >
@@ -234,63 +228,29 @@ export function BadgeCelebrationModal({
                         lineHeight: 1.5,
                     }}
                 >
-                    You completed all {badge.required} missions in the {label} tier.
-                    {claim ? (
-                        <>
-                            {' '}
-                            <strong style={{ color: '#FFFFFF' }}>
-                                {claim.amount_sats} sats already claimed.
-                            </strong>
-                        </>
-                    ) : (
-                        <>
-                            {' '}
-                            <strong style={{ color: '#FFFFFF' }}>
-                                {badge.reward_sats} sats are waiting for you.
-                            </strong>
-                        </>
-                    )}
+                    You completed all {badge.required} missions in the {label} tier.{' '}
+                    <strong style={{ color: '#FFFFFF' }}>
+                        Save the badge or share it — it's yours.
+                    </strong>
                 </div>
 
                 {/* Actions */}
                 <div
                     style={{
                         display: 'grid',
-                        gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+                        gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
                         gap: 10,
                         width: '100%',
                         maxWidth: 440,
                         marginTop: 4,
                     }}
                 >
-                    {claim ? (
-                        <span
-                            style={{
-                                ...primary(true),
-                                background: 'rgba(16, 197, 126, 0.92)',
-                                color: '#06120D',
-                                cursor: 'default',
-                                textAlign: 'center',
-                            }}
-                            title={`payment_hash: ${claim.payment_hash}`}
-                        >
-                            ✓ {claim.amount_sats} sats claimed
-                        </span>
-                    ) : (
-                        <button
-                            className="bp-press"
-                            onClick={() => setClaimOpen(true)}
-                            style={primary(false)}
-                        >
-                            Claim {badge.reward_sats} sats
-                        </button>
-                    )}
                     <button
                         className="bp-press"
                         onClick={() => setShareOpen(true)}
-                        style={secondary()}
+                        style={primary()}
                     >
-                        Save badge
+                        Save / share badge
                     </button>
                     <button
                         ref={continueBtnRef}
@@ -313,13 +273,6 @@ export function BadgeCelebrationModal({
                 </div>
             </div>
 
-            {claimOpen && (
-                <TierRewardClaimModal
-                    badge={badge}
-                    onClose={() => setClaimOpen(false)}
-                    onClaimed={onClaimed}
-                />
-            )}
             {shareOpen && (
                 <ShareBadgeModal
                     badge={badge}
@@ -334,36 +287,21 @@ export function BadgeCelebrationModal({
 
 // ── button styles ────────────────────────────────────────────────────────────
 
-function primary(disabled: boolean): React.CSSProperties {
+function primary(): React.CSSProperties {
     return {
         background:
             'linear-gradient(180deg, #FFB958 0%, #F7931A 60%, #E07A0A 100%)',
-        color: '#0A0A0B',
+        color: '#0B1220',
         border: 'none',
         borderRadius: 10,
         padding: '14px 18px',
         fontWeight: 800,
         fontSize: 14,
-        cursor: disabled ? 'default' : 'pointer',
+        cursor: 'pointer',
         fontFamily: 'var(--font-sans)',
         letterSpacing: '0.01em',
         boxShadow:
             '0 1px 0 rgba(255,255,255,0.35) inset, 0 8px 24px rgba(247,147,26,0.35)',
-    }
-}
-
-function secondary(): React.CSSProperties {
-    return {
-        background: 'rgba(255,255,255,0.10)',
-        color: '#FFFFFF',
-        border: '1px solid rgba(255,255,255,0.30)',
-        borderRadius: 10,
-        padding: '14px 18px',
-        fontWeight: 700,
-        fontSize: 14,
-        cursor: 'pointer',
-        fontFamily: 'var(--font-sans)',
-        backdropFilter: 'blur(6px)',
     }
 }
 

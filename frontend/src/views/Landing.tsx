@@ -1,4 +1,5 @@
 import { useRef, type CSSProperties } from 'react'
+import { BrandMark } from '../components/BrandMark'
 import { ThemeToggle } from '../components/ThemeToggle'
 import type { Theme } from '../lib/theme'
 import { useRuntime } from '../lib/runtime'
@@ -1057,66 +1058,6 @@ function SectionHeading({
                 {title}
             </h2>
         </div>
-    )
-}
-
-/**
- * Tiny navbar/footer brand mark. Mirrors the favicon at small sizes —
- * compass star + central medallion + ₿. Static (no animation) since this
- * sits in chrome where motion would be distracting.
- */
-function BrandMark({ size }: { size: number }) {
-    return (
-        <span
-            aria-hidden="true"
-            style={{
-                width: size,
-                height: size,
-                display: 'inline-flex',
-                flexShrink: 0,
-            }}
-        >
-            <svg viewBox="0 0 64 64" width={size} height={size} style={{ display: 'block' }}>
-                <defs>
-                    <radialGradient id="bp-mini-bg" cx="50%" cy="42%" r="60%">
-                        <stop offset="0%" stopColor="#1F2D52" />
-                        <stop offset="100%" stopColor="#0B1220" />
-                    </radialGradient>
-                    <linearGradient id="bp-mini-star" x1="0%" y1="0%" x2="100%" y2="100%">
-                        <stop offset="0%" stopColor="#FFD27A" />
-                        <stop offset="55%" stopColor="#F7931A" />
-                        <stop offset="100%" stopColor="#E07A0A" />
-                    </linearGradient>
-                </defs>
-                <rect width="64" height="64" rx="10" fill="url(#bp-mini-bg)" />
-                <g transform="translate(32 32)">
-                    <g transform="rotate(45)" fill="url(#bp-mini-star)" opacity="0.55">
-                        <polygon points="0,-18 4,-6 0,-4 -4,-6" />
-                        <polygon points="18,0 6,4 4,0 6,-4" />
-                        <polygon points="0,18 -4,6 0,4 4,6" />
-                        <polygon points="-18,0 -6,-4 -4,0 -6,4" />
-                    </g>
-                    <g fill="url(#bp-mini-star)">
-                        <polygon points="0,-26 5,-8 0,-6 -5,-8" />
-                        <polygon points="26,0 8,5 6,0 8,-5" />
-                        <polygon points="0,26 -5,8 0,6 5,8" />
-                        <polygon points="-26,0 -8,-5 -6,0 -8,5" />
-                    </g>
-                    <circle cx="0" cy="0" r="13" fill="#0B1220" stroke="#F7931A" strokeWidth="1.6" />
-                    <text
-                        x="0"
-                        y="5"
-                        textAnchor="middle"
-                        fontFamily="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif"
-                        fontWeight={900}
-                        fontSize={16}
-                        fill="#FFE7C2"
-                    >
-                        ₿
-                    </text>
-                </g>
-            </svg>
-        </span>
     )
 }
 

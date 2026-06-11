@@ -44,14 +44,25 @@ interface Theme {
     number: number
 }
 
+/**
+ * One palette across all five tiers — navy field, bitcoin orange ring, gold
+ * highlights. What distinguishes the tiers is (a) the roman numeral, (b) the
+ * subtitle, (c) the achievement quote, and (d) the compass-progression glyph
+ * which adds another layer per rank. Visual difference comes from depth, not
+ * hue, so the row of five reads as one family rather than five colourways.
+ */
+const PALETTE = {
+    bg1: '#1F2D52',
+    bg2: '#0B1220',
+    accent: '#F7931A',
+    accentLight: '#FFD27A',
+    accentDim: '#7A4A0E',
+    accent2: '#FFE7C2',
+}
+
 const THEMES: Record<Tier, Theme> = {
     novice: {
-        bg1: '#1A1410',
-        bg2: '#050507',
-        accent: '#F7931A',
-        accentLight: '#FFC36B',
-        accentDim: '#7A4A0E',
-        accent2: '#F26B1F',
+        ...PALETTE,
         subtitle: 'Bitcoin Fundamentals',
         roman: 'I',
         achievement: [
@@ -61,12 +72,7 @@ const THEMES: Record<Tier, Theme> = {
         number: 1,
     },
     apprentice: {
-        bg1: '#0C1A14',
-        bg2: '#040608',
-        accent: '#10C57E',
-        accentLight: '#5DEAA9',
-        accentDim: '#0A6240',
-        accent2: '#1FA8D8',
+        ...PALETTE,
         subtitle: 'Wallets & Signing',
         roman: 'II',
         achievement: [
@@ -76,12 +82,7 @@ const THEMES: Record<Tier, Theme> = {
         number: 2,
     },
     pilot: {
-        bg1: '#1A1608',
-        bg2: '#060507',
-        accent: '#FFD23F',
-        accentLight: '#FFEB8C',
-        accentDim: '#7F6A20',
-        accent2: '#A78BFA',
+        ...PALETTE,
         subtitle: 'Lightning & Nostr',
         roman: 'III',
         achievement: [
@@ -91,12 +92,7 @@ const THEMES: Record<Tier, Theme> = {
         number: 3,
     },
     navigator: {
-        bg1: '#14102A',
-        bg2: '#050409',
-        accent: '#A78BFA',
-        accentLight: '#D3C2FF',
-        accentDim: '#54467D',
-        accent2: '#5EEAD4',
+        ...PALETTE,
         subtitle: 'eCash & Ecosystem',
         roman: 'IV',
         achievement: [
@@ -106,12 +102,7 @@ const THEMES: Record<Tier, Theme> = {
         number: 4,
     },
     captain: {
-        bg1: '#1F0D0E',
-        bg2: '#060304',
-        accent: '#FF7A59',
-        accentLight: '#FFB59A',
-        accentDim: '#733829',
-        accent2: '#FFD23F',
+        ...PALETTE,
         subtitle: 'Sovereignty',
         roman: 'V',
         achievement: [
@@ -169,83 +160,77 @@ const MEDAL_R_RING = 128
 const MEDAL_R_DISC = 100
 
 /**
- * Tier-specific iconography drawn as inline SVG paths. Each returns a <g>
- * group centered at (0,0); the parent translates it into the medallion.
+ * Compass-progression glyph. Each tier adds one layer to the same emblem
+ * so the row of five badges reads as a single shape leveling up rather
+ * than five unrelated icons:
  *
- * Custom glyphs (not emoji) so the badge renders identically on every OS
- * when serialized to PNG — emoji fonts vary wildly between platforms.
+ *   novice (I)     → ₿ at full size on the disc
+ *   apprentice (II)→ ₿ + 2 cardinal star points (N/S)
+ *   pilot (III)    → ₿ + 4 cardinal star points
+ *   navigator (IV) → ₿ + 8-point compass (cardinals + dimmed diagonals)
+ *   captain (V)    → ₿ + 8-point compass + outer gold tick halo
+ *
+ * Drawn as inline paths (not emoji or fonts) so the same SVG rasterizes
+ * identically across every OS when serialized to PNG. `accent` is the
+ * bitcoin-orange star fill; `glyph` is the cream ₿ that always shows.
  */
-function TierGlyph({ tier, fill }: { tier: Tier; fill: string }) {
-    switch (tier) {
-        case 'novice':
-            // Bitcoin ₿: bold sans glyph drawn from path so it renders the
-            // same shape regardless of font availability. Two horizontal
-            // crossbars are subtle short rectangles.
-            return (
+function TierGlyph({ tier, accent, glyph }: { tier: Tier; accent: string; glyph: string }) {
+    const rank = THEMES[tier].number
+    const diagFill = 'rgba(247, 147, 26, 0.55)'
+    return (
+        <g>
+            {rank >= 5 && (
                 <g>
-                    <text
-                        x="0"
-                        y="22"
-                        textAnchor="middle"
-                        fill={fill}
-                        fontFamily="ui-sans-serif, system-ui, -apple-system, sans-serif"
-                        fontWeight="900"
-                        fontSize="92"
-                        letterSpacing="-0.04em"
-                    >
-                        ₿
-                    </text>
+                    {Array.from({ length: 24 }).map((_, i) => (
+                        <rect
+                            key={i}
+                            x="-1"
+                            y="-86"
+                            width="2"
+                            height="10"
+                            fill="#FFD27A"
+                            opacity="0.75"
+                            transform={`rotate(${i * 15})`}
+                        />
+                    ))}
                 </g>
-            )
-        case 'apprentice':
-            // Key: head + shaft + two teeth. Outlined for crispness.
-            return (
-                <g fill="none" stroke={fill} strokeWidth="6" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="-20" cy="0" r="22" />
-                    <circle cx="-20" cy="0" r="8" fill={fill} stroke="none" />
-                    <line x1="2" y1="0" x2="44" y2="0" />
-                    <line x1="32" y1="0" x2="32" y2="14" />
-                    <line x1="42" y1="0" x2="42" y2="10" />
+            )}
+            {rank >= 4 && (
+                <g transform="rotate(45)" fill={diagFill}>
+                    <polygon points="0,-62 10,-18 0,-10 -10,-18" />
+                    <polygon points="62,0 18,10 10,0 18,-10" />
+                    <polygon points="0,62 -10,18 0,10 10,18" />
+                    <polygon points="-62,0 -18,-10 -10,0 -18,10" />
                 </g>
-            )
-        case 'pilot':
-            // Lightning bolt with a stylised soft shadow for depth.
-            return (
-                <g>
-                    <path
-                        d="M -8 -42 L -32 8 L -6 8 L -14 42 L 32 -10 L 6 -10 L 14 -42 Z"
-                        fill={fill}
-                        stroke="rgba(0,0,0,0.25)"
-                        strokeWidth="1"
-                        strokeLinejoin="round"
-                    />
+            )}
+            {rank >= 3 && (
+                <g fill={accent}>
+                    <polygon points="0,-72 12,-20 0,-14 -12,-20" />
+                    <polygon points="72,0 20,12 14,0 20,-12" />
+                    <polygon points="0,72 -12,20 0,14 12,20" />
+                    <polygon points="-72,0 -20,-12 -14,0 -20,12" />
                 </g>
-            )
-        case 'navigator':
-            // 4-point compass star with a tiny center dot.
-            return (
-                <g fill={fill}>
-                    <path d="M 0 -44 L 8 -8 L 44 0 L 8 8 L 0 44 L -8 8 L -44 0 L -8 -8 Z" />
-                    <path
-                        d="M 0 -22 L 4 -4 L 22 0 L 4 4 L 0 22 L -4 4 L -22 0 L -4 -4 Z"
-                        fill="rgba(0,0,0,0.35)"
-                    />
-                    <circle cx="0" cy="0" r="3" fill={fill} />
+            )}
+            {rank === 2 && (
+                <g fill={accent}>
+                    <polygon points="0,-72 12,-20 0,-14 -12,-20" />
+                    <polygon points="0,72 -12,20 0,14 12,20" />
                 </g>
-            )
-        case 'captain':
-            // Anchor: ring + shaft + crossbar + arms. Reads as authority.
-            return (
-                <g fill="none" stroke={fill} strokeWidth="6" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="0" cy="-26" r="8" />
-                    <line x1="0" y1="-18" x2="0" y2="28" />
-                    <line x1="-18" y1="-8" x2="18" y2="-8" />
-                    <path d="M -28 14 Q 0 40 28 14" />
-                    <line x1="-28" y1="14" x2="-22" y2="8" />
-                    <line x1="28" y1="14" x2="22" y2="8" />
-                </g>
-            )
-    }
+            )}
+            <text
+                x="0"
+                y="22"
+                textAnchor="middle"
+                fill={glyph}
+                fontFamily="ui-sans-serif, system-ui, -apple-system, sans-serif"
+                fontWeight="900"
+                fontSize="62"
+                letterSpacing="-0.04em"
+            >
+                ₿
+            </text>
+        </g>
+    )
 }
 
 /**
@@ -475,7 +460,7 @@ export const TierBadgeCard = forwardRef<SVGSVGElement, TierBadgeCardProps>(
                     cx={CX}
                     cy={MEDAL_CY}
                     r={MEDAL_R_OUTER - 4}
-                    fill="#0A0A0B"
+                    fill="#0B1220"
                 />
                 {/* Brushed metal pinstripe */}
                 <circle
@@ -549,7 +534,7 @@ export const TierBadgeCard = forwardRef<SVGSVGElement, TierBadgeCardProps>(
 
                 {/* Tier-specific glyph */}
                 <g transform={`translate(${CX} ${MEDAL_CY})`}>
-                    <TierGlyph tier={tier} fill={theme.accentLight} />
+                    <TierGlyph tier={tier} accent={theme.accent} glyph={theme.accentLight} />
                 </g>
 
                 {/* Holographic shine across the medallion */}

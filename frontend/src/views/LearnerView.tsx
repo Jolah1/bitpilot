@@ -18,6 +18,7 @@ import {
     type Badge,
     type MissionDef,
 } from '../lib/types'
+import { TierProgressionMark } from '../components/TierProgressionMark'
 import {
     callout,
     card,
@@ -554,21 +555,6 @@ export default function LearnerView({ participantId }: { participantId: string }
                     participantId={participantId}
                     participantName={participantName}
                     onClose={() => setJustEarnedBadge(null)}
-                    onClaimed={(claim) => {
-                        // Mirror the new claim into the badges list so the
-                        // BadgesStrip and the celebration modal both see the
-                        // claim immediately, without re-fetching.
-                        setBadges((prev) =>
-                            prev.map((b) =>
-                                b.tier === justEarnedBadge.tier
-                                    ? { ...b, reward_claim: claim }
-                                    : b,
-                            ),
-                        )
-                        setJustEarnedBadge((j) =>
-                            j ? { ...j, reward_claim: claim } : j,
-                        )
-                    }}
                 />
             )}
 
@@ -897,101 +883,6 @@ function ProgressRail({
                 <span>{currentTier.label} tier</span>
             </div>
         </nav>
-    )
-}
-
-/**
- * Mini compass-medallion mark for the badges strip. Each tier adds another
- * layer to the same emblem so the row reads as a progression of one shape,
- * not five different icons:
- *
- *   novice      → bare ₿ on a navy disc
- *   apprentice  → ₿ + 2 cardinal star points
- *   pilot       → ₿ + 4 cardinal star points
- *   navigator   → ₿ + 8-point star (cardinals + dim diagonals)
- *   captain     → ₿ + 8-point star + gold tick ring
- *
- * Locked badges render the same shape at 0.6 opacity (no recolour) so the
- * row tells the learner what they're working toward, not just what's gone.
- */
-const TIER_RANK: Record<string, number> = {
-    novice: 1,
-    apprentice: 2,
-    pilot: 3,
-    navigator: 4,
-    captain: 5,
-}
-
-function TierProgressionMark({
-    tier,
-    earned,
-    size,
-}: {
-    tier: string
-    earned: boolean
-    size: number
-}) {
-    const rank = TIER_RANK[tier] ?? 1
-    const starColor = earned ? '#F7931A' : 'rgba(247, 147, 26, 0.55)'
-    const diagColor = earned ? 'rgba(247, 147, 26, 0.6)' : 'rgba(247, 147, 26, 0.3)'
-    return (
-        <span
-            aria-hidden="true"
-            style={{ width: size, height: size, display: 'inline-flex', flexShrink: 0 }}
-        >
-            <svg viewBox="0 0 64 64" width={size} height={size} style={{ display: 'block' }}>
-                <circle cx="32" cy="32" r="30" fill="#0B1220" stroke={earned ? '#F7931A' : 'rgba(247, 147, 26, 0.35)'} strokeWidth="2" />
-                {rank >= 5 && (
-                    <g>
-                        {Array.from({ length: 12 }).map((_, i) => (
-                            <rect
-                                key={i}
-                                x="31.5"
-                                y="3"
-                                width="1"
-                                height="4"
-                                fill="#FFD27A"
-                                opacity={earned ? 0.8 : 0.4}
-                                transform={`rotate(${i * 30} 32 32)`}
-                            />
-                        ))}
-                    </g>
-                )}
-                {rank >= 4 && (
-                    <g transform="translate(32 32) rotate(45)" fill={diagColor}>
-                        <polygon points="0,-22 4,-7 0,-5 -4,-7" />
-                        <polygon points="22,0 7,4 5,0 7,-4" />
-                        <polygon points="0,22 -4,7 0,5 4,7" />
-                        <polygon points="-22,0 -7,-4 -5,0 -7,4" />
-                    </g>
-                )}
-                {rank >= 3 && (
-                    <g transform="translate(32 32)" fill={starColor}>
-                        <polygon points="0,-25 5,-8 0,-6 -5,-8" />
-                        <polygon points="25,0 8,5 6,0 8,-5" />
-                        <polygon points="0,25 -5,8 0,6 5,8" />
-                        <polygon points="-25,0 -8,-5 -6,0 -8,5" />
-                    </g>
-                )}
-                {rank === 2 && (
-                    <g transform="translate(32 32)" fill={starColor}>
-                        <polygon points="0,-25 5,-8 0,-6 -5,-8" />
-                        <polygon points="0,25 -5,8 0,6 5,8" />
-                    </g>
-                )}
-                <text
-                    x="32"
-                    y="40"
-                    textAnchor="middle"
-                    fontFamily="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif"
-                    fontWeight={900}
-                    fontSize={20}
-                    fill={earned ? '#FFE7C2' : 'rgba(255, 231, 194, 0.6)'}
-                >
-                    ₿
-                </text>
-            </svg>
-        </span>
     )
 }
 

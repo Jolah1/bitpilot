@@ -16,6 +16,7 @@ const Landing = lazy(() => import('./views/Landing'))
 // them so a fresh learner doesn't pay for ~30KB of code they may never open.
 const FacilitatorDashboard = lazy(() => import('./views/FacilitatorDashboard'))
 const SoloProgressView = lazy(() => import('./views/SoloProgressView'))
+import { BrandMark } from './components/BrandMark'
 import { ThemeToggle } from './components/ThemeToggle'
 import { applyTheme, getSavedTheme, saveTheme, type Theme } from './lib/theme'
 import { api, ApiError } from './lib/api'
@@ -375,21 +376,7 @@ function Setup({
                     >
                         <header>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-                                <span
-                                    aria-hidden="true"
-                                    style={{
-                                        width: 36,
-                                        height: 36,
-                                        borderRadius: 'var(--radius-2)',
-                                        background: 'var(--gradient-bitcoin)',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        fontSize: 18,
-                                    }}
-                                >
-                                    ⚡
-                                </span>
+                                <BrandMark size={36} />
                                 <h1
                                     style={{
                                         fontSize: 'clamp(20px, 5vw, 24px)',
@@ -809,23 +796,7 @@ function AppShell({
                         fontFamily: 'inherit',
                     }}
                 >
-                    <span
-                        aria-hidden="true"
-                        style={{
-                            width: 26,
-                            height: 26,
-                            borderRadius: 'var(--radius-1)',
-                            background: 'var(--gradient-bitcoin)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            fontSize: 14,
-                            color: '#0A0A0B',
-                            flexShrink: 0,
-                        }}
-                    >
-                        ⚡
-                    </span>
+                    <BrandMark size={26} />
                     <span
                         style={{
                             fontSize: 15,

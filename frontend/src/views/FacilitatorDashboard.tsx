@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { isSoloSessionName } from '../App'
+import { BrandMark } from '../components/BrandMark'
 import { QRSessionCard } from '../components/QRJoinFlow'
 import { MISSION_COUNT, TIERS, tierFor, type Participant } from '../lib/types'
 import { fetchSessionProgress } from '../lib/api'
@@ -72,24 +73,7 @@ export default function FacilitatorDashboard({ sessionId }: { sessionId: string 
                 }}
             >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
-                    <span
-                        aria-hidden="true"
-                        style={{
-                            width: 40,
-                            height: 40,
-                            borderRadius: 'var(--radius-2)',
-                            background: 'var(--gradient-bitcoin)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            fontSize: 20,
-                            color: '#0A0A0B',
-                            fontWeight: 800,
-                            flexShrink: 0,
-                        }}
-                    >
-                        ₿
-                    </span>
+                    <BrandMark size={40} />
                     <div style={{ minWidth: 0 }}>
                         <h1
                             style={{

@@ -8,6 +8,7 @@
  * share modal.
  */
 import { useEffect, useState } from 'react'
+import { TierProgressionMark } from '../components/TierProgressionMark'
 import { api } from '../lib/api'
 import {
     MISSIONS,
@@ -17,7 +18,7 @@ import {
     type Badge,
     type Participant,
 } from '../lib/types'
-import { card, chip, techGradient } from '../lib/ui'
+import { card, chip } from '../lib/ui'
 import { ShareBadgeModal } from '../components/ShareBadgeModal'
 
 export default function SoloProgressView({ participantId }: { participantId: string }) {
@@ -279,25 +280,7 @@ export default function SoloProgressView({ participantId }: { participantId: str
                                     fontFamily: 'inherit',
                                 }}
                             >
-                                <span
-                                    aria-hidden="true"
-                                    style={{
-                                        width: 44,
-                                        height: 44,
-                                        borderRadius: '50%',
-                                        background: b.earned
-                                            ? techGradient('bitcoin')
-                                            : 'var(--bg-elevated)',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        fontSize: 18,
-                                        color: b.earned ? '#0A0A0B' : 'var(--muted)',
-                                        fontWeight: 800,
-                                    }}
-                                >
-                                    {tierGlyph(b.tier)}
-                                </span>
+                                <TierProgressionMark tier={b.tier} earned={b.earned} size={44} />
                                 <span
                                     style={{
                                         fontSize: 12,
@@ -422,23 +405,6 @@ function Stat({
             </div>
         </div>
     )
-}
-
-function tierGlyph(tier: string): string {
-    switch (tier) {
-        case 'novice':
-            return '₿'
-        case 'apprentice':
-            return '⚿'
-        case 'pilot':
-            return '⚡'
-        case 'navigator':
-            return '🧭'
-        case 'captain':
-            return '🏴'
-        default:
-            return '★'
-    }
 }
 
 /** Placeholder cards while badges load, so the grid doesn't pop into existence. */
