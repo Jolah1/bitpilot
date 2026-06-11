@@ -254,8 +254,10 @@ function HeroMedallion() {
             aria-hidden="true"
             style={{
                 position: 'relative',
-                width: 'clamp(220px, 38vw, 320px)',
-                height: 'clamp(220px, 38vw, 320px)',
+                // Caps higher on desktop so the mark commands the hero —
+                // 320px was right for mobile but tiny on 1440px+ displays.
+                width: 'clamp(220px, 36vw, 420px)',
+                height: 'clamp(220px, 36vw, 420px)',
                 margin: '0 auto 28px',
             }}
         >

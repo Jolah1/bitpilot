@@ -651,7 +651,7 @@ function ViewLoading() {
             aria-live="polite"
             aria-label="Loading"
             style={{
-                maxWidth: 720,
+                maxWidth: 960,
                 margin: '32px auto',
                 padding: '0 clamp(0.5rem, 3vw, 1rem)',
             }}

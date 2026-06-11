@@ -583,10 +583,11 @@ export default function LearnerView({ participantId }: { participantId: string }
         <main
             id="learner-main"
             // Mobile: shrink padding aggressively so content uses the viewport.
-            // Desktop: comfortable 720-px reading width centered.
+            // Desktop: 960-px column so progress strip + mission card breathe.
+            // Lesson prose still pinches to a reading column inside LearnPanel.
             style={{
                 padding: 'clamp(0.75rem, 3vw, 1.5rem) clamp(0.5rem, 3vw, 1rem) 5rem',
-                maxWidth: 720,
+                maxWidth: 960,
                 margin: '0 auto',
             }}
             aria-label={`Mission ${mission.id} of ${MISSION_COUNT - 1}: ${mission.name}`}
@@ -1204,6 +1205,7 @@ function LearnPanel({ mission, onAdvance }: { mission: MissionDef; onAdvance: ()
                     fontWeight: 700,
                     margin: 0,
                     letterSpacing: '-0.01em',
+                    maxWidth: '68ch',
                 }}
             >
                 {mission.learn.heading}
@@ -1217,12 +1219,15 @@ function LearnPanel({ mission, onAdvance }: { mission: MissionDef; onAdvance: ()
                         margin: 0,
                         color: 'var(--text-soft)',
                         whiteSpace: 'pre-line',
+                        // Keep prose to a comfortable line length even when the
+                        // outer mission card stretches to 960px on desktop.
+                        maxWidth: '68ch',
                     }}
                 >
                     {para}
                 </p>
             ))}
-            <div style={callout('info')}>
+            <div style={{ ...callout('info'), maxWidth: '68ch' }}>
                 <strong style={{ marginRight: 6 }}>Tip:</strong> {mission.learn.tip}
             </div>
             <button
