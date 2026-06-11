@@ -12,8 +12,7 @@ use crate::auth::{
     generate_token, hash_token, require_facilitator, require_participant, AuthedParticipant,
 };
 use crate::error::AppError;
-use crate::models::mission::Tier;
-use crate::models::{now, Badge, Participant, RewardClaim, Session};
+use crate::models::{now, Badge, Participant, Session};
 use crate::state::AppState;
 
 /// `/api/sessions` — facilitator-side routes. `POST /` is open (anyone can
@@ -39,7 +38,6 @@ pub fn router(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .route("/me", get(get_self))
         .route("/me/completions", get(list_completions))
         .route("/me/badges", get(list_badges))
-        .route("/me/tier-rewards/:tier/claim", post(claim_tier_reward))
         .layer(from_fn_with_state(state, require_participant));
     public.merge(authed)
 }
@@ -102,7 +100,6 @@ async fn create_session(
 struct SessionResponse {
     session: Session,
     participant_count: usize,
-    total_sats_distributed: u64,
 }
 
 async fn get_session(
@@ -117,7 +114,6 @@ async fn get_session(
             .ok_or(AppError::NotFound)?;
 
     let participants = load_participants_by_session(&state, &id).await?;
-    let total_sats: u64 = participants.iter().map(|p| p.sats_earned).sum();
     let participant_ids = participants.iter().map(|p| p.id.clone()).collect();
 
     Ok(Json(SessionResponse {
@@ -128,7 +124,6 @@ async fn get_session(
             created_at: row.2 as u64,
         },
         participant_count: participants.len(),
-        total_sats_distributed: total_sats,
     }))
 }
 
@@ -197,8 +192,8 @@ async fn join_session(
     // the column's default ever drifts in a future migration.
     sqlx::query(
         "INSERT INTO participants \
-         (id, name, session_id, current_mission, sats_earned, nostr_pubkey, auth_token_hash, created_at) \
-         VALUES (?, ?, ?, 0, 0, NULL, ?, ?)",
+         (id, name, session_id, current_mission, nostr_pubkey, auth_token_hash, created_at) \
+         VALUES (?, ?, ?, 0, NULL, ?, ?)",
     )
     .bind(&id)
     .bind(name)
@@ -215,7 +210,6 @@ async fn join_session(
             session_id: body.session_id,
             current_mission: 0,
             completed_missions: vec![],
-            sats_earned: 0,
             nostr_pubkey: None,
         },
         auth_token,
@@ -292,250 +286,7 @@ async fn list_badges(
     .fetch_all(&state.db)
     .await?;
     let completions: Vec<(u8, i64)> = rows.into_iter().map(|(m, t)| (m as u8, t)).collect();
-    let claims = load_tier_claims(&state.db, &authed.participant_id).await?;
-    Ok(Json(Badge::all_for(&completions, &claims)))
-}
-
-/// Load all tier-reward claim rows for a participant, in the shape
-/// `Badge::all_for` expects. Pending reservations (status='pending') are
-/// excluded — the UI should treat them as "not yet claimed" because the
-/// LNbits payout may still fail.
-async fn load_tier_claims(
-    db: &sqlx::SqlitePool,
-    participant_id: &str,
-) -> Result<Vec<(Tier, RewardClaim)>, AppError> {
-    let rows: Vec<(String, i64, String, i64, i64)> = sqlx::query_as(
-        "SELECT tier, amount_sats, payment_hash, simulated, paid_at \
-         FROM tier_reward_claims WHERE participant_id = ? AND status = 'paid'",
-    )
-    .bind(participant_id)
-    .fetch_all(db)
-    .await?;
-    Ok(rows
-        .into_iter()
-        .filter_map(|(tier, amount, hash, sim, paid)| {
-            tier_from_str(&tier).map(|t| {
-                (
-                    t,
-                    RewardClaim {
-                        amount_sats: amount.max(0) as u64,
-                        payment_hash: hash,
-                        simulated: sim != 0,
-                        paid_at: paid,
-                    },
-                )
-            })
-        })
-        .collect())
-}
-
-/// Parse a lowercase tier string as written by `serde(rename_all = "lowercase")`.
-/// Unknown values are dropped (badge list just omits the claim) rather than
-/// crashing — the CHECK constraint on the table is the real guarantee.
-fn tier_from_str(s: &str) -> Option<Tier> {
-    match s {
-        "novice" => Some(Tier::Novice),
-        "apprentice" => Some(Tier::Apprentice),
-        "pilot" => Some(Tier::Pilot),
-        "navigator" => Some(Tier::Navigator),
-        "captain" => Some(Tier::Captain),
-        _ => None,
-    }
-}
-
-fn tier_to_str(t: Tier) -> &'static str {
-    match t {
-        Tier::Novice => "novice",
-        Tier::Apprentice => "apprentice",
-        Tier::Pilot => "pilot",
-        Tier::Navigator => "navigator",
-        Tier::Captain => "captain",
-    }
-}
-
-#[derive(Deserialize)]
-struct ClaimTierRewardRequest {
-    /// BOLT11 invoice the learner generated in their wallet for exactly
-    /// the tier's reward amount. We don't accept lightning addresses here
-    /// (no LNURL client in-tree); learners already know how to make
-    /// invoices from mission 23.
-    invoice: String,
-}
-
-#[derive(Serialize)]
-struct ClaimTierRewardResponse {
-    tier: Tier,
-    amount_sats: u64,
-    payment_hash: String,
-    /// `true` when LNbits is not configured or LIGHTNING_REAL_ALLOW_PAYOUTS
-    /// is unset. UI shows a clear "Simulated" badge in that case.
-    simulated: bool,
-    paid_at: i64,
-}
-
-/// `POST /api/participants/me/tier-rewards/:tier/claim`
-///
-/// Pays the tier-completion bonus (sats fixed per-tier in `Tier::reward`)
-/// to a learner-supplied BOLT11 invoice. One-shot per (participant, tier):
-/// the table PK enforces no double-claim.
-///
-/// Order of checks matters: validate inputs cheaply first, then check
-/// claim status (DB lookup), then verify the tier is actually earned
-/// (DB lookup + computation). This way bogus tier names and empty
-/// invoices fail without hitting the DB for completions.
-async fn claim_tier_reward(
-    State(state): State<Arc<AppState>>,
-    Extension(authed): Extension<AuthedParticipant>,
-    Path(tier_str): Path<String>,
-    Json(body): Json<ClaimTierRewardRequest>,
-) -> Result<Json<ClaimTierRewardResponse>, AppError> {
-    let tier = tier_from_str(&tier_str)
-        .ok_or_else(|| AppError::BadRequest(format!("unknown tier: {tier_str}")))?;
-
-    let invoice = body.invoice.trim();
-    if invoice.is_empty() {
-        return Err(AppError::BadRequest("invoice must not be empty".into()));
-    }
-
-    // Reservation pattern. Three outcomes for the existence check:
-    //   - row with status='paid'    → 409 (one-shot, already claimed)
-    //   - row with status='pending' AND invoice matches → resume
-    //                                  the in-flight claim (LNbits
-    //                                  dedupes by payment_hash so
-    //                                  re-calling pay_invoice is safe)
-    //   - row with status='pending' AND invoice differs → 409 (we
-    //                                  must NOT pay a second invoice
-    //                                  while the first is in limbo —
-    //                                  that's the double-payment we
-    //                                  introduced reservations to stop)
-    //   - no row                    → fresh claim, insert pending below
-    let existing: Option<(String, String)> = sqlx::query_as(
-        "SELECT status, invoice FROM tier_reward_claims \
-         WHERE participant_id = ? AND tier = ?",
-    )
-    .bind(&authed.participant_id)
-    .bind(tier_to_str(tier))
-    .fetch_optional(&state.db)
-    .await?;
-
-    let resuming = match &existing {
-        Some((status, _)) if status == "paid" => {
-            return Err(AppError::Conflict(format!(
-                "{} tier reward already claimed",
-                tier_to_str(tier)
-            )));
-        }
-        Some((_, existing_invoice)) if existing_invoice != invoice => {
-            return Err(AppError::Conflict(
-                "a claim for this tier is in flight with a different \
-                 invoice; retry with the original invoice or wait a moment"
-                    .into(),
-            ));
-        }
-        Some(_) => true,
-        None => false,
-    };
-
-    // Earned? Recompute from completions + claims = no drift with the
-    // GET /badges view.
-    let rows: Vec<(i64, i64)> = sqlx::query_as(
-        "SELECT mission, completed_at FROM mission_completions WHERE participant_id = ?",
-    )
-    .bind(&authed.participant_id)
-    .fetch_all(&state.db)
-    .await?;
-    let completions: Vec<(u8, i64)> = rows.into_iter().map(|(m, t)| (m as u8, t)).collect();
-    let badges = Badge::all_for(&completions, &[]);
-    let badge = badges
-        .iter()
-        .find(|b| b.tier == tier)
-        .expect("Badge::all_for always returns all 5 tiers");
-    if !badge.earned {
-        return Err(AppError::Forbidden);
-    }
-
-    let amount_sats = tier.reward();
-    let payouts_real = state.lightning.payouts_allowed;
-
-    // Real-payout path: decode to verify the invoice is for exactly the
-    // tier amount. Stops the learner from sneaking in a 10,000-sat
-    // invoice for a 10-sat Novice claim.
-    if payouts_real {
-        let decoded = state.lightning.decode_invoice(invoice).await.map_err(|e| {
-            tracing::warn!(error = %e, "tier reward: decode_invoice failed");
-            AppError::BadRequest("invoice could not be decoded".into())
-        })?;
-        if decoded != amount_sats {
-            return Err(AppError::BadRequest(format!(
-                "invoice amount must equal {amount_sats} sats, got {decoded}"
-            )));
-        }
-    }
-
-    // Pre-insert the reservation row BEFORE talking to LNbits. If the
-    // process dies between this insert and the UPDATE below, the row
-    // hangs around as 'pending' and blocks a retry with a different
-    // invoice from double-paying. A retry with the same invoice will
-    // resume (LNbits dedupes by payment_hash).
-    let simulated = !payouts_real;
-    if !resuming {
-        sqlx::query(
-            "INSERT INTO tier_reward_claims \
-                (participant_id, tier, amount_sats, invoice, payment_hash, \
-                 simulated, paid_at, status) \
-             VALUES (?, ?, ?, ?, '', ?, 0, 'pending')",
-        )
-        .bind(&authed.participant_id)
-        .bind(tier_to_str(tier))
-        .bind(amount_sats as i64)
-        .bind(invoice)
-        .bind(if simulated { 1_i64 } else { 0_i64 })
-        .execute(&state.db)
-        .await?;
-    }
-
-    let payment_hash = match state.lightning.pay_invoice(invoice).await {
-        Ok(h) => h,
-        Err(e) => {
-            // Roll back the pending reservation so the learner can retry
-            // cleanly. Only clear our own reservation — never touch a
-            // row that's already 'paid'.
-            let _ = sqlx::query(
-                "DELETE FROM tier_reward_claims \
-                 WHERE participant_id = ? AND tier = ? AND status = 'pending'",
-            )
-            .bind(&authed.participant_id)
-            .bind(tier_to_str(tier))
-            .execute(&state.db)
-            .await;
-            return Err(e);
-        }
-    };
-    let paid_at = now() as i64;
-
-    // Commit the reservation → paid. If this UPDATE fails the row stays
-    // pending; the learner sees a 500 but a retry with the same invoice
-    // will hit LNbits's payment dedupe and complete the UPDATE on the
-    // second pass. The row PK + invoice equality check above gates this.
-    sqlx::query(
-        "UPDATE tier_reward_claims \
-         SET payment_hash = ?, paid_at = ?, status = 'paid' \
-         WHERE participant_id = ? AND tier = ?",
-    )
-    .bind(&payment_hash)
-    .bind(paid_at)
-    .bind(&authed.participant_id)
-    .bind(tier_to_str(tier))
-    .execute(&state.db)
-    .await?;
-
-    Ok(Json(ClaimTierRewardResponse {
-        tier,
-        amount_sats,
-        payment_hash,
-        simulated,
-        paid_at,
-    }))
+    Ok(Json(Badge::all_for(&completions)))
 }
 
 // ── Loaders ──────────────────────────────────────────────────────────────
@@ -546,8 +297,8 @@ pub async fn load_participant(
     state: &AppState,
     participant_id: &str,
 ) -> Result<Participant, AppError> {
-    let row: Option<(String, String, String, i64, i64, Option<String>)> = sqlx::query_as(
-        "SELECT id, name, session_id, current_mission, sats_earned, nostr_pubkey \
+    let row: Option<(String, String, String, i64, Option<String>)> = sqlx::query_as(
+        "SELECT id, name, session_id, current_mission, nostr_pubkey \
          FROM participants WHERE id = ?",
     )
     .bind(participant_id)
@@ -568,8 +319,7 @@ pub async fn load_participant(
         name: row.1,
         session_id: row.2,
         current_mission: row.3 as u8,
-        sats_earned: row.4 as u64,
-        nostr_pubkey: row.5,
+        nostr_pubkey: row.4,
         completed_missions: completed.into_iter().map(|(m,)| m as u8).collect(),
     })
 }
@@ -578,8 +328,8 @@ async fn load_participants_by_session(
     state: &AppState,
     session_id: &str,
 ) -> Result<Vec<Participant>, AppError> {
-    let rows: Vec<(String, String, String, i64, i64, Option<String>)> = sqlx::query_as(
-        "SELECT id, name, session_id, current_mission, sats_earned, nostr_pubkey \
+    let rows: Vec<(String, String, String, i64, Option<String>)> = sqlx::query_as(
+        "SELECT id, name, session_id, current_mission, nostr_pubkey \
          FROM participants WHERE session_id = ? ORDER BY created_at",
     )
     .bind(session_id)
@@ -603,8 +353,7 @@ async fn load_participants_by_session(
             name: r.1,
             session_id: r.2,
             current_mission: r.3 as u8,
-            sats_earned: r.4 as u64,
-            nostr_pubkey: r.5,
+            nostr_pubkey: r.4,
             completed_missions: completed.into_iter().map(|(m,)| m as u8).collect(),
         });
     }

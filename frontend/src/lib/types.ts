@@ -5,7 +5,6 @@ export interface Participant {
     session_id: string
     current_mission: number
     completed_missions: number[]
-    sats_earned: number
     nostr_pubkey: string | null
 }
 
@@ -21,9 +20,7 @@ export type Tech = 'bitcoin' | 'lightning' | 'nostr' | 'ecash'
 /**
  * Five learning tiers. Mission numbers map deterministically into these
  * bands (see `tierFor()`), so they're not stored per-mission — the tier
- * UI derives them from the id. Reward bands rise as the tier rises:
- * novices earn small wins fast, captains earn meaningful sats for harder
- * tasks they actually had to think about.
+ * UI derives them from the id.
  */
 export type Tier = 'novice' | 'apprentice' | 'pilot' | 'navigator' | 'captain'
 
@@ -31,16 +28,15 @@ export interface TierMeta {
     key: Tier
     label: string
     range: [number, number]
-    reward: number
     tagline: string
 }
 
 export const TIERS: TierMeta[] = [
-    { key: 'novice',     label: 'Novice',     range: [0, 10],  reward: 10,  tagline: 'Bitcoin from zero. No prior knowledge.' },
-    { key: 'apprentice', label: 'Apprentice', range: [11, 20], reward: 21,  tagline: 'Keys, addresses, sending and receiving for real.' },
-    { key: 'pilot',      label: 'Pilot',      range: [21, 30], reward: 33,  tagline: 'Lightning + Nostr — the everyday tools.' },
-    { key: 'navigator',  label: 'Navigator',  range: [31, 40], reward: 50,  tagline: 'eCash, zaps, NIP-05 and the wider ecosystem.' },
-    { key: 'captain',    label: 'Captain',    range: [41, 50], reward: 100, tagline: 'Sovereignty: signet on-chain, security, the long game.' },
+    { key: 'novice',     label: 'Novice',     range: [0, 10],  tagline: 'Bitcoin from zero. No prior knowledge.' },
+    { key: 'apprentice', label: 'Apprentice', range: [11, 20], tagline: 'Keys, addresses, sending and receiving for real.' },
+    { key: 'pilot',      label: 'Pilot',      range: [21, 30], tagline: 'Lightning + Nostr — the everyday tools.' },
+    { key: 'navigator',  label: 'Navigator',  range: [31, 40], tagline: 'eCash, zaps, NIP-05 and the wider ecosystem.' },
+    { key: 'captain',    label: 'Captain',    range: [41, 50], tagline: 'Sovereignty: signet on-chain, security, the long game.' },
 ]
 
 /** Returns the tier a mission id belongs to. */
@@ -65,17 +61,6 @@ export interface Badge {
     required: number
     earned: boolean
     earned_at: number | null
-    /** Tier-completion bonus in sats. Mirrors `TIERS[].reward`. */
-    reward_sats: number
-    /** Null until the learner claims via /api/participants/me/tier-rewards/:tier/claim. */
-    reward_claim: RewardClaim | null
-}
-
-export interface RewardClaim {
-    amount_sats: number
-    payment_hash: string
-    simulated: boolean
-    paid_at: number
 }
 
 // ─── Frontend mission catalogue ──────────────────────────────────────────────

@@ -168,25 +168,6 @@ fn complete(
         .unwrap()
 }
 
-/// Post a tier-reward claim. Tests submit any non-empty string for the
-/// invoice — payouts are simulated in the test harness (no LNbits env),
-/// so the invoice is never decoded.
-fn claim_tier(
-    base: &str,
-    token: &str,
-    tier: &str,
-    invoice: &str,
-) -> reqwest::blocking::Response {
-    client()
-        .post(format!(
-            "{base}/api/participants/me/tier-rewards/{tier}/claim"
-        ))
-        .header("authorization", format!("Bearer {token}"))
-        .json(&json!({ "invoice": invoice }))
-        .send()
-        .unwrap()
-}
-
 // ─── Tests ─────────────────────────────────────────────────────────────────
 
 #[test]
@@ -244,7 +225,6 @@ fn create_session_then_join_then_self_fetch() {
     assert_eq!(v["name"], "alice");
     // New curriculum starts at mission 0.
     assert_eq!(v["current_mission"], 0);
-    assert_eq!(v["sats_earned"], 0);
     assert_eq!(v["completed_missions"].as_array().unwrap().len(), 0);
 }
 
@@ -293,7 +273,7 @@ fn facilitator_endpoints_require_facilitator_key() {
 }
 
 #[test]
-fn complete_knowledge_mission_zero_grants_reward() {
+fn complete_knowledge_mission_zero_advances_pointer() {
     let h = Harness::start();
     let s = create_session(&h.base, "kn-test");
     let j = join_session(&h.base, "bob", &s.id);
@@ -301,10 +281,8 @@ fn complete_knowledge_mission_zero_grants_reward() {
     let r = complete(&h.base, &j.auth_token, 0, "acknowledged");
     assert_eq!(r.status(), 200, "mission 0 should accept any non-empty proof");
     let v: Value = r.json().unwrap();
-    assert_eq!(v["sats_earned"], 10, "Novice tier reward");
     assert_eq!(v["next_mission"], 1);
     assert_eq!(v["participant"]["current_mission"], 1);
-    assert_eq!(v["participant"]["sats_earned"], 10);
 }
 
 #[test]
@@ -399,7 +377,7 @@ fn mission_11_requires_64_hex_commitment() {
     let r = complete(&h.base, &j.auth_token, 11, &"a1b2c3d4".repeat(8));
     assert_eq!(r.status(), 200);
     let v: Value = r.json().unwrap();
-    assert_eq!(v["sats_earned"], 21, "Apprentice tier reward");
+    assert_eq!(v["next_mission"], 12);
 }
 
 #[test]
@@ -505,10 +483,6 @@ fn missions_list_is_public_no_auth_required() {
     assert_eq!(arr[10]["tier"], "novice");
     assert_eq!(arr[11]["tier"], "apprentice");
     assert_eq!(arr[50]["tier"], "captain");
-    // Reward banding.
-    assert_eq!(arr[0]["reward_sats"], 10);
-    assert_eq!(arr[11]["reward_sats"], 21);
-    assert_eq!(arr[50]["reward_sats"], 100);
 }
 
 #[test]
@@ -604,115 +578,3 @@ fn me_badges_starts_empty_then_unlocks_novice_after_tier_clear() {
     }
 }
 
-// ─── Tier-reward claim endpoint ───────────────────────────────────────────
-//
-// `POST /api/participants/me/tier-rewards/:tier/claim` pays the
-// per-tier bonus (10/21/33/50/100 sats) to a learner-supplied invoice.
-// The handler validates in this order: tier name → invoice non-empty →
-// existing claim (409) → earned (403) → pay → insert. Each test below
-// pins one of those checks.
-
-#[test]
-fn claim_tier_reward_unknown_tier_returns_400() {
-    let h = Harness::start();
-    let s = create_session(&h.base, "claim-bad-tier");
-    let j = join_session(&h.base, "kate", &s.id);
-
-    let r = claim_tier(&h.base, &j.auth_token, "platinum", "lnbc1234");
-    assert_eq!(r.status(), 400);
-    let v: Value = r.json().unwrap();
-    assert!(
-        v["error"].as_str().unwrap().contains("unknown tier"),
-        "expected 'unknown tier' error, got {:?}",
-        v["error"]
-    );
-}
-
-#[test]
-fn claim_tier_reward_empty_invoice_returns_400() {
-    let h = Harness::start();
-    let s = create_session(&h.base, "claim-empty");
-    let j = join_session(&h.base, "lee", &s.id);
-
-    // Tier is valid but invoice is whitespace; the empty-invoice check
-    // fires before the earned check, so we don't need to complete any
-    // missions first.
-    let r = claim_tier(&h.base, &j.auth_token, "novice", "   ");
-    assert_eq!(r.status(), 400);
-    let v: Value = r.json().unwrap();
-    assert!(
-        v["error"].as_str().unwrap().contains("invoice"),
-        "expected invoice-empty error, got {:?}",
-        v["error"]
-    );
-}
-
-#[test]
-fn claim_tier_reward_unearned_tier_returns_403() {
-    let h = Harness::start();
-    let s = create_session(&h.base, "claim-unearned");
-    let j = join_session(&h.base, "mira", &s.id);
-
-    // No missions completed → novice unearned → 403.
-    let r = claim_tier(&h.base, &j.auth_token, "novice", "lnbc1234fake");
-    assert_eq!(r.status(), 403);
-}
-
-#[test]
-fn claim_tier_reward_earned_tier_returns_200_with_payment_hash() {
-    let h = Harness::start();
-    let s = create_session(&h.base, "claim-happy");
-    let j = join_session(&h.base, "noor", &s.id);
-
-    // Clear Novice (missions 0..=10).
-    for m in 0..=10 {
-        assert_eq!(
-            complete(&h.base, &j.auth_token, m, "acknowledged").status(),
-            200,
-            "completing mission {m}"
-        );
-    }
-
-    let r = claim_tier(&h.base, &j.auth_token, "novice", "lnbc1234fake");
-    assert_eq!(r.status(), 200);
-    let v: Value = r.json().unwrap();
-    assert_eq!(v["tier"], "novice");
-    assert_eq!(v["amount_sats"], 10);
-    // Simulated mode (no LNbits env in tests).
-    assert_eq!(v["simulated"], true);
-    assert!(
-        v["payment_hash"].as_str().unwrap().len() > 0,
-        "payment_hash should be non-empty even in simulated mode"
-    );
-    assert!(v["paid_at"].as_i64().unwrap() > 0);
-}
-
-#[test]
-fn claim_tier_reward_double_claim_returns_409() {
-    let h = Harness::start();
-    let s = create_session(&h.base, "claim-dup");
-    let j = join_session(&h.base, "olu", &s.id);
-
-    for m in 0..=10 {
-        assert_eq!(
-            complete(&h.base, &j.auth_token, m, "acknowledged").status(),
-            200,
-        );
-    }
-
-    // First claim wins.
-    assert_eq!(
-        claim_tier(&h.base, &j.auth_token, "novice", "lnbc1234fake").status(),
-        200
-    );
-
-    // Second claim is rejected with 409 — even with a different invoice.
-    let r = claim_tier(&h.base, &j.auth_token, "novice", "lnbc9999other");
-    assert_eq!(r.status(), 409);
-    let v: Value = r.json().unwrap();
-    assert!(
-        v["error"].as_str().unwrap().contains("already claimed"),
-        "expected 'already claimed' error, got {:?}",
-        v["error"]
-    );
-}

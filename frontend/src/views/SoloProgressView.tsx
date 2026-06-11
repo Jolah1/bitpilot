@@ -403,7 +403,5 @@ function skeletonBadges(): Badge[] {
         required: t.range[1] - t.range[0] + 1,
         earned: false,
         earned_at: null,
-        reward_sats: t.reward,
-        reward_claim: null,
     }))
 }

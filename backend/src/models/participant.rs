@@ -14,7 +14,6 @@ pub struct Participant {
     pub session_id: String,
     pub current_mission: u8,
     pub completed_missions: Vec<u8>,
-    pub sats_earned: u64,
     pub nostr_pubkey: Option<String>,
 }
 

@@ -8,10 +8,6 @@ use crate::models::mission::Tier;
 ///
 /// `earned_at` is the *latest* completion timestamp in the tier — i.e. the
 /// moment the badge unlocked, not the first mission of the tier.
-///
-/// `reward_sats` is the tier-completion bonus (paid via /api/participants/
-/// me/tier-rewards/:tier/claim once `earned`). `reward_claim` is `Some`
-/// after the learner has claimed it (one-shot per tier).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Badge {
     pub tier: Tier,
@@ -19,16 +15,6 @@ pub struct Badge {
     pub required: u8,
     pub earned: bool,
     pub earned_at: Option<i64>,
-    pub reward_sats: u64,
-    pub reward_claim: Option<RewardClaim>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RewardClaim {
-    pub amount_sats: u64,
-    pub payment_hash: String,
-    pub simulated: bool,
-    pub paid_at: i64,
 }
 
 /// The fixed 5-tier band layout. Must match `Tier::from_mission` ranges in
@@ -43,9 +29,8 @@ const BANDS: &[(Tier, u8, u8)] = &[
 
 impl Badge {
     /// Build the full 5-badge list from a participant's (mission, completed_at)
-    /// rows and any tier-reward claims they've made. Always returns exactly
-    /// 5 entries in tier order (Novice → Captain).
-    pub fn all_for(completions: &[(u8, i64)], claims: &[(Tier, RewardClaim)]) -> Vec<Badge> {
+    /// rows. Always returns exactly 5 entries in tier order (Novice → Captain).
+    pub fn all_for(completions: &[(u8, i64)]) -> Vec<Badge> {
         BANDS
             .iter()
             .map(|(tier, lo, hi)| {
@@ -57,18 +42,12 @@ impl Badge {
                 let required = hi - lo + 1;
                 let completed = in_band.len() as u8;
                 let earned = completed >= required;
-                let reward_claim = claims
-                    .iter()
-                    .find(|(t, _)| t == tier)
-                    .map(|(_, c)| c.clone());
                 Badge {
                     tier: *tier,
                     completed,
                     required,
                     earned,
                     earned_at: if earned { in_band.into_iter().max() } else { None },
-                    reward_sats: tier.reward(),
-                    reward_claim,
                 }
             })
             .collect()
@@ -81,20 +60,15 @@ mod tests {
 
     #[test]
     fn empty_completions_yields_five_unearned_badges() {
-        let badges = Badge::all_for(&[], &[]);
+        let badges = Badge::all_for(&[]);
         assert_eq!(badges.len(), 5);
         assert!(badges.iter().all(|b| !b.earned && b.completed == 0));
-        assert!(badges.iter().all(|b| b.reward_claim.is_none()));
-        // Reward amounts must mirror Tier::reward exactly so the frontend
-        // can render the bonus without a second round-trip.
-        assert_eq!(badges[0].reward_sats, Tier::Novice.reward());
-        assert_eq!(badges[4].reward_sats, Tier::Captain.reward());
     }
 
     #[test]
     fn full_novice_tier_earns_only_novice() {
         let completions: Vec<(u8, i64)> = (0..=10).map(|m| (m, 100 + m as i64)).collect();
-        let badges = Badge::all_for(&completions, &[]);
+        let badges = Badge::all_for(&completions);
         assert!(badges[0].earned);
         assert_eq!(badges[0].earned_at, Some(110));
         for b in &badges[1..] {
@@ -105,25 +79,10 @@ mod tests {
     #[test]
     fn partial_tier_reports_progress_but_not_earned() {
         let completions = vec![(0u8, 1_i64), (1, 2), (2, 3)];
-        let badges = Badge::all_for(&completions, &[]);
+        let badges = Badge::all_for(&completions);
         assert_eq!(badges[0].completed, 3);
         assert_eq!(badges[0].required, 11);
         assert!(!badges[0].earned);
         assert!(badges[0].earned_at.is_none());
-    }
-
-    #[test]
-    fn claim_attached_to_correct_tier() {
-        let completions: Vec<(u8, i64)> = (0..=10).map(|m| (m, m as i64)).collect();
-        let claim = RewardClaim {
-            amount_sats: 10,
-            payment_hash: "abc".into(),
-            simulated: false,
-            paid_at: 999,
-        };
-        let badges = Badge::all_for(&completions, &[(Tier::Novice, claim.clone())]);
-        assert!(badges[0].reward_claim.is_some());
-        assert_eq!(badges[0].reward_claim.as_ref().unwrap().payment_hash, "abc");
-        assert!(badges[1..].iter().all(|b| b.reward_claim.is_none()));
     }
 }

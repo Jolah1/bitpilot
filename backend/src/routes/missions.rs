@@ -59,7 +59,6 @@ struct CompleteMissionRequest {
 #[derive(Serialize)]
 struct CompleteMissionResponse {
     participant: Participant,
-    sats_earned: u64,
     next_mission: Option<u8>,
 }
 
@@ -100,8 +99,6 @@ async fn complete_mission(
     )
     .await?;
 
-    let reward = Mission::reward(body.mission);
-
     let mut tx = state.db.begin().await?;
     sqlx::query(
         "INSERT INTO mission_completions (participant_id, mission, proof, completed_at) \
@@ -120,21 +117,17 @@ async fn complete_mission(
         None
     };
 
-    sqlx::query(
-        "UPDATE participants SET sats_earned = sats_earned + ?, current_mission = ? WHERE id = ?",
-    )
-    .bind(reward as i64)
-    .bind(next_mission.unwrap_or(body.mission) as i64)
-    .bind(&authed.participant_id)
-    .execute(&mut *tx)
-    .await?;
+    sqlx::query("UPDATE participants SET current_mission = ? WHERE id = ?")
+        .bind(next_mission.unwrap_or(body.mission) as i64)
+        .bind(&authed.participant_id)
+        .execute(&mut *tx)
+        .await?;
 
     tx.commit().await?;
 
     let updated = load_participant(&state, &authed.participant_id).await?;
     Ok(Json(CompleteMissionResponse {
         participant: updated,
-        sats_earned: reward,
         next_mission,
     }))
 }

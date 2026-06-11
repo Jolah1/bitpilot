@@ -2,8 +2,8 @@
  * Trap Tab/Shift+Tab focus inside a container while it's mounted, and
  * restore focus to whatever was focused before mount when it unmounts.
  *
- * Why: BitPilot's modals (badge celebration, share, tier-reward claim)
- * dim the page behind them. Without a trap, a keyboard user pressing
+ * Why: BitPilot's modals (badge celebration, share badge) dim the page
+ * behind them. Without a trap, a keyboard user pressing
  * Tab eventually walks out of the modal into the still-rendered page
  * underneath — a confusing, inaccessible experience.
  *

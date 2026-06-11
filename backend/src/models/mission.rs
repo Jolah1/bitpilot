@@ -7,9 +7,8 @@ pub enum MissionStatus {
     Completed,
 }
 
-/// Five learning tiers. Reward amounts and the (number, tier) mapping live
-/// on the backend so the frontend can never lie about how many sats a
-/// mission is worth — the backend is the only source of truth.
+/// Five learning tiers. The (number, tier) mapping lives on the backend so
+/// the frontend can't drift — the backend is the only source of truth.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum Tier {
@@ -30,16 +29,6 @@ impl Tier {
             _ => Tier::Captain, // 41..=50
         }
     }
-
-    pub fn reward(self) -> u64 {
-        match self {
-            Tier::Novice => 10,
-            Tier::Apprentice => 21,
-            Tier::Pilot => 33,
-            Tier::Navigator => 50,
-            Tier::Captain => 100,
-        }
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -51,7 +40,6 @@ pub struct Mission {
     pub description: String,
     /// One of: "bitcoin" | "lightning" | "nostr" | "ecash"
     pub tech: String,
-    pub reward_sats: u64,
     pub status: MissionStatus,
     pub tier: Tier,
     /// True if the underlying service is a simulation (no real network call).
@@ -60,8 +48,8 @@ pub struct Mission {
 }
 
 /// Compact descriptor: (number, title, description, tech, simulated_default).
-/// Reward and tier are computed via `Tier::from_mission` so the table stays
-/// short and adding/removing a mission is a one-line edit.
+/// Tier is computed via `Tier::from_mission` so the table stays short and
+/// adding/removing a mission is a one-line edit.
 struct Row {
     number: u8,
     title: &'static str,
@@ -144,7 +132,6 @@ impl Mission {
                     title: r.title.into(),
                     description: r.description.into(),
                     tech: r.tech.into(),
-                    reward_sats: tier.reward(),
                     status: if r.number == 0 {
                         MissionStatus::Active
                     } else {
@@ -162,10 +149,6 @@ impl Mission {
 
     /// Last valid mission number (inclusive).
     pub const LAST: u8 = 50;
-
-    pub fn reward(number: u8) -> u64 {
-        Tier::from_mission(number).reward()
-    }
 
     /// Which `DoKind` does this mission use? Used by `verify_proof` to know
     /// which ledger to check. Kept in lock-step with the frontend's
