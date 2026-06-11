@@ -2,7 +2,7 @@ import { useRef, type CSSProperties } from 'react'
 import { ThemeToggle } from '../components/ThemeToggle'
 import type { Theme } from '../lib/theme'
 import { useRuntime } from '../lib/runtime'
-import { MISSION_COUNT, TIERS } from '../lib/types'
+import { TIERS } from '../lib/types'
 import { card, chip, ghostButton, primaryButton } from '../lib/ui'
 
 // ─── Landing ─────────────────────────────────────────────────────────────────
@@ -96,13 +96,33 @@ function Hero({
         <section
             aria-labelledby="hero-headline"
             style={{
+                position: 'relative',
                 maxWidth: 760,
                 margin: '0 auto',
                 padding: 'clamp(2rem, 8vw, 4rem) clamp(1rem, 4vw, 1.5rem) clamp(2rem, 6vw, 3rem)',
                 textAlign: 'center',
+                overflow: 'hidden',
             }}
         >
-            <span style={{ ...chip('orange'), marginBottom: 20 }}>
+            {/* Background glow pool. Sits behind the medallion and bleeds
+                into the section background — a soft navy-to-bg radial that
+                gives the medallion something to "float" against without
+                hard edges. Pointer-events:none so it doesn't intercept
+                clicks on the CTAs above the fold. */}
+            <div
+                aria-hidden="true"
+                style={{
+                    position: 'absolute',
+                    inset: 0,
+                    pointerEvents: 'none',
+                    background:
+                        'radial-gradient(circle at 50% 28%, rgba(247, 147, 26, 0.18) 0%, rgba(247, 147, 26, 0.06) 18%, rgba(11, 18, 32, 0) 55%)',
+                }}
+            />
+
+            <HeroMedallion />
+
+            <span style={{ ...chip('orange'), marginBottom: 20, position: 'relative' }}>
                 <span
                     aria-hidden="true"
                     style={{
@@ -124,6 +144,7 @@ function Hero({
                     lineHeight: 1.05,
                     letterSpacing: '-0.035em',
                     marginBottom: 18,
+                    position: 'relative',
                 }}
             >
                 Learn Bitcoin
@@ -142,12 +163,13 @@ function Hero({
                     lineHeight: 1.55,
                     maxWidth: 540,
                     margin: '0 auto 28px',
+                    position: 'relative',
                 }}
             >
                 Most people watch videos about Bitcoin and stay confused.
                 BitPilot teaches you by making you{' '}
                 <strong style={{ color: 'var(--text)' }}>actually do it</strong>{' '}
-                — and earn sats as you learn.
+                — wallets, Lightning, Nostr, the whole stack — in short, hands-on missions.
             </p>
 
             <div
@@ -156,6 +178,7 @@ function Hero({
                     gap: 10,
                     justifyContent: 'center',
                     flexWrap: 'wrap',
+                    position: 'relative',
                 }}
             >
                 {hasResumable && (
@@ -203,11 +226,150 @@ function Hero({
                     color: 'var(--muted)',
                     marginTop: 18,
                     marginBottom: 0,
+                    position: 'relative',
                 }}
             >
-                {MISSION_COUNT} missions · about 45 minutes · works on your phone
+                About 45 minutes per chapter · works on your phone
             </p>
         </section>
+    )
+}
+
+// ─── Hero medallion ──────────────────────────────────────────────────────────
+
+/**
+ * Marketing-grade brand mark. Mirrors the favicon and PWA icon design but
+ * scaled to ~clamp(220px, 38vw, 320px) so it can hold the top of the
+ * landing page on its own. The slow halo rotation is purely decorative
+ * and disabled by `prefers-reduced-motion` via the global CSS rule.
+ *
+ * Why inline (not an <img src>): we want themed colour responsiveness,
+ * crisp scaling, and zero extra round-trip. Also keeps the asset under
+ * our CSP without needing `img-src` widened.
+ */
+function HeroMedallion() {
+    return (
+        <div
+            aria-hidden="true"
+            style={{
+                position: 'relative',
+                width: 'clamp(220px, 38vw, 320px)',
+                height: 'clamp(220px, 38vw, 320px)',
+                margin: '0 auto 28px',
+            }}
+        >
+            <style>{`
+                @keyframes bp-hero-spin {
+                    from { transform: rotate(0deg); }
+                    to { transform: rotate(360deg); }
+                }
+                @keyframes bp-hero-pulse {
+                    0%, 100% { opacity: 0.55; transform: scale(1); }
+                    50% { opacity: 0.85; transform: scale(1.04); }
+                }
+                .bp-hero-halo {
+                    animation: bp-hero-spin 40s linear infinite;
+                }
+                .bp-hero-glow {
+                    animation: bp-hero-pulse 4.5s ease-in-out infinite;
+                }
+            `}</style>
+            <svg
+                viewBox="0 0 400 400"
+                width="100%"
+                height="100%"
+                style={{ display: 'block', filter: 'drop-shadow(0 18px 40px rgba(247, 147, 26, 0.25))' }}
+            >
+                <defs>
+                    <radialGradient id="bp-hero-bg" cx="50%" cy="42%" r="60%">
+                        <stop offset="0%" stopColor="#1F2D52" />
+                        <stop offset="65%" stopColor="#121A30" />
+                        <stop offset="100%" stopColor="#0B1220" />
+                    </radialGradient>
+                    <linearGradient id="bp-hero-star" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stopColor="#FFE7C2" />
+                        <stop offset="50%" stopColor="#F7931A" />
+                        <stop offset="100%" stopColor="#E07A0A" />
+                    </linearGradient>
+                    <radialGradient id="bp-hero-glow" cx="50%" cy="50%" r="50%">
+                        <stop offset="0%" stopColor="#F7931A" stopOpacity="0.55" />
+                        <stop offset="60%" stopColor="#F7931A" stopOpacity="0.12" />
+                        <stop offset="100%" stopColor="#F7931A" stopOpacity="0" />
+                    </radialGradient>
+                </defs>
+
+                {/* Outer glow disc — pulses softly. */}
+                <circle cx="200" cy="200" r="190" fill="url(#bp-hero-glow)" className="bp-hero-glow" style={{ transformOrigin: '200px 200px' }} />
+
+                {/* Navy backplate. */}
+                <circle cx="200" cy="200" r="160" fill="url(#bp-hero-bg)" stroke="rgba(255, 210, 122, 0.18)" strokeWidth="1" />
+
+                {/* Tick ring — 24 small marks evenly spaced. Rotates slowly
+                    to give a sense of an instrument in motion. */}
+                <g className="bp-hero-halo" style={{ transformOrigin: '200px 200px' }}>
+                    {Array.from({ length: 24 }).map((_, i) => {
+                        const angle = (i * 360) / 24
+                        const isCardinal = i % 6 === 0
+                        return (
+                            <rect
+                                key={i}
+                                x="199"
+                                y={isCardinal ? 50 : 54}
+                                width="2"
+                                height={isCardinal ? 14 : 8}
+                                fill={isCardinal ? '#FFD27A' : 'rgba(255, 210, 122, 0.4)'}
+                                transform={`rotate(${angle} 200 200)`}
+                            />
+                        )
+                    })}
+                    {/* Hairline gold ring just inside the ticks. */}
+                    <circle cx="200" cy="200" r="146" fill="none" stroke="rgba(255, 210, 122, 0.35)" strokeWidth="1" />
+                </g>
+
+                {/* Compass star — same geometry as favicon, scaled. */}
+                <g transform="translate(200 200)">
+                    {/* Diagonals (back layer, dimmer). */}
+                    <g transform="rotate(45)" fill="url(#bp-hero-star)" opacity="0.55">
+                        <polygon points="0,-90 16,-26 0,-16 -16,-26" />
+                        <polygon points="90,0 26,16 16,0 26,-16" />
+                        <polygon points="0,90 -16,26 0,16 16,26" />
+                        <polygon points="-90,0 -26,-16 -16,0 -26,16" />
+                    </g>
+                    {/* Cardinals (front layer, full saturation). */}
+                    <g fill="url(#bp-hero-star)">
+                        <polygon points="0,-130 22,-36 0,-26 -22,-36" />
+                        <polygon points="130,0 36,22 26,0 36,-22" />
+                        <polygon points="0,130 -22,36 0,26 22,36" />
+                        <polygon points="-130,0 -36,-22 -26,0 -36,22" />
+                    </g>
+                    {/* Central medallion. */}
+                    <circle cx="0" cy="0" r="56" fill="#0B1220" stroke="#F7931A" strokeWidth="4" />
+                    <circle cx="0" cy="0" r="48" fill="none" stroke="rgba(255, 210, 122, 0.4)" strokeWidth="1" />
+                    <text
+                        x="0"
+                        y="22"
+                        textAnchor="middle"
+                        fontFamily="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif"
+                        fontWeight={900}
+                        fontSize={68}
+                        fill="#FFE7C2"
+                    >
+                        ₿
+                    </text>
+                </g>
+
+                {/* Scattered sparkle dots — light atmosphere, brand
+                    consistency with star gradient. */}
+                <g fill="#FFD27A">
+                    <circle cx="80" cy="120" r="1.8" opacity="0.7" />
+                    <circle cx="330" cy="100" r="1.4" opacity="0.6" />
+                    <circle cx="350" cy="280" r="2.2" opacity="0.5" />
+                    <circle cx="60" cy="300" r="1.6" opacity="0.6" />
+                    <circle cx="200" cy="40" r="1.8" opacity="0.7" />
+                    <circle cx="200" cy="370" r="1.5" opacity="0.6" />
+                </g>
+            </svg>
+        </div>
     )
 }
 
@@ -234,7 +396,7 @@ function HowItWorks() {
         {
             n: '4',
             title: 'Level Up',
-            body: 'Claim sats, unlock the next tier, take on harder challenges.',
+            body: 'Unlock the next tier and take on harder challenges.',
         },
     ]
     return (
@@ -413,7 +575,7 @@ function YourJourney() {
                     marginTop: 12,
                 }}
             >
-                {MISSION_COUNT} missions · Earn sats as you progress
+                Five tiers · short missions · one chapter at a time
             </p>
         </section>
     )
@@ -898,6 +1060,66 @@ function SectionHeading({
     )
 }
 
+/**
+ * Tiny navbar/footer brand mark. Mirrors the favicon at small sizes —
+ * compass star + central medallion + ₿. Static (no animation) since this
+ * sits in chrome where motion would be distracting.
+ */
+function BrandMark({ size }: { size: number }) {
+    return (
+        <span
+            aria-hidden="true"
+            style={{
+                width: size,
+                height: size,
+                display: 'inline-flex',
+                flexShrink: 0,
+            }}
+        >
+            <svg viewBox="0 0 64 64" width={size} height={size} style={{ display: 'block' }}>
+                <defs>
+                    <radialGradient id="bp-mini-bg" cx="50%" cy="42%" r="60%">
+                        <stop offset="0%" stopColor="#1F2D52" />
+                        <stop offset="100%" stopColor="#0B1220" />
+                    </radialGradient>
+                    <linearGradient id="bp-mini-star" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stopColor="#FFD27A" />
+                        <stop offset="55%" stopColor="#F7931A" />
+                        <stop offset="100%" stopColor="#E07A0A" />
+                    </linearGradient>
+                </defs>
+                <rect width="64" height="64" rx="10" fill="url(#bp-mini-bg)" />
+                <g transform="translate(32 32)">
+                    <g transform="rotate(45)" fill="url(#bp-mini-star)" opacity="0.55">
+                        <polygon points="0,-18 4,-6 0,-4 -4,-6" />
+                        <polygon points="18,0 6,4 4,0 6,-4" />
+                        <polygon points="0,18 -4,6 0,4 4,6" />
+                        <polygon points="-18,0 -6,-4 -4,0 -6,4" />
+                    </g>
+                    <g fill="url(#bp-mini-star)">
+                        <polygon points="0,-26 5,-8 0,-6 -5,-8" />
+                        <polygon points="26,0 8,5 6,0 8,-5" />
+                        <polygon points="0,26 -5,8 0,6 5,8" />
+                        <polygon points="-26,0 -8,-5 -6,0 -8,5" />
+                    </g>
+                    <circle cx="0" cy="0" r="13" fill="#0B1220" stroke="#F7931A" strokeWidth="1.6" />
+                    <text
+                        x="0"
+                        y="5"
+                        textAnchor="middle"
+                        fontFamily="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif"
+                        fontWeight={900}
+                        fontSize={16}
+                        fill="#FFE7C2"
+                    >
+                        ₿
+                    </text>
+                </g>
+            </svg>
+        </span>
+    )
+}
+
 function CheckDot() {
     return (
         <span
@@ -964,23 +1186,7 @@ function SiteFooter() {
                             marginBottom: 10,
                         }}
                     >
-                        <span
-                            aria-hidden="true"
-                            style={{
-                                width: 26,
-                                height: 26,
-                                borderRadius: 'var(--radius-1)',
-                                background: 'var(--gradient-bitcoin)',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                fontSize: 14,
-                                color: '#0A0A0B',
-                                fontWeight: 800,
-                            }}
-                        >
-                            ⚡
-                        </span>
+                        <BrandMark size={26} />
                         <span
                             style={{
                                 color: 'var(--text)',
@@ -1116,24 +1322,7 @@ function TopNav({
                     minWidth: 0,
                 }}
             >
-                <span
-                    aria-hidden="true"
-                    style={{
-                        width: 28,
-                        height: 28,
-                        borderRadius: 'var(--radius-1)',
-                        background: 'var(--gradient-bitcoin)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: 16,
-                        color: '#0A0A0B',
-                        fontWeight: 800,
-                        flexShrink: 0,
-                    }}
-                >
-                    ⚡
-                </span>
+                <BrandMark size={28} />
                 <span
                     style={{
                         fontSize: 17,
