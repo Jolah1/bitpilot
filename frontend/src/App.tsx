@@ -461,7 +461,7 @@ function Setup({
                             disabled={loading || !participantName.trim()}
                             aria-busy={loading}
                         >
-                            {loading ? 'Starting…' : 'Start earning sats →'}
+                            {loading ? 'Starting…' : 'Start the first mission →'}
                         </button>
                     </div>
                 </div>

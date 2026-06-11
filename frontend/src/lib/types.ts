@@ -225,8 +225,8 @@ export const MISSIONS: MissionDef[] = [
         learn: {
             heading: 'Why this exists',
             body:
-                "Most people learn about Bitcoin by reading. You'll learn by using. Over the next 51 missions you'll generate real cryptographic keys, send (testnet) payments, publish a message to a network nobody owns, and end up understanding more than 99% of people who 'know about crypto'.\n\nNo wallet to install. No money at risk. Every action that touches a real network is clearly labeled — and everything that's just a demonstration is too.\n\nMissions are split into five tiers: Novice, Apprentice, Pilot, Navigator, Captain. Each tier pays more sats because each tier asks more of you.",
-            tip: 'You earn sats inside the app as a progress signal. They don\'t leave BitPilot.',
+                "Most people learn about Bitcoin by reading. You'll learn by using. Over the next 51 missions you'll generate real cryptographic keys, send (testnet) payments, publish a message to a network nobody owns, and end up understanding more than 99% of people who 'know about crypto'.\n\nNo wallet to install. No money at risk. Every action that touches a real network is clearly labeled — and everything that's just a demonstration is too.\n\nMissions are split into five tiers: Novice, Apprentice, Pilot, Navigator, Captain. Each tier asks more of you and earns you a new compass badge.",
+            tip: 'You\'ll learn to think in sats — the unit real Bitcoiners use. No money changes hands inside BitPilot.',
         },
         quiz: {
             question: 'What does BitPilot mainly want you to do?',

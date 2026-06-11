@@ -49,9 +49,6 @@ export default function SoloProgressView({ participantId }: { participantId: str
 
     const completed = participant?.completed_missions ?? []
     const earnedBadges = badges.filter((b) => b.earned).length
-    const claimedSats = badges
-        .filter((b) => b.reward_claim)
-        .reduce((s, b) => s + (b.reward_claim?.amount_sats ?? 0), 0)
     const currentMission = participant?.current_mission ?? 0
     const currentTier = tierFor(currentMission)
     const currentMissionDef = MISSIONS[Math.min(currentMission, MISSION_COUNT - 1)]
@@ -125,7 +122,6 @@ export default function SoloProgressView({ participantId }: { participantId: str
                     value={`${earnedBadges}/${TIERS.length}`}
                     accent={earnedBadges > 0}
                 />
-                <Stat label="Sats claimed" value={claimedSats} />
                 <Stat label="Current tier" value={currentTier.label} />
             </section>
 
@@ -248,7 +244,6 @@ export default function SoloProgressView({ participantId }: { participantId: str
                         const tierMeta = TIERS.find((t) => t.key === b.tier)
                         const tierLabel = tierMeta?.label ?? b.tier
                         const interactive = b.earned
-                        const claimed = b.reward_claim !== null
                         return (
                             <button
                                 key={b.tier}
@@ -302,15 +297,8 @@ export default function SoloProgressView({ participantId }: { participantId: str
                                     {b.completed}/{b.required}
                                 </span>
                                 {b.earned && (
-                                    <span
-                                        style={{
-                                            ...chip(claimed ? 'green' : 'orange'),
-                                            fontSize: 9,
-                                        }}
-                                    >
-                                        {claimed
-                                            ? `${b.reward_claim?.amount_sats} sats claimed`
-                                            : `${b.reward_sats} sats waiting`}
+                                    <span style={{ ...chip('orange'), fontSize: 9 }}>
+                                        Earned
                                     </span>
                                 )}
                             </button>
