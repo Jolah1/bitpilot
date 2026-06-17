@@ -1,17 +1,17 @@
 /**
- * Tier-completion celebration modal.
+ * Skill-tree completion celebration modal.
  *
- * Pops up the moment a learner crosses a tier boundary. The whole screen
- * dims, the badge swings front-and-center, and confetti drops behind it.
- * Two actions: Save badge (→ ShareBadgeModal) and Continue mission.
+ * Pops up the moment a learner finishes every lesson in a skill tree. The
+ * whole screen dims, the badge swings front-and-center, and confetti drops
+ * behind it. Two actions: Save badge (→ ShareBadgeModal) and Continue.
  *
  * Stays open until the learner explicitly dismisses via Continue (or the
  * backdrop / Escape). Intentionally a big interrupt — the moment of
  * earning is the one we want to celebrate hard.
  */
 import { useEffect, useRef, useState } from 'react'
-import type { Badge, Tier } from '../lib/types'
-import { TIERS } from '../lib/types'
+import type { Badge } from '../lib/types'
+import { TREES } from '../lib/types'
 import { useFocusTrap } from '../lib/useFocusTrap'
 import { TierBadgeCard, badgeIdFor } from './TierBadgeCard'
 import { ShareBadgeModal } from './ShareBadgeModal'
@@ -62,10 +62,10 @@ export function BadgeCelebrationModal({
     participantName,
     onClose,
 }: BadgeCelebrationModalProps) {
-    const tierMeta = TIERS.find((t) => t.key === badge.tier)
-    const label = tierMeta?.label ?? badge.tier
+    const treeMeta = TREES.find((t) => t.key === badge.tree)
+    const label = treeMeta?.label ?? badge.tree
     const [shareOpen, setShareOpen] = useState(false)
-    const badgeId = badgeIdFor(participantId, badge.tier as Tier)
+    const badgeId = badgeIdFor(participantId, badge.tree)
     const continueBtnRef = useRef<HTMLButtonElement | null>(null)
     const dialogRef = useRef<HTMLDivElement | null>(null)
     // Trap only while no nested modal is open. When the share modal mounts
@@ -180,7 +180,7 @@ export function BadgeCelebrationModal({
                         textTransform: 'uppercase',
                     }}
                 >
-                    Tier complete
+                    Tree complete
                 </div>
                 <h1
                     style={{
@@ -211,7 +211,7 @@ export function BadgeCelebrationModal({
                     }}
                 >
                     <TierBadgeCard
-                        tier={badge.tier}
+                        tree={badge.tree}
                         participantName={participantName}
                         earnedAt={badge.earned_at}
                         badgeId={badgeId}
@@ -228,7 +228,7 @@ export function BadgeCelebrationModal({
                         lineHeight: 1.5,
                     }}
                 >
-                    You completed all {badge.required} missions in the {label} tier.{' '}
+                    You completed every lesson in the {label} tree ({badge.required} mission{badge.required === 1 ? '' : 's'}).{' '}
                     <strong style={{ color: '#FFFFFF' }}>
                         Save the badge or share it — it's yours.
                     </strong>

@@ -476,13 +476,15 @@ fn missions_list_is_public_no_auth_required() {
     assert_eq!(r.status(), 200);
     let arr: Vec<Value> = r.json().unwrap();
     assert_eq!(arr.len(), 51, "curriculum is 0..=50 = 51 missions");
-    assert_eq!(arr[0]["number"], 0);
-    assert_eq!(arr[50]["number"], 50);
-    // Tier banding check.
-    assert_eq!(arr[0]["tier"], "novice");
-    assert_eq!(arr[10]["tier"], "novice");
-    assert_eq!(arr[11]["tier"], "apprentice");
-    assert_eq!(arr[50]["tier"], "captain");
+    // Tree assignment check — by mission number (catalogue order is
+    // grouped by tree, not numeric, so we look up by `number` field).
+    let by_num = |n: i64| arr.iter().find(|m| m["number"] == n).unwrap();
+    assert_eq!(by_num(0)["tree"], "money");
+    assert_eq!(by_num(14)["tree"], "nostr");
+    assert_eq!(by_num(21)["tree"], "lightning");
+    assert_eq!(by_num(31)["tree"], "ecash");
+    assert_eq!(by_num(46)["tree"], "privacy");
+    assert_eq!(by_num(50)["tree"], "sovereignty");
 }
 
 #[test]
@@ -535,9 +537,10 @@ fn pay_rejects_empty_invoice() {
 }
 
 #[test]
-fn me_badges_starts_empty_then_unlocks_novice_after_tier_clear() {
+fn me_badges_starts_empty_then_unlocks_money_after_tree_clear() {
     // Walks through the badge derivation: 0 missions = no badges earned,
-    // all 11 Novice missions = Novice earned, other 4 still locked.
+    // all Money-tree missions completed = Money earned, others still locked.
+    // Money tree = missions 0, 1, 2, 5, 9, 10 (see Tree::from_mission).
     let h = Harness::start();
     let s = create_session(&h.base, "badge-flow");
     let j = join_session(&h.base, "carol", &s.id);
@@ -552,29 +555,30 @@ fn me_badges_starts_empty_then_unlocks_novice_after_tier_clear() {
             .unwrap()
     };
 
-    // Initial: 5 entries, all unearned.
+    // Initial: 8 entries, all unearned.
     let badges = fetch();
-    assert_eq!(badges.len(), 5);
+    assert_eq!(badges.len(), 8);
     assert!(badges.iter().all(|b| b["earned"] == false));
-    assert_eq!(badges[0]["required"], 11); // Novice = missions 0..=10
-    assert_eq!(badges[0]["completed"], 0);
+    let money = badges.iter().find(|b| b["tree"] == "money").unwrap();
+    assert_eq!(money["required"], 6);
+    assert_eq!(money["completed"], 0);
 
-    // Clear the Novice tier (missions 0..=10 are knowledge missions, so
-    // "acknowledged" is the only proof the verifier asks for).
-    for m in 0..=10 {
+    // Clear the Money tree's knowledge missions. We can only complete
+    // missions in order (gated by current_mission), so we have to walk
+    // 0..=10 even though only 6 of them belong to Money.
+    for m in 0..=10u8 {
         let r = complete(&h.base, &j.auth_token, m, "acknowledged");
         assert_eq!(r.status(), 200, "completing mission {m}");
     }
 
     let badges = fetch();
-    assert_eq!(badges[0]["tier"], "novice");
-    assert_eq!(badges[0]["earned"], true);
-    assert_eq!(badges[0]["completed"], 11);
-    assert!(badges[0]["earned_at"].as_i64().unwrap() > 0);
-    // Other tiers untouched.
-    for b in &badges[1..] {
-        assert_eq!(b["earned"], false);
-        assert!(b["earned_at"].is_null());
-    }
+    let money = badges.iter().find(|b| b["tree"] == "money").unwrap();
+    assert_eq!(money["earned"], true);
+    assert_eq!(money["completed"], 6);
+    assert!(money["earned_at"].as_i64().unwrap() > 0);
+    // Privacy is single-mission (46), so still locked since we stopped at 10.
+    let privacy = badges.iter().find(|b| b["tree"] == "privacy").unwrap();
+    assert_eq!(privacy["earned"], false);
+    assert!(privacy["earned_at"].is_null());
 }
 

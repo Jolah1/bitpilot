@@ -20,7 +20,7 @@
  *   8. Footer brand line.
  */
 import { forwardRef } from 'react'
-import type { Tier } from '../lib/types'
+import type { Tree } from '../lib/types'
 
 interface Theme {
     /** Vertical gradient on the card background. */
@@ -34,22 +34,19 @@ interface Theme {
     accentDim: string
     /** Secondary accent used for the aurora field — adds depth. */
     accent2: string
-    /** "Completed X Training" subtitle on the header. */
+    /** Subtitle eyebrow above the medallion (small caps). */
     subtitle: string
-    /** Roman tier number shown on the chip. */
-    roman: string
+    /** Short label printed on the chip — e.g. "TREE · LIGHTNING". */
+    chipText: string
     /** Two-line achievement description; pre-wrapped to fit. */
     achievement: [string, string]
-    /** Numeric tier index, 1..5. */
-    number: number
 }
 
 /**
- * One palette across all five tiers — navy field, bitcoin orange ring, gold
- * highlights. What distinguishes the tiers is (a) the roman numeral, (b) the
- * subtitle, (c) the achievement quote, and (d) the compass-progression glyph
- * which adds another layer per rank. Visual difference comes from depth, not
- * hue, so the row of five reads as one family rather than five colourways.
+ * One palette across all eight skill trees — navy field, bitcoin orange ring,
+ * gold highlights. Trees are peers (not ranked stages), so they share the
+ * same visual family. What distinguishes them on the card is (a) the chip
+ * text, (b) the subtitle eyebrow, and (c) the two-line achievement quote.
  */
 const PALETTE = {
     bg1: '#1F2D52',
@@ -60,73 +57,99 @@ const PALETTE = {
     accent2: '#FFE7C2',
 }
 
-const THEMES: Record<Tier, Theme> = {
-    novice: {
+const THEMES: Record<Tree, Theme> = {
+    money: {
         ...PALETTE,
-        subtitle: 'Bitcoin Fundamentals',
-        roman: 'I',
+        subtitle: 'Money 101',
+        chipText: 'TREE · MONEY',
         achievement: [
-            'Generated keys, learned wallets,',
-            'and completed first Bitcoin missions.',
+            'Grasped what bitcoin is and',
+            'why thinking in sats matters.',
         ],
-        number: 1,
     },
-    apprentice: {
+    bitcoin: {
         ...PALETTE,
-        subtitle: 'Wallets & Signing',
-        roman: 'II',
+        subtitle: 'Bitcoin Protocol',
+        chipText: 'TREE · BITCOIN',
         achievement: [
-            'Sent and received transactions,',
-            'safeguarded private keys.',
+            'Blocks, fees, miners, UTXOs —',
+            'the base-layer mental model.',
         ],
-        number: 2,
     },
-    pilot: {
+    lightning: {
         ...PALETTE,
-        subtitle: 'Lightning & Nostr',
-        roman: 'III',
+        subtitle: 'Lightning Network',
+        chipText: 'TREE · LIGHTNING',
         achievement: [
-            'Routed Lightning payments,',
-            'published Nostr notes to relays.',
+            'Opened the door to fast,',
+            'cheap, routable bitcoin payments.',
         ],
-        number: 3,
     },
-    navigator: {
+    nostr: {
         ...PALETTE,
-        subtitle: 'eCash & Ecosystem',
-        roman: 'IV',
+        subtitle: 'Nostr & Zaps',
+        chipText: 'TREE · NOSTR',
         achievement: [
-            'Mastered private mint-and-redeem,',
-            'zaps, and the wider Nostr ecosystem.',
+            'Real cryptographic identity,',
+            'notes signed against no one.',
         ],
-        number: 4,
     },
-    captain: {
+    ecash: {
+        ...PALETTE,
+        subtitle: 'eCash & Mints',
+        chipText: 'TREE · eCASH',
+        achievement: [
+            'Bearer money in your pocket,',
+            'redeemable to Lightning.',
+        ],
+    },
+    'self-custody': {
+        ...PALETTE,
+        subtitle: 'Self-custody',
+        chipText: 'TREE · SELF-CUSTODY',
+        achievement: [
+            'Keys, seeds, addresses, multisig —',
+            'your bitcoin, your responsibility.',
+        ],
+    },
+    privacy: {
+        ...PALETTE,
+        subtitle: 'Privacy',
+        chipText: 'TREE · PRIVACY',
+        achievement: [
+            'The chain is public.',
+            'Now you know how to behave.',
+        ],
+    },
+    sovereignty: {
         ...PALETTE,
         subtitle: 'Sovereignty',
-        roman: 'V',
+        chipText: 'TREE · SOVEREIGNTY',
         achievement: [
-            'Practical sovereignty: signet,',
-            'security, and the long game.',
+            'Signet on-chain, your own node,',
+            'the long game.',
         ],
-        number: 5,
     },
 }
 
-const RANK_LABEL: Record<Tier, string> = {
-    novice: 'NOVICE',
-    apprentice: 'APPRENTICE',
-    pilot: 'PILOT',
-    navigator: 'NAVIGATOR',
-    captain: 'CAPTAIN',
+const RANK_LABEL: Record<Tree, string> = {
+    money: 'MONEY 101',
+    bitcoin: 'BITCOIN',
+    lightning: 'LIGHTNING',
+    nostr: 'NOSTR',
+    ecash: 'ECASH',
+    'self-custody': 'SELF-CUSTODY',
+    privacy: 'PRIVACY',
+    sovereignty: 'SOVEREIGNTY',
 }
 
 /**
- * Stable, short badge ID derived from participantId + tier. Looks like
- * `BP-NOV-A3F4B2C1`. Deterministic so re-downloads always show the same id.
+ * Stable, short badge ID derived from participantId + tree. Looks like
+ * `BP-LIG-A3F4B2C1`. Deterministic so re-downloads always show the same id.
+ * Self-custody collapses to "SEL" — slugs with hyphens drop them first.
  */
-export function badgeIdFor(participantId: string, tier: Tier): string {
-    const prefix = tier.slice(0, 3).toUpperCase()
+export function badgeIdFor(participantId: string, tree: Tree): string {
+    const prefix = tree.replace(/-/g, '').slice(0, 3).toUpperCase()
     const hex = participantId.replace(/-/g, '').slice(0, 8).toUpperCase()
     return `BP-${prefix}-${hex || '00000000'}`
 }
@@ -143,7 +166,7 @@ export function formatBadgeDate(unixSeconds: number | null | undefined): string 
 }
 
 export interface TierBadgeCardProps {
-    tier: Tier
+    tree: Tree
     participantName: string
     earnedAt: number | null
     badgeId: string
@@ -160,63 +183,23 @@ const MEDAL_R_RING = 128
 const MEDAL_R_DISC = 100
 
 /**
- * Compass-progression glyph. Each tier adds one layer to the same emblem
- * so the row of five badges reads as a single shape leveling up rather
- * than five unrelated icons:
- *
- *   novice (I)     → ₿ at full size on the disc
- *   apprentice (II)→ ₿ + 2 cardinal star points (N/S)
- *   pilot (III)    → ₿ + 4 cardinal star points
- *   navigator (IV) → ₿ + 8-point compass (cardinals + dimmed diagonals)
- *   captain (V)    → ₿ + 8-point compass + outer gold tick halo
+ * Compass medallion glyph — the same 4-point cardinal compass + ₿ for
+ * every tree. Trees are peers, not ranked stages, so they share one
+ * emblem; the chip text and subtitle do the per-tree work.
  *
  * Drawn as inline paths (not emoji or fonts) so the same SVG rasterizes
  * identically across every OS when serialized to PNG. `accent` is the
- * bitcoin-orange star fill; `glyph` is the cream ₿ that always shows.
+ * bitcoin-orange star fill; `glyph` is the cream ₿.
  */
-function TierGlyph({ tier, accent, glyph }: { tier: Tier; accent: string; glyph: string }) {
-    const rank = THEMES[tier].number
-    const diagFill = 'rgba(247, 147, 26, 0.55)'
+function TreeGlyph({ accent, glyph }: { accent: string; glyph: string }) {
     return (
         <g>
-            {rank >= 5 && (
-                <g>
-                    {Array.from({ length: 24 }).map((_, i) => (
-                        <rect
-                            key={i}
-                            x="-1"
-                            y="-86"
-                            width="2"
-                            height="10"
-                            fill="#FFD27A"
-                            opacity="0.75"
-                            transform={`rotate(${i * 15})`}
-                        />
-                    ))}
-                </g>
-            )}
-            {rank >= 4 && (
-                <g transform="rotate(45)" fill={diagFill}>
-                    <polygon points="0,-62 10,-18 0,-10 -10,-18" />
-                    <polygon points="62,0 18,10 10,0 18,-10" />
-                    <polygon points="0,62 -10,18 0,10 10,18" />
-                    <polygon points="-62,0 -18,-10 -10,0 -18,10" />
-                </g>
-            )}
-            {rank >= 3 && (
-                <g fill={accent}>
-                    <polygon points="0,-72 12,-20 0,-14 -12,-20" />
-                    <polygon points="72,0 20,12 14,0 20,-12" />
-                    <polygon points="0,72 -12,20 0,14 12,20" />
-                    <polygon points="-72,0 -20,-12 -14,0 -20,12" />
-                </g>
-            )}
-            {rank === 2 && (
-                <g fill={accent}>
-                    <polygon points="0,-72 12,-20 0,-14 -12,-20" />
-                    <polygon points="0,72 -12,20 0,14 12,20" />
-                </g>
-            )}
+            <g fill={accent}>
+                <polygon points="0,-72 12,-20 0,-14 -12,-20" />
+                <polygon points="72,0 20,12 14,0 20,-12" />
+                <polygon points="0,72 -12,20 0,14 12,20" />
+                <polygon points="-72,0 -20,-12 -14,0 -20,12" />
+            </g>
             <text
                 x="0"
                 y="22"
@@ -238,12 +221,12 @@ function TierGlyph({ tier, accent, glyph }: { tier: Tier; accent: string; glyph:
  * ShareBadgeModal can grab the raw <svg> for serialization.
  */
 export const TierBadgeCard = forwardRef<SVGSVGElement, TierBadgeCardProps>(
-    function TierBadgeCard({ tier, participantName, earnedAt, badgeId, scale = 1 }, ref) {
-        const theme = THEMES[tier]
-        const label = RANK_LABEL[tier]
+    function TierBadgeCard({ tree, participantName, earnedAt, badgeId, scale = 1 }, ref) {
+        const theme = THEMES[tree]
+        const label = RANK_LABEL[tree]
         const dateStr = formatBadgeDate(earnedAt)
         const safeName = (participantName || 'BitPilot Learner').trim().slice(0, 28)
-        const ringTextId = `ring-${tier}`
+        const ringTextId = `ring-${tree}`
         // Circle path for ring text. Drawn clockwise starting at 9 o'clock
         // so the text reads naturally along the top arc.
         const ringTextPath =
@@ -261,52 +244,52 @@ export const TierBadgeCard = forwardRef<SVGSVGElement, TierBadgeCardProps>(
                 role="img"
                 aria-label={
                     earnedAt
-                        ? `${label} tier badge for ${safeName}, earned ${dateStr}. Badge ID ${badgeId}.`
-                        : `${label} tier badge for ${safeName}. Badge ID ${badgeId}.`
+                        ? `${label} skill-tree badge for ${safeName}, earned ${dateStr}. Badge ID ${badgeId}.`
+                        : `${label} skill-tree badge for ${safeName}. Badge ID ${badgeId}.`
                 }
             >
                 <defs>
                     {/* ── Aurora field ──────────────────────────────────── */}
-                    <linearGradient id={`bg-${tier}`} x1="0" y1="0" x2="0" y2="1">
+                    <linearGradient id={`bg-${tree}`} x1="0" y1="0" x2="0" y2="1">
                         <stop offset="0" stopColor={theme.bg1} />
                         <stop offset="0.6" stopColor={theme.bg2} />
                         <stop offset="1" stopColor="#000000" />
                     </linearGradient>
                     {/* Three overlapping radial gradients give the aurora
                         a sense of depth without painting a busy texture. */}
-                    <radialGradient id={`aurora-1-${tier}`} cx="0.18" cy="0.18" r="0.55">
+                    <radialGradient id={`aurora-1-${tree}`} cx="0.18" cy="0.18" r="0.55">
                         <stop offset="0" stopColor={theme.accent} stopOpacity="0.34" />
                         <stop offset="1" stopColor={theme.accent} stopOpacity="0" />
                     </radialGradient>
-                    <radialGradient id={`aurora-2-${tier}`} cx="0.82" cy="0.30" r="0.55">
+                    <radialGradient id={`aurora-2-${tree}`} cx="0.82" cy="0.30" r="0.55">
                         <stop offset="0" stopColor={theme.accent2} stopOpacity="0.28" />
                         <stop offset="1" stopColor={theme.accent2} stopOpacity="0" />
                     </radialGradient>
-                    <radialGradient id={`aurora-3-${tier}`} cx="0.5" cy={`${(MEDAL_CY / H).toFixed(3)}`} r="0.5">
+                    <radialGradient id={`aurora-3-${tree}`} cx="0.5" cy={`${(MEDAL_CY / H).toFixed(3)}`} r="0.5">
                         <stop offset="0" stopColor={theme.accentLight} stopOpacity="0.22" />
                         <stop offset="0.65" stopColor={theme.accent} stopOpacity="0.05" />
                         <stop offset="1" stopColor={theme.accent} stopOpacity="0" />
                     </radialGradient>
 
                     {/* ── Medallion fills ───────────────────────────────── */}
-                    <radialGradient id={`disc-${tier}`} cx="0.5" cy="0.32" r="0.78">
+                    <radialGradient id={`disc-${tree}`} cx="0.5" cy="0.32" r="0.78">
                         <stop offset="0" stopColor="rgba(255,255,255,0.20)" />
                         <stop offset="0.55" stopColor="rgba(255,255,255,0.04)" />
                         <stop offset="1" stopColor="rgba(0,0,0,0.55)" />
                     </radialGradient>
-                    <linearGradient id={`ring-${tier}`} x1="0" y1="0" x2="0" y2="1">
+                    <linearGradient id={`ring-${tree}`} x1="0" y1="0" x2="0" y2="1">
                         <stop offset="0" stopColor={theme.accentLight} />
                         <stop offset="0.5" stopColor={theme.accent} />
                         <stop offset="1" stopColor={theme.accentDim} />
                     </linearGradient>
-                    <linearGradient id={`shine-${tier}`} x1="0" y1="0" x2="1" y2="1">
+                    <linearGradient id={`shine-${tree}`} x1="0" y1="0" x2="1" y2="1">
                         <stop offset="0" stopColor="rgba(255,255,255,0.55)" />
                         <stop offset="0.45" stopColor="rgba(255,255,255,0.05)" />
                         <stop offset="1" stopColor="rgba(255,255,255,0)" />
                     </linearGradient>
 
                     {/* ── Dot-grid + holographic patterns ───────────────── */}
-                    <pattern id={`dots-${tier}`} x="0" y="0" width="14" height="14" patternUnits="userSpaceOnUse">
+                    <pattern id={`dots-${tree}`} x="0" y="0" width="14" height="14" patternUnits="userSpaceOnUse">
                         <circle cx="1" cy="1" r="0.85" fill={theme.accentLight} fillOpacity="0.07" />
                     </pattern>
 
@@ -314,11 +297,11 @@ export const TierBadgeCard = forwardRef<SVGSVGElement, TierBadgeCardProps>(
                 </defs>
 
                 {/* ── Layer 1: aurora background ──────────────────────────── */}
-                <rect x="0" y="0" width={W} height={H} fill={`url(#bg-${tier})`} />
-                <rect x="0" y="0" width={W} height={H} fill={`url(#dots-${tier})`} />
-                <rect x="0" y="0" width={W} height={H} fill={`url(#aurora-1-${tier})`} />
-                <rect x="0" y="0" width={W} height={H} fill={`url(#aurora-2-${tier})`} />
-                <rect x="0" y="0" width={W} height={H} fill={`url(#aurora-3-${tier})`} />
+                <rect x="0" y="0" width={W} height={H} fill={`url(#bg-${tree})`} />
+                <rect x="0" y="0" width={W} height={H} fill={`url(#dots-${tree})`} />
+                <rect x="0" y="0" width={W} height={H} fill={`url(#aurora-1-${tree})`} />
+                <rect x="0" y="0" width={W} height={H} fill={`url(#aurora-2-${tree})`} />
+                <rect x="0" y="0" width={W} height={H} fill={`url(#aurora-3-${tree})`} />
 
                 {/* ── Layer 2: card frame ─────────────────────────────────── */}
                 <rect
@@ -345,12 +328,13 @@ export const TierBadgeCard = forwardRef<SVGSVGElement, TierBadgeCardProps>(
                 />
 
                 {/* ── Layer 3: top metadata strip ─────────────────────────── */}
-                {/* Tier chip — left */}
+                {/* Tree chip — left. Width auto-sized to fit longer tree
+                    names like "SELF-CUSTODY" without truncation. */}
                 <g transform={`translate(48 56)`}>
                     <rect
                         x="0"
                         y="0"
-                        width="116"
+                        width={Math.max(150, theme.chipText.length * 7.2)}
                         height="28"
                         rx="14"
                         fill="rgba(0,0,0,0.35)"
@@ -368,7 +352,7 @@ export const TierBadgeCard = forwardRef<SVGSVGElement, TierBadgeCardProps>(
                         fontSize="11"
                         letterSpacing="3"
                     >
-                        TIER {theme.roman}
+                        {theme.chipText}
                     </text>
                 </g>
                 {/* Badge ID — right */}
@@ -453,7 +437,7 @@ export const TierBadgeCard = forwardRef<SVGSVGElement, TierBadgeCardProps>(
                     cx={CX}
                     cy={MEDAL_CY}
                     r={MEDAL_R_OUTER}
-                    fill={`url(#ring-${tier})`}
+                    fill={`url(#ring-${tree})`}
                 />
                 {/* Inner darker base under the glass */}
                 <circle
@@ -508,7 +492,7 @@ export const TierBadgeCard = forwardRef<SVGSVGElement, TierBadgeCardProps>(
                     cx={CX}
                     cy={MEDAL_CY}
                     r={MEDAL_R_DISC}
-                    fill={`url(#disc-${tier})`}
+                    fill={`url(#disc-${tree})`}
                 />
                 {/* Disc highlight crescent — top-left arc that gives the glass life */}
                 <path
@@ -532,9 +516,9 @@ export const TierBadgeCard = forwardRef<SVGSVGElement, TierBadgeCardProps>(
                     opacity="0.35"
                 />
 
-                {/* Tier-specific glyph */}
+                {/* Compass medallion glyph (shared across all trees). */}
                 <g transform={`translate(${CX} ${MEDAL_CY})`}>
-                    <TierGlyph tier={tier} accent={theme.accent} glyph={theme.accentLight} />
+                    <TreeGlyph accent={theme.accent} glyph={theme.accentLight} />
                 </g>
 
                 {/* Holographic shine across the medallion */}
@@ -542,7 +526,7 @@ export const TierBadgeCard = forwardRef<SVGSVGElement, TierBadgeCardProps>(
                     cx={CX}
                     cy={MEDAL_CY}
                     r={MEDAL_R_OUTER}
-                    fill={`url(#shine-${tier})`}
+                    fill={`url(#shine-${tree})`}
                     opacity="0.45"
                 />
 

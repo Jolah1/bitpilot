@@ -13,8 +13,8 @@ import { useIsTechReal } from '../lib/runtime'
 import {
     MISSIONS,
     MISSION_COUNT,
-    TIERS,
-    tierFor,
+    TREES,
+    treeFor,
     type Badge,
     type MissionDef,
 } from '../lib/types'
@@ -48,8 +48,8 @@ import {
     signNostrProfile,
     signNostrTextNote,
 } from '../lib/crypto'
-// Badge modals only render after a tier completes. Lazy-load so the
-// first ~10 missions (where no badge can be earned yet) don't pay for
+// Badge modals only render after a tree completes. Lazy-load so the
+// first few missions (where no badge can be earned yet) don't pay for
 // the SVG renderer + PNG rasteriser + share UI.
 const BadgeCelebrationModal = lazy(() =>
     import('../components/BadgeCelebrationModal').then((m) => ({
@@ -78,7 +78,7 @@ interface DoOutcome {
  * from `/api/participants/me` on mount.
  *
  * Mobile-first: padding shrinks on small viewports, primary action button
- * stays visible (no fixed widths that overflow), ProgressRail is tier-based
+ * stays visible (no fixed widths that overflow), ProgressRail is tree-based
  * not per-mission so 51 missions don't pile up into invisible slivers.
  */
 export default function LearnerView({ participantId }: { participantId: string }) {
@@ -107,7 +107,7 @@ export default function LearnerView({ participantId }: { participantId: string }
 
     const [completedMissions, setCompletedMissions] = useState<number[]>([])
     const [badges, setBadges] = useState<Badge[]>([])
-    // Tier key of the most recently unlocked badge that we haven't yet
+    // Tree key of the most recently unlocked badge that we haven't yet
     // shown a celebration for. `null` once dismissed. Persists across
     // the (missionIdx, phase) state churn that resets per-mission UI.
     const [justEarnedBadge, setJustEarnedBadge] = useState<Badge | null>(null)
@@ -203,14 +203,14 @@ export default function LearnerView({ participantId }: { participantId: string }
             resetForNext()
         }
         // Refresh badges and surface any newly-earned one. We do this even
-        // when the mission isn't the last in its tier (cheap call, simpler
-        // than gating on tier boundaries here).
+        // when the mission isn't the last in its tree (cheap call, simpler
+        // than gating on tree membership here).
         ;(async () => {
             try {
                 const next = await api.getMyBadges()
                 setBadges((prev) => {
                     const freshlyEarned = next.find(
-                        (b) => b.earned && !prev.find((p) => p.tier === b.tier)?.earned,
+                        (b) => b.earned && !prev.find((p) => p.tree === b.tree)?.earned,
                     )
                     if (freshlyEarned) setJustEarnedBadge(freshlyEarned)
                     return next
@@ -543,7 +543,7 @@ export default function LearnerView({ participantId }: { participantId: string }
         setLoading(false)
     }
 
-    // Modals rendered outside the screen ternary so the Captain-tier
+    // Modals rendered outside the screen ternary so the Sovereignty-tree
     // celebration still fires on top of the FinishedScreen — earlier
     // versions returned FinishedScreen before the modal could render,
     // and the final celebration was silently swallowed.
@@ -781,12 +781,15 @@ function navButtonStyle(enabled: boolean): CSSProperties {
 }
 
 /**
- * Tier-grouped progress rail. Shows 5 stacked bars (one per tier), with
- * a sub-line showing the current mission within the active tier.
+ * Tree-grouped progress rail. Shows 8 stacked bars (one per skill tree),
+ * with a sub-line showing which tree the current mission belongs to.
  *
  * Why not 51 per-mission ticks? At 51 missions, each one would be 6-7px
- * wide on mobile — invisible, useless. Tier rails communicate progress in
- * a way you can read at a glance.
+ * wide on mobile — invisible, useless. Tree rails communicate progress
+ * in a way you can read at a glance.
+ *
+ * Trees aren't contiguous mission ranges, so progress per tree is
+ * computed by membership: `t.missions` contains the ids that belong.
  */
 function ProgressRail({
     missionIdx,
@@ -795,7 +798,7 @@ function ProgressRail({
     missionIdx: number
     completed: number[]
 }) {
-    const currentTier = tierFor(missionIdx)
+    const currentTree = treeFor(missionIdx)
     return (
         <nav aria-label="Mission progress" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <ol
@@ -804,20 +807,21 @@ function ProgressRail({
                     margin: 0,
                     padding: 0,
                     display: 'grid',
-                    gridTemplateColumns: `repeat(${TIERS.length}, 1fr)`,
+                    gridTemplateColumns: `repeat(${TREES.length}, 1fr)`,
                     gap: 4,
                 }}
             >
-                {TIERS.map((t) => {
-                    const [lo, hi] = t.range
-                    const total = hi - lo + 1
-                    const doneInTier = completed.filter((m) => m >= lo && m <= hi).length
-                    const isActive = missionIdx >= lo && missionIdx <= hi
-                    const pct = isActive
-                        ? Math.max(((missionIdx - lo + (doneInTier === missionIdx - lo + 1 ? 1 : 0.4)) / total) * 100, 8)
-                        : doneInTier === total
+                {TREES.map((t) => {
+                    const total = t.missions.length
+                    const doneInTree = completed.filter((m) => t.missions.includes(m)).length
+                    const isActive = t.key === currentTree.key
+                    const pct = total === 0
+                        ? 0
+                        : doneInTree === total
                           ? 100
-                          : (doneInTier / total) * 100
+                          : isActive
+                            ? Math.max((doneInTree / total) * 100, 8)
+                            : (doneInTree / total) * 100
                     return (
                         <li key={t.key}>
                             <div
@@ -828,7 +832,7 @@ function ProgressRail({
                                     background: 'var(--border)',
                                     overflow: 'hidden',
                                 }}
-                                title={`${t.label}: ${doneInTier}/${total}`}
+                                title={`${t.label}: ${doneInTree}/${total}`}
                             >
                                 <div
                                     style={{
@@ -837,7 +841,7 @@ function ProgressRail({
                                         width: `${pct}%`,
                                         background: isActive
                                             ? 'var(--gradient-bitcoin)'
-                                            : doneInTier === total
+                                            : doneInTree === total
                                               ? 'var(--success)'
                                               : 'var(--border-strong)',
                                         transition: 'width 0.3s ease',
@@ -853,8 +857,6 @@ function ProgressRail({
                                     fontWeight: isActive ? 700 : 500,
                                     letterSpacing: '0.04em',
                                     textTransform: 'uppercase',
-                                    // Hide labels on very narrow viewports to avoid wrapping;
-                                    // the title attribute still gives the info.
                                     whiteSpace: 'nowrap',
                                     overflow: 'hidden',
                                     textOverflow: 'ellipsis',
@@ -881,15 +883,15 @@ function ProgressRail({
                     Mission {missionIdx}/{MISSION_COUNT - 1}
                 </span>
                 <span aria-hidden="true">·</span>
-                <span>{currentTier.label} tier</span>
+                <span>{currentTree.label} tree</span>
             </div>
         </nav>
     )
 }
 
 /**
- * Five tier-badge medallions, one per learning band. Filled = earned (the
- * learner finished every mission in the tier); outlined = locked, with a
+ * Eight tree-badge medallions, one per skill tree. Filled = earned (the
+ * learner finished every mission in the tree); outlined = locked, with a
  * "n/m" counter showing progress toward the unlock.
  *
  * Renders nothing on first paint before `getMyBadges()` resolves, so the
@@ -905,7 +907,7 @@ function BadgesStrip({
     if (badges.length === 0) return null
     return (
         <section
-            aria-label="Tier badges"
+            aria-label="Tree badges"
             style={{
                 display: 'grid',
                 gridTemplateColumns: `repeat(${badges.length}, 1fr)`,
@@ -914,15 +916,15 @@ function BadgesStrip({
             }}
         >
             {badges.map((b) => {
-                const tierMeta = TIERS.find((t) => t.key === b.tier)
-                const label = tierMeta?.label ?? b.tier
+                const treeMeta = TREES.find((t) => t.key === b.tree)
+                const label = treeMeta?.label ?? b.tree
                 const interactive = b.earned
                 const title = interactive
                     ? `${label} earned · ${b.required}/${b.required} missions · click to share`
                     : `${label} locked · ${b.completed}/${b.required} missions`
                 return (
                     <div
-                        key={b.tier}
+                        key={b.tree}
                         title={title}
                         aria-label={title}
                         role={interactive ? 'button' : undefined}
@@ -953,7 +955,7 @@ function BadgesStrip({
                             cursor: interactive ? 'pointer' : 'default',
                         }}
                     >
-                        <TierProgressionMark tier={b.tier} earned={b.earned} size={22} />
+                        <TierProgressionMark earned={b.earned} size={22} />
                         <span
                             style={{
                                 fontSize: 9,
@@ -1002,7 +1004,7 @@ function MissionHeader({ mission }: { mission: MissionDef }) {
                   : mission.do.kind === 'onchain-signet'
                     ? { label: 'Signet', tone: 'green' as const }
                     : null
-    const tier = tierFor(mission.id)
+    const tree = treeFor(mission.id)
 
     return (
         <header
@@ -1043,7 +1045,7 @@ function MissionHeader({ mission }: { mission: MissionDef }) {
                     }}
                 >
                     <span style={{ ...labelStyle, fontSize: 10 }}>
-                        #{mission.id} · {tier.label}
+                        #{mission.id} · {tree.label}
                     </span>
                     <span style={{ ...chip(techTone(mission.tech)), fontSize: 10 }}>
                         {mission.topic}
@@ -1771,8 +1773,8 @@ function FinishedScreen() {
                     maxWidth: 480,
                 }}
             >
-                51 missions. Five tiers. You used Bitcoin, Lightning, Nostr, and eCash for real, and you actually understand what each one
-                does. That puts you ahead of about 99% of people on earth.
+                51 missions across eight skill trees. You used Bitcoin, Lightning, Nostr, and eCash for real, and you actually understand
+                what each one does. That puts you ahead of about 99% of people on earth.
             </p>
             <ul
                 style={{
@@ -1790,7 +1792,7 @@ function FinishedScreen() {
                     textAlign: 'left',
                 }}
             >
-                {TIERS.map((t) => (
+                {TREES.map((t) => (
                     <li
                         key={t.key}
                         style={{
@@ -1806,7 +1808,7 @@ function FinishedScreen() {
                         </span>
                         <span style={{ flex: 1 }}>
                             <strong style={{ color: 'var(--text)' }}>{t.label}</strong> ·{' '}
-                            {t.range[1] - t.range[0] + 1} missions
+                            {t.missions.length} mission{t.missions.length === 1 ? '' : 's'}
                         </span>
                     </li>
                 ))}

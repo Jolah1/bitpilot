@@ -18,45 +18,66 @@ export interface Session {
 export type Tech = 'bitcoin' | 'lightning' | 'nostr' | 'ecash'
 
 /**
- * Five learning tiers. Mission numbers map deterministically into these
- * bands (see `tierFor()`), so they're not stored per-mission — the tier
- * UI derives them from the id.
+ * Eight skill trees. Each mission belongs to exactly one tree — see
+ * `Tree::from_mission` in backend/src/models/mission.rs (the only source
+ * of truth). The frontend mirrors that mapping in `TREES` below so the UI
+ * can group/colour without a server roundtrip.
+ *
+ * Trees are peers, not stages — learners can pick any tree to start with,
+ * though missions within a tree are taken in order.
  */
-export type Tier = 'novice' | 'apprentice' | 'pilot' | 'navigator' | 'captain'
+export type Tree =
+    | 'money'
+    | 'bitcoin'
+    | 'lightning'
+    | 'nostr'
+    | 'ecash'
+    | 'self-custody'
+    | 'privacy'
+    | 'sovereignty'
 
-export interface TierMeta {
-    key: Tier
+export interface TreeMeta {
+    key: Tree
     label: string
-    range: [number, number]
+    /** Mission ids in this tree, in pedagogical order. */
+    missions: number[]
     tagline: string
 }
 
-export const TIERS: TierMeta[] = [
-    { key: 'novice',     label: 'Novice',     range: [0, 10],  tagline: 'Bitcoin from zero. No prior knowledge.' },
-    { key: 'apprentice', label: 'Apprentice', range: [11, 20], tagline: 'Keys, addresses, sending and receiving for real.' },
-    { key: 'pilot',      label: 'Pilot',      range: [21, 30], tagline: 'Lightning + Nostr — the everyday tools.' },
-    { key: 'navigator',  label: 'Navigator',  range: [31, 40], tagline: 'eCash, zaps, NIP-05 and the wider ecosystem.' },
-    { key: 'captain',    label: 'Captain',    range: [41, 50], tagline: 'Sovereignty: signet on-chain, security, the long game.' },
+/**
+ * Mission membership of each tree. Must agree with `Tree::from_mission`
+ * in backend/src/models/mission.rs — backend is source of truth, this
+ * mirror is here so the UI can group/render without a network call.
+ */
+export const TREES: TreeMeta[] = [
+    { key: 'money',        label: 'Money 101',    missions: [0, 1, 2, 5, 9, 10],                           tagline: 'What money is, why Bitcoin exists, sats vs bitcoin.' },
+    { key: 'bitcoin',      label: 'Bitcoin',      missions: [6, 7, 8, 18, 19, 40, 48, 49],                 tagline: 'Blocks, mempool, miners, UTXOs, networks, L2s.' },
+    { key: 'lightning',    label: 'Lightning',    missions: [21, 22, 23, 24, 25, 38, 39],                  tagline: 'Channels, invoices, Lightning addresses, routing.' },
+    { key: 'nostr',        label: 'Nostr',        missions: [13, 14, 15, 16, 17, 26, 27, 28, 29, 30, 35, 36, 37], tagline: 'Identity without a server. Notes, profiles, zaps.' },
+    { key: 'ecash',        label: 'eCash',        missions: [31, 32, 33, 34],                              tagline: 'Bearer money backed by a mint. Cashu tokens.' },
+    { key: 'self-custody', label: 'Self-custody', missions: [3, 4, 11, 12, 20, 41, 43, 44, 45],            tagline: 'Wallets, seeds, addresses, hardware, multisig.' },
+    { key: 'privacy',      label: 'Privacy',      missions: [46],                                          tagline: 'The chain is public — act accordingly.' },
+    { key: 'sovereignty',  label: 'Sovereignty',  missions: [42, 47, 50],                                  tagline: 'Signet on-chain, your own node, the long game.' },
 ]
 
-/** Returns the tier a mission id belongs to. */
-export function tierFor(missionId: number): TierMeta {
-    return TIERS.find((t) => missionId >= t.range[0] && missionId <= t.range[1]) ?? TIERS[0]
+/** Returns the tree a mission id belongs to. */
+export function treeFor(missionId: number): TreeMeta {
+    return TREES.find((t) => t.missions.includes(missionId)) ?? TREES[0]
 }
 
 /**
- * Tier badge as returned by GET /api/participants/me/badges.
+ * Tree badge as returned by GET /api/participants/me/badges.
  *
- * One per learning tier (Novice → Captain). Earned when every mission in
- * the tier's range has been completed. `earned_at` is unix-seconds of the
- * latest completion in the tier (the moment the badge actually unlocked),
+ * One per skill tree (8 total). Earned when every mission in the tree
+ * has been completed. `earned_at` is unix-seconds of the latest
+ * completion in the tree (the moment the badge actually unlocked),
  * `null` while still in progress.
  *
  * Derived server-side from `mission_completions`, so badges always agree
- * with the completion list — no drift, no migration when ranges shift.
+ * with the completion list — no drift, no migration when membership shifts.
  */
 export interface Badge {
-    tier: Tier
+    tree: Tree
     completed: number
     required: number
     earned: boolean
@@ -65,7 +86,7 @@ export interface Badge {
 
 // ─── Frontend mission catalogue ──────────────────────────────────────────────
 // Numbers MUST line up with `Mission::all()` in backend/src/models/mission.rs.
-// The backend is source of truth for `id`, `tech`, `reward`, and `simulated`.
+// The backend is source of truth for `id`, `tree`, and `simulated`.
 // The frontend owns the *teaching* copy: learn body, quiz, do-step prompt.
 
 export interface QuizOption {
@@ -185,20 +206,18 @@ function knowledge(o: KnowledgeOpts): MissionDef {
 }
 
 /**
- * The full BitPilot curriculum: 51 missions (0..=50) across 5 tiers.
+ * The full BitPilot curriculum: 51 missions (0..=50) across 8 skill trees.
  *
- * Coverage:
- *   Novice (0-10):   what bitcoin is, sats, wallets, addresses, fees, philosophy
- *   Apprentice (11-20): seed phrases, keys, on-chain receive, Nostr identity
- *   Pilot (21-30):   Lightning + Nostr fundamentals, hands-on missions
- *   Navigator (31-40): zaps, NIP-05, lightning addresses, eCash, profile
- *   Captain (41-50): signet on-chain transactions, security, sovereignty
+ * Mission ids are stable across tree reshuffles — they don't renumber when
+ * a mission moves to a different tree. The catalogue below is ordered by
+ * id for readability; tree grouping happens via `TREES` above.
  *
- * Backend rewards are derived from tier — see backend/src/models/mission.rs.
+ * See `Tree::from_mission` in backend/src/models/mission.rs for the
+ * authoritative mission→tree mapping.
  */
 export const MISSIONS: MissionDef[] = [
     // ═════════════════════════════════════════════════════════════════════
-    // TIER 1 — NOVICE (0-10) — 10 sats each
+    // Missions 0-10 — Money 101 + Bitcoin protocol + Self-custody intro
     // ═════════════════════════════════════════════════════════════════════
     knowledge({
         id: 0,
@@ -445,7 +464,7 @@ export const MISSIONS: MissionDef[] = [
     }),
 
     // ═════════════════════════════════════════════════════════════════════
-    // TIER 2 — APPRENTICE (11-20) — 21 sats each
+    // Missions 11-20 — Seed phrases, Nostr identity, UTXOs, security basics
     // Seed phrases, keys, addresses, Nostr identity
     // ═════════════════════════════════════════════════════════════════════
     {
@@ -682,8 +701,7 @@ export const MISSIONS: MissionDef[] = [
     }),
 
     // ═════════════════════════════════════════════════════════════════════
-    // TIER 3 — PILOT (21-30) — 33 sats each
-    // Lightning + Nostr fundamentals, hands-on
+    // Missions 21-30 — Lightning fundamentals + Nostr publishing
     // ═════════════════════════════════════════════════════════════════════
     knowledge({
         id: 21,
@@ -943,8 +961,7 @@ export const MISSIONS: MissionDef[] = [
     },
 
     // ═════════════════════════════════════════════════════════════════════
-    // TIER 4 — NAVIGATOR (31-40) — 50 sats each
-    // eCash, zaps, NIP-05, profiles, the wider ecosystem
+    // Missions 31-40 — eCash, zaps, NIP-05, L2 landscape
     // ═════════════════════════════════════════════════════════════════════
     knowledge({
         id: 31,
@@ -1188,8 +1205,7 @@ export const MISSIONS: MissionDef[] = [
     }),
 
     // ═════════════════════════════════════════════════════════════════════
-    // TIER 5 — CAPTAIN (41-50) — 100 sats each
-    // Sovereignty, signet on-chain, security, the long game
+    // Missions 41-50 — Hardware wallets, signet on-chain, privacy, finale
     // ═════════════════════════════════════════════════════════════════════
     {
         id: 41,

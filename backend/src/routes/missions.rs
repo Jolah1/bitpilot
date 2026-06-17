@@ -9,7 +9,7 @@ use std::sync::Arc;
 
 use crate::auth::{require_participant, AuthedParticipant};
 use crate::error::AppError;
-use crate::models::mission::DoKind;
+use crate::models::mission::{DoKind, Tree};
 use crate::models::{now, Mission, Participant};
 use crate::routes::participants::load_participant;
 use crate::state::AppState;
@@ -39,10 +39,10 @@ async fn list_missions(State(state): State<Arc<AppState>>) -> Json<Vec<Mission>>
         if !m.simulated {
             continue;
         }
-        m.simulated = match m.tech.as_str() {
-            "lightning" => state.lightning.simulated,
-            "ecash" => state.ecash.simulated,
-            _ => m.simulated, // nostr/bitcoin sim flag (e.g. seed words, zap stub) stays as-is
+        m.simulated = match m.tree {
+            Tree::Lightning => state.lightning.simulated,
+            Tree::Ecash => state.ecash.simulated,
+            _ => m.simulated,
         };
     }
     Json(missions)

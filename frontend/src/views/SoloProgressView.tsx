@@ -4,8 +4,8 @@
  * Replaces the FacilitatorDashboard for solo learners — the multi-participant
  * table layout doesn't make sense when there's only one person in the
  * session. This view focuses on the individual: total missions completed,
- * tiers earned, current target, and clickable tier badges that open the
- * share modal.
+ * skill trees earned, current target, and clickable tree badges that open
+ * the share modal.
  */
 import { useEffect, useState } from 'react'
 import { TierProgressionMark } from '../components/TierProgressionMark'
@@ -13,8 +13,8 @@ import { api } from '../lib/api'
 import {
     MISSIONS,
     MISSION_COUNT,
-    TIERS,
-    tierFor,
+    TREES,
+    treeFor,
     type Badge,
     type Participant,
 } from '../lib/types'
@@ -50,7 +50,7 @@ export default function SoloProgressView({ participantId }: { participantId: str
     const completed = participant?.completed_missions ?? []
     const earnedBadges = badges.filter((b) => b.earned).length
     const currentMission = participant?.current_mission ?? 0
-    const currentTier = tierFor(currentMission)
+    const currentTree = treeFor(currentMission)
     const currentMissionDef = MISSIONS[Math.min(currentMission, MISSION_COUNT - 1)]
 
     return (
@@ -118,15 +118,15 @@ export default function SoloProgressView({ participantId }: { participantId: str
             >
                 <Stat label="Missions" value={`${completed.length}/${MISSION_COUNT}`} />
                 <Stat
-                    label="Tiers earned"
-                    value={`${earnedBadges}/${TIERS.length}`}
+                    label="Trees earned"
+                    value={`${earnedBadges}/${TREES.length}`}
                     accent={earnedBadges > 0}
                 />
-                <Stat label="Current tier" value={currentTier.label} />
+                <Stat label="Current tree" value={currentTree.label} />
             </section>
 
-            {/* Tier progress bars */}
-            <section aria-label="Tier progress" style={{ ...card, padding: 16 }}>
+            {/* Tree progress bars */}
+            <section aria-label="Tree progress" style={{ ...card, padding: 16 }}>
                 <h2
                     style={{
                         margin: 0,
@@ -136,15 +136,14 @@ export default function SoloProgressView({ participantId }: { participantId: str
                         marginBottom: 12,
                     }}
                 >
-                    Tier progress
+                    Skill-tree progress
                 </h2>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    {TIERS.map((t) => {
-                        const [lo, hi] = t.range
-                        const total = hi - lo + 1
-                        const done = completed.filter((m) => m >= lo && m <= hi).length
-                        const isActive = currentMission >= lo && currentMission <= hi
-                        const pct = (done / total) * 100
+                    {TREES.map((t) => {
+                        const total = t.missions.length
+                        const done = completed.filter((m) => t.missions.includes(m)).length
+                        const isActive = t.key === currentTree.key
+                        const pct = total === 0 ? 0 : (done / total) * 100
                         return (
                             <div key={t.key}>
                                 <div
@@ -175,7 +174,7 @@ export default function SoloProgressView({ participantId }: { participantId: str
                                             fontSize: 11,
                                         }}
                                     >
-                                        {done}/{total} · M{lo}–M{hi}
+                                        {done}/{total}
                                     </span>
                                 </div>
                                 <div
@@ -209,7 +208,7 @@ export default function SoloProgressView({ participantId }: { participantId: str
             </section>
 
             {/* Badge gallery */}
-            <section aria-label="Tier badges" style={{ ...card, padding: 16 }}>
+            <section aria-label="Tree badges" style={{ ...card, padding: 16 }}>
                 <h2
                     style={{
                         margin: 0,
@@ -230,7 +229,7 @@ export default function SoloProgressView({ participantId }: { participantId: str
                     }}
                 >
                     {earnedBadges === 0
-                        ? `Finish your first ${TIERS[0].range[1] + 1} missions to unlock the ${TIERS[0].label} medallion.`
+                        ? `Finish every lesson in a skill tree to unlock its medallion. ${TREES[0].label} is ${TREES[0].missions.length} missions.`
                         : 'Tap an earned badge to download or share it.'}
                 </p>
                 <div
@@ -241,20 +240,20 @@ export default function SoloProgressView({ participantId }: { participantId: str
                     }}
                 >
                     {(badges.length > 0 ? badges : skeletonBadges()).map((b) => {
-                        const tierMeta = TIERS.find((t) => t.key === b.tier)
-                        const tierLabel = tierMeta?.label ?? b.tier
+                        const treeMeta = TREES.find((t) => t.key === b.tree)
+                        const treeLabel = treeMeta?.label ?? b.tree
                         const interactive = b.earned
                         return (
                             <button
-                                key={b.tier}
+                                key={b.tree}
                                 type="button"
                                 disabled={!interactive}
                                 className={interactive ? 'bp-tile' : undefined}
                                 onClick={interactive ? () => setSharing(b) : undefined}
                                 aria-label={
                                     interactive
-                                        ? `Share ${tierLabel} badge`
-                                        : `${tierLabel} badge locked, ${b.completed} of ${b.required} missions complete`
+                                        ? `Share ${treeLabel} badge`
+                                        : `${treeLabel} badge locked, ${b.completed} of ${b.required} missions complete`
                                 }
                                 style={{
                                     background: b.earned
@@ -275,7 +274,7 @@ export default function SoloProgressView({ participantId }: { participantId: str
                                     fontFamily: 'inherit',
                                 }}
                             >
-                                <TierProgressionMark tier={b.tier} earned={b.earned} size={44} />
+                                <TierProgressionMark earned={b.earned} size={44} />
                                 <span
                                     style={{
                                         fontSize: 12,
@@ -285,7 +284,7 @@ export default function SoloProgressView({ participantId }: { participantId: str
                                         color: b.earned ? 'var(--bitcoin)' : 'var(--muted)',
                                     }}
                                 >
-                                    {tierLabel}
+                                    {treeLabel}
                                 </span>
                                 <span
                                     style={{
@@ -397,10 +396,10 @@ function Stat({
 
 /** Placeholder cards while badges load, so the grid doesn't pop into existence. */
 function skeletonBadges(): Badge[] {
-    return TIERS.map((t) => ({
-        tier: t.key,
+    return TREES.map((t) => ({
+        tree: t.key,
         completed: 0,
-        required: t.range[1] - t.range[0] + 1,
+        required: t.missions.length,
         earned: false,
         earned_at: null,
     }))

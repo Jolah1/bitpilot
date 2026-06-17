@@ -3,7 +3,7 @@ import { BrandMark } from '../components/BrandMark'
 import { ThemeToggle } from '../components/ThemeToggle'
 import type { Theme } from '../lib/theme'
 import { useRuntime } from '../lib/runtime'
-import { TIERS } from '../lib/types'
+import { TREES } from '../lib/types'
 import { card, chip, ghostButton, primaryButton } from '../lib/ui'
 
 // ─── Landing ─────────────────────────────────────────────────────────────────
@@ -13,7 +13,7 @@ import { card, chip, ghostButton, primaryButton } from '../lib/ui'
 //
 //   1. Hero            — promise the transformation in two sentences.
 //   2. How It Works    — show the 4-step loop so the offer feels concrete.
-//   3. Your Journey    — five tiers in plain language (no NIP-05, no jargon).
+//   3. Your Journey    — eight skill trees in plain language (no NIP-05, no jargon).
 //   4. Why this works  — emotional section: name the failure mode of video-
 //                        based learning and contrast it.
 //   5. Safe by design  — checklist that defuses the "is this real money?"
@@ -399,7 +399,7 @@ function HowItWorks() {
         {
             n: '4',
             title: 'Level Up',
-            body: 'Unlock the next tier and take on harder challenges.',
+            body: 'Finish a skill tree, earn the medallion, pick the next one.',
         },
     ]
     return (
@@ -480,24 +480,27 @@ function HowItWorks() {
 // ─── Your Journey ────────────────────────────────────────────────────────────
 
 /**
- * One-word outcome per tier. The old copy was a sentence; on a marketing
- * page this is too dense, especially repeated 5 times in a row. We swap
- * each long sentence for an icon + a single outcome phrase, and rely on
- * the slider to invite exploration instead of dumping it all at once.
+ * One-word outcome per skill tree. The old copy was a sentence; on a
+ * marketing page that's too dense, especially repeated 8 times in a row.
+ * We swap each long sentence for an icon + a single outcome phrase, and
+ * rely on the slider to invite exploration instead of dumping it all at once.
  *
- * Order matches `TIERS` in `types.ts`. If a tier is renamed there, the
+ * Keys match `TREES` in `types.ts`. If a tree is renamed there, the
  * lookup quietly falls through to `t.tagline`.
  */
-interface TierPitch {
+interface TreePitch {
     icon: string
     outcome: string
 }
-const TIER_PITCH: Record<string, TierPitch> = {
-    novice: { icon: '🌱', outcome: 'Bitcoin basics, from zero.' },
-    apprentice: { icon: '🔑', outcome: 'Wallets, keys, and transactions.' },
-    pilot: { icon: '⚡', outcome: 'Lightning and Nostr in real scenarios.' },
-    navigator: { icon: '🧭', outcome: 'eCash, zaps and the wider ecosystem.' },
-    captain: { icon: '🚀', outcome: 'Self-custody and sovereignty.' },
+const TREE_PITCH: Record<string, TreePitch> = {
+    money:          { icon: '💸', outcome: 'What money is and why bitcoin exists.' },
+    bitcoin:        { icon: '₿',  outcome: 'Blocks, fees, miners, the base layer.' },
+    lightning:      { icon: '⚡', outcome: 'Fast, cheap, routable bitcoin payments.' },
+    nostr:          { icon: '🪪', outcome: 'Identity and notes nobody owns but you.' },
+    ecash:          { icon: '🎟️', outcome: 'Private bearer money, redeemable to Lightning.' },
+    'self-custody': { icon: '🔑', outcome: 'Wallets, seeds, hardware, multisig.' },
+    privacy:        { icon: '🕵️', outcome: 'The chain is public — act accordingly.' },
+    sovereignty:    { icon: '🚀', outcome: 'Signet on-chain, your own node, the long game.' },
 }
 
 /**
@@ -530,7 +533,7 @@ function YourJourney() {
             <SectionHeading
                 id="journey-headline"
                 eyebrow="Your journey"
-                title="From beginner to Bitcoin captain."
+                title="Eight skill trees, take them in any order."
             />
 
             <div style={{ position: 'relative' }}>
@@ -553,13 +556,13 @@ function YourJourney() {
                         WebkitOverflowScrolling: 'touch',
                     }}
                 >
-                    {TIERS.map((t, i) => (
+                    {TREES.map((t, i) => (
                         <TierSlide
                             key={t.key}
-                            tier={t}
-                            pitch={TIER_PITCH[t.key]}
+                            tree={t}
+                            pitch={TREE_PITCH[t.key]}
                             index={i + 1}
-                            total={TIERS.length}
+                            total={TREES.length}
                         />
                     ))}
                 </ol>
@@ -578,20 +581,20 @@ function YourJourney() {
                     marginTop: 12,
                 }}
             >
-                Five tiers · short missions · one chapter at a time
+                Eight trees · short missions · pick any starting point
             </p>
         </section>
     )
 }
 
 function TierSlide({
-    tier: t,
+    tree: t,
     pitch,
     index,
     total,
 }: {
-    tier: (typeof TIERS)[number]
-    pitch: TierPitch | undefined
+    tree: (typeof TREES)[number]
+    pitch: TreePitch | undefined
     index: number
     total: number
 }) {
@@ -608,7 +611,7 @@ function TierSlide({
                 gap: 12,
                 minHeight: 200,
             }}
-            aria-label={`Tier ${index} of ${total}: ${t.label}`}
+            aria-label={`Skill tree ${index} of ${total}: ${t.label}`}
         >
             <div
                 aria-hidden="true"
@@ -637,7 +640,7 @@ function TierSlide({
                     fontFamily: 'var(--font-mono)',
                 }}
             >
-                Tier {index} / {total}
+                Tree {index} / {total}
             </div>
             <h3
                 style={{
@@ -689,10 +692,10 @@ function SliderArrows({ onLeft, onRight }: { onLeft: () => void; onRight: () => 
                 marginTop: 4,
             }}
         >
-            <button type="button" onClick={onLeft} style={btn} aria-label="Scroll tiers left">
+            <button type="button" onClick={onLeft} style={btn} aria-label="Scroll trees left">
                 ←
             </button>
-            <button type="button" onClick={onRight} style={btn} aria-label="Scroll tiers right">
+            <button type="button" onClick={onRight} style={btn} aria-label="Scroll trees right">
                 →
             </button>
         </div>

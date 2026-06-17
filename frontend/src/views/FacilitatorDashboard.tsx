@@ -3,17 +3,17 @@ import { useQuery } from '@tanstack/react-query'
 import { isSoloSessionName } from '../App'
 import { BrandMark } from '../components/BrandMark'
 import { QRSessionCard } from '../components/QRJoinFlow'
-import { MISSION_COUNT, TIERS, tierFor, type Participant } from '../lib/types'
+import { MISSION_COUNT, TREES, treeFor, type Participant } from '../lib/types'
 import { fetchSessionProgress } from '../lib/api'
 import { card, chip, ghostButton, techGradient } from '../lib/ui'
 
 /**
- * Facilitator dashboard. Polls /api/sessions/:id every 3s, shows a per-tier
+ * Facilitator dashboard. Polls /api/sessions/:id every 3s, shows a per-tree
  * progress strip for each participant.
  *
  * The pre-51-mission design tried to render a 10-column grid (one per
  * mission). At 51 missions that becomes ~1800px wide — completely broken
- * on every viewport. New design: 5 tier bars per participant, plus a
+ * on every viewport. New design: 8 tree bars per participant, plus a
  * percentage and current-mission tag. Same info, much smaller footprint,
  * works on mobile.
  */
@@ -156,9 +156,9 @@ export default function FacilitatorDashboard({ sessionId }: { sessionId: string 
                 <Stat label="Missions" value={MISSION_COUNT} />
             </section>
 
-            {/* Tier legend */}
+            {/* Tree legend */}
             <section
-                aria-label="Tier legend"
+                aria-label="Tree legend"
                 style={{
                     ...card,
                     padding: 12,
@@ -168,7 +168,7 @@ export default function FacilitatorDashboard({ sessionId }: { sessionId: string 
                     fontSize: 11,
                 }}
             >
-                {TIERS.map((t) => (
+                {TREES.map((t) => (
                     <span
                         key={t.key}
                         style={{
@@ -189,7 +189,7 @@ export default function FacilitatorDashboard({ sessionId }: { sessionId: string 
                                 opacity: 0.85,
                             }}
                         />
-                        {t.label} ({t.range[0]}-{t.range[1]})
+                        {t.label} ({t.missions.length})
                     </span>
                 ))}
             </section>
@@ -309,7 +309,7 @@ function MissionHistogram({ participants }: { participants: Participant[] }) {
     }
     const max = Math.max(1, ...counts)
     const modeIdx = counts.indexOf(max)
-    const modeTier = tierFor(modeIdx)
+    const modeTree = treeFor(modeIdx)
     return (
         <section aria-label="Mission distribution" style={{ ...card, padding: 12 }}>
             <div
@@ -341,14 +341,14 @@ function MissionHistogram({ participants }: { participants: Participant[] }) {
                 >
                     {active} active
                     {finished > 0 && ` · ${finished} finished`}
-                    {active > 0 && ` · most on M${modeIdx} (${modeTier.label})`}
+                    {active > 0 && ` · most on M${modeIdx} (${modeTree.label})`}
                 </span>
             </div>
             {/* At 51 missions a `repeat(MISSION_COUNT, 1fr)` grid produces
                 ~7px columns on a 360px viewport — bars vanish. Wrap in a
                 horizontal scroller with a min-width so each bar gets at
                 least ~10px even on mobile; the inner grid still pays the
-                tier color cue, the scroll lets a touch user investigate. */}
+                tree color cue, the scroll lets a touch user investigate. */}
             <div
                 className="no-scrollbar"
                 style={{
@@ -374,7 +374,7 @@ function MissionHistogram({ participants }: { participants: Participant[] }) {
                     >
                         {counts.map((c, idx) => {
                             const heightPct = c === 0 ? 6 : 6 + (c / max) * 94
-                            const t = tierFor(idx)
+                            const t = treeFor(idx)
                             return (
                                 <div
                                     key={idx}
@@ -422,7 +422,7 @@ function MissionHistogram({ participants }: { participants: Participant[] }) {
 function ParticipantRow({ participant }: { participant: Participant }) {
     const doneCount = participant.completed_missions.length
     const pct = Math.round((doneCount / MISSION_COUNT) * 100)
-    const currentTier = tierFor(participant.current_mission)
+    const currentTree = treeFor(participant.current_mission)
     return (
         <div
             style={{
@@ -475,29 +475,27 @@ function ParticipantRow({ participant }: { participant: Participant }) {
                             whiteSpace: 'nowrap',
                             flexShrink: 0,
                         }}
-                        title={`Currently on mission ${participant.current_mission} (${currentTier.label})`}
+                        title={`Currently on mission ${participant.current_mission} (${currentTree.label})`}
                     >
-                        #{participant.current_mission} · {currentTier.label}
+                        #{participant.current_mission} · {currentTree.label}
                     </span>
                 </div>
-                {/* 5-bar tier strip */}
+                {/* 8-bar tree strip */}
                 <div
                     style={{
                         display: 'grid',
-                        gridTemplateColumns: `repeat(${TIERS.length}, 1fr)`,
+                        gridTemplateColumns: `repeat(${TREES.length}, 1fr)`,
                         gap: 4,
                     }}
-                    aria-label="Per-tier progress"
+                    aria-label="Per-tree progress"
                 >
-                    {TIERS.map((t) => {
-                        const [lo, hi] = t.range
-                        const total = hi - lo + 1
+                    {TREES.map((t) => {
+                        const total = t.missions.length
                         const done = participant.completed_missions.filter(
-                            (m) => m >= lo && m <= hi,
+                            (m) => t.missions.includes(m),
                         ).length
-                        const isActive =
-                            participant.current_mission >= lo && participant.current_mission <= hi
-                        const pctTier = (done / total) * 100
+                        const isActive = t.key === currentTree.key
+                        const pctTree = total === 0 ? 0 : (done / total) * 100
                         return (
                             <div
                                 key={t.key}
@@ -514,7 +512,7 @@ function ParticipantRow({ participant }: { participant: Participant }) {
                                     style={{
                                         position: 'absolute',
                                         inset: 0,
-                                        width: `${pctTier}%`,
+                                        width: `${pctTree}%`,
                                         background:
                                             done === total
                                                 ? techGradient('bitcoin')

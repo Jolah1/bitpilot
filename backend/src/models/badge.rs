@@ -1,53 +1,61 @@
 use serde::{Deserialize, Serialize};
 
-use crate::models::mission::Tier;
+use crate::models::mission::{Mission, Tree};
 
-/// One per tier (5 total). Derived from `mission_completions` on demand —
-/// there's no badge table, so a learner's badges always match their
-/// completions exactly (no drift, no migration when ranges shift).
+/// One per skill tree (8 total). Derived from `mission_completions` on
+/// demand — there's no badge table, so a learner's badges always match
+/// their completions exactly (no drift, no migration when tree membership
+/// shifts).
 ///
-/// `earned_at` is the *latest* completion timestamp in the tier — i.e. the
-/// moment the badge unlocked, not the first mission of the tier.
+/// `earned_at` is the *latest* completion timestamp in the tree — i.e. the
+/// moment the badge unlocked, not the first mission of the tree.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Badge {
-    pub tier: Tier,
+    pub tree: Tree,
     pub completed: u8,
     pub required: u8,
     pub earned: bool,
     pub earned_at: Option<i64>,
 }
 
-/// The fixed 5-tier band layout. Must match `Tier::from_mission` ranges in
-/// `mission.rs`. If you re-band missions, change both places.
-const BANDS: &[(Tier, u8, u8)] = &[
-    (Tier::Novice, 0, 10),
-    (Tier::Apprentice, 11, 20),
-    (Tier::Pilot, 21, 30),
-    (Tier::Navigator, 31, 40),
-    (Tier::Captain, 41, 50),
+/// Display order for the 8 tree badges. The mission membership of each
+/// tree lives in `Tree::from_mission` (single source of truth) — we just
+/// iterate `0..=Mission::LAST` and group by that.
+const TREE_ORDER: &[Tree] = &[
+    Tree::Money,
+    Tree::Bitcoin,
+    Tree::Lightning,
+    Tree::Nostr,
+    Tree::Ecash,
+    Tree::SelfCustody,
+    Tree::Privacy,
+    Tree::Sovereignty,
 ];
 
 impl Badge {
-    /// Build the full 5-badge list from a participant's (mission, completed_at)
-    /// rows. Always returns exactly 5 entries in tier order (Novice → Captain).
+    /// Build the full 8-badge list from a participant's (mission, completed_at)
+    /// rows. Always returns exactly 8 entries in tree order.
     pub fn all_for(completions: &[(u8, i64)]) -> Vec<Badge> {
-        BANDS
+        TREE_ORDER
             .iter()
-            .map(|(tier, lo, hi)| {
-                let in_band: Vec<i64> = completions
+            .map(|&tree| {
+                let mission_ids: Vec<u8> = (Mission::FIRST..=Mission::LAST)
+                    .filter(|n| Tree::from_mission(*n) == tree)
+                    .collect();
+                let required = mission_ids.len() as u8;
+                let in_tree: Vec<i64> = completions
                     .iter()
-                    .filter(|(m, _)| m >= lo && m <= hi)
+                    .filter(|(m, _)| mission_ids.contains(m))
                     .map(|(_, t)| *t)
                     .collect();
-                let required = hi - lo + 1;
-                let completed = in_band.len() as u8;
-                let earned = completed >= required;
+                let completed = in_tree.len() as u8;
+                let earned = required > 0 && completed >= required;
                 Badge {
-                    tier: *tier,
+                    tree,
                     completed,
                     required,
                     earned,
-                    earned_at: if earned { in_band.into_iter().max() } else { None },
+                    earned_at: if earned { in_tree.into_iter().max() } else { None },
                 }
             })
             .collect()
@@ -59,30 +67,45 @@ mod tests {
     use super::*;
 
     #[test]
-    fn empty_completions_yields_five_unearned_badges() {
+    fn empty_completions_yields_eight_unearned_badges() {
         let badges = Badge::all_for(&[]);
-        assert_eq!(badges.len(), 5);
+        assert_eq!(badges.len(), 8);
         assert!(badges.iter().all(|b| !b.earned && b.completed == 0));
     }
 
     #[test]
-    fn full_novice_tier_earns_only_novice() {
-        let completions: Vec<(u8, i64)> = (0..=10).map(|m| (m, 100 + m as i64)).collect();
+    fn full_money_tree_earns_only_money() {
+        // Money tree = missions 0,1,2,5,9,10 (see Tree::from_mission).
+        let money_ids: [u8; 6] = [0, 1, 2, 5, 9, 10];
+        let completions: Vec<(u8, i64)> =
+            money_ids.iter().map(|m| (*m, 100 + *m as i64)).collect();
         let badges = Badge::all_for(&completions);
-        assert!(badges[0].earned);
-        assert_eq!(badges[0].earned_at, Some(110));
-        for b in &badges[1..] {
-            assert!(!b.earned);
+        let money = badges.iter().find(|b| b.tree == Tree::Money).unwrap();
+        assert!(money.earned);
+        assert_eq!(money.earned_at, Some(110));
+        for b in badges.iter().filter(|b| b.tree != Tree::Money) {
+            assert!(!b.earned, "expected {:?} not earned", b.tree);
         }
     }
 
     #[test]
-    fn partial_tier_reports_progress_but_not_earned() {
+    fn partial_tree_reports_progress_but_not_earned() {
         let completions = vec![(0u8, 1_i64), (1, 2), (2, 3)];
         let badges = Badge::all_for(&completions);
-        assert_eq!(badges[0].completed, 3);
-        assert_eq!(badges[0].required, 11);
-        assert!(!badges[0].earned);
-        assert!(badges[0].earned_at.is_none());
+        let money = badges.iter().find(|b| b.tree == Tree::Money).unwrap();
+        assert_eq!(money.completed, 3);
+        assert!(money.required >= 3);
+        assert!(!money.earned);
+        assert!(money.earned_at.is_none());
+    }
+
+    #[test]
+    fn singleton_tree_unlocks_on_one_completion() {
+        // Privacy currently has exactly one mission (46).
+        let badges = Badge::all_for(&[(46u8, 42)]);
+        let privacy = badges.iter().find(|b| b.tree == Tree::Privacy).unwrap();
+        assert!(privacy.earned);
+        assert_eq!(privacy.completed, 1);
+        assert_eq!(privacy.earned_at, Some(42));
     }
 }

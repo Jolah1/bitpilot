@@ -2,7 +2,7 @@
  * Modal that displays the TierBadgeCard and offers download/share actions.
  *
  * Why client-side rasterization: the badge is purely a function of the
- * participant's name, tier, earned-at, and id — no server roundtrip needed.
+ * participant's name, tree, earned-at, and id — no server roundtrip needed.
  * SVG download serializes the in-DOM <svg>; PNG download draws that SVG
  * onto a 1200x1600 offscreen canvas (2x retina) for a crisp social-share
  * image. No third-party libs.
@@ -21,13 +21,16 @@ import { TierBadgeCard, badgeIdFor } from './TierBadgeCard'
 
 const PNG_SCALE = 2 // 2x the 600x800 SVG => 1200x1600 PNG
 
-/** Tier label used in the share text. Title-cased. */
-function tierLabelOf(tier: string): string {
-    return tier[0].toUpperCase() + tier.slice(1)
+/** Tree label used in the share text. Title-cased, hyphens → spaces. */
+function treeLabelOf(tree: string): string {
+    return tree
+        .split('-')
+        .map((part) => part[0].toUpperCase() + part.slice(1))
+        .join('-')
 }
 
-function buildShareText(tier: string, badgeId: string): string {
-    return `I just earned my ${tierLabelOf(tier)} badge on @bitpilot — learning Bitcoin by doing.\n\nBadge ID: ${badgeId}`
+function buildShareText(tree: string, badgeId: string): string {
+    return `I just earned my ${treeLabelOf(tree)} badge on @bitpilot — learning Bitcoin by doing.\n\nBadge ID: ${badgeId}`
 }
 
 export function ShareBadgeModal({
@@ -46,7 +49,7 @@ export function ShareBadgeModal({
     const [downloading, setDownloading] = useState<'png' | 'svg' | 'share' | null>(null)
     const [error, setError] = useState<string | null>(null)
     const [status, setStatus] = useState<string | null>(null)
-    const badgeId = badgeIdFor(participantId, badge.tier)
+    const badgeId = badgeIdFor(participantId, badge.tree)
     useFocusTrap(dialogRef, true)
 
     // Escape closes the modal so the learner can dismiss without hunting
@@ -60,7 +63,7 @@ export function ShareBadgeModal({
         return () => document.removeEventListener('keydown', onKey)
     }, [onClose])
 
-    const baseFilename = `bitpilot-${badge.tier}-${badgeId}`
+    const baseFilename = `bitpilot-${badge.tree}-${badgeId}`
 
     const triggerDownload = (href: string, filename: string) => {
         const a = document.createElement('a')
@@ -179,7 +182,7 @@ export function ShareBadgeModal({
         try {
             const png = await renderPng()
             const filename = `${baseFilename}.png`
-            const text = buildShareText(badge.tier, badgeId)
+            const text = buildShareText(badge.tree, badgeId)
             const file = new File([png], filename, { type: 'image/png' })
 
             // Web Share API with files: mobile + Safari + recent Edge.
@@ -314,7 +317,7 @@ export function ShareBadgeModal({
                     >
                         <TierBadgeCard
                             ref={svgRef}
-                            tier={badge.tier}
+                            tree={badge.tree}
                             participantName={participantName}
                             earnedAt={badge.earned_at}
                             badgeId={badgeId}

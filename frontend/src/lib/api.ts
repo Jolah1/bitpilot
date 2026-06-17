@@ -202,7 +202,7 @@ export const api = {
     getParticipant: () =>
         request<Participant>('/participants/me', { auth: 'participant' }),
 
-    /** Tier badges, derived server-side from the completion ledger. */
+    /** Skill-tree badges, derived server-side from the completion ledger. */
     getMyBadges: () =>
         request<Badge[]>('/participants/me/badges', { auth: 'participant' }),
 
