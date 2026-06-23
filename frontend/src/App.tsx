@@ -393,6 +393,19 @@ function Setup({
                                     ? "You're joining via a session link. Pick a name and you're in."
                                     : 'Pick a name to use during the missions. Nothing leaves your browser except a real Nostr note you choose to publish later.'}
                             </p>
+                            {!joining && (
+                                <p
+                                    style={{
+                                        marginTop: 10,
+                                        marginBottom: 0,
+                                        fontSize: 12,
+                                        color: 'var(--muted)',
+                                        letterSpacing: '0.03em',
+                                    }}
+                                >
+                                    100% free · no signup · nothing to buy
+                                </p>
+                            )}
                             {joining && (
                                 <div
                                     style={{
