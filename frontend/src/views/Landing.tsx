@@ -134,7 +134,7 @@ function Hero({
                         display: 'inline-block',
                     }}
                 />
-                Free · no signup · no real money
+                100% free · no signup · nothing to buy
             </span>
 
             <h1
@@ -787,6 +787,7 @@ function SafeByDesign() {
         { icon: '🛡️', label: 'No real money', sub: 'Testnet only — mainnet is never touched.' },
         { icon: '🔒', label: 'Your keys, your browser', sub: 'Keys are generated locally and stay with you.' },
         { icon: '🌍', label: 'Open source', sub: 'Every line of code is on GitHub.' },
+        { icon: '🎁', label: 'Free forever', sub: 'No accounts, no upsells, nothing to buy.' },
     ]
 
     return (
