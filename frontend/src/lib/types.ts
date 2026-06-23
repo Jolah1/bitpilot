@@ -206,7 +206,7 @@ function knowledge(o: KnowledgeOpts): MissionDef {
 }
 
 /**
- * The full BitPilot curriculum: 51 missions (0..=50) across 8 skill trees.
+ * The full BitPilot curriculum: 58 missions (0..=57) across 8 skill trees.
  *
  * Mission ids are stable across tree reshuffles — they don't renumber when
  * a mission moves to a different tree. The catalogue below is ordered by
@@ -229,7 +229,7 @@ export const MISSIONS: MissionDef[] = [
         learn: {
             heading: 'Why this exists',
             body:
-                "Most people learn about Bitcoin by reading. You'll learn by using. Over the next 51 missions you'll generate real cryptographic keys, send (testnet) payments, publish a message to a network nobody owns, and end up understanding more than 99% of people who 'know about crypto'.\n\nNo wallet to install. No money at risk. Every action that touches a real network is clearly labeled — and everything that's just a demonstration is too.\n\nMissions are split into five tiers: Novice, Apprentice, Pilot, Navigator, Captain. Each tier asks more of you and earns you a new compass badge.",
+                "Most people learn about Bitcoin by reading. You'll learn by using. Over the next 58 missions you'll generate real cryptographic keys, send (testnet) payments, publish a message to a network nobody owns, and end up understanding more than 99% of people who 'know about crypto'.\n\nNo wallet to install. No money at risk. Every action that touches a real network is clearly labeled — and everything that's just a demonstration is too.\n\nMissions are grouped into eight skill trees — Money, Bitcoin, Lightning, Nostr, eCash, Self-custody, Privacy, Sovereignty. Start anywhere, finish a tree, earn its compass badge.",
             tip: 'You\'ll learn to think in sats — the unit real Bitcoiners use. No money changes hands inside BitPilot.',
         },
         quiz: {
@@ -1429,7 +1429,7 @@ export const MISSIONS: MissionDef[] = [
         learn: {
             heading: 'Curriculum complete. Now build the habit.',
             body:
-                "You generated a real Nostr identity, learned Lightning, sent a signet on-chain transaction, and survived 51 missions of varying difficulty. You're past the hard part: understanding.\n\nWhat to do from here:\n\n• Pick a wallet. Phoenix (Lightning, semi-self-custodial) is a great starter. Sparrow + a hardware wallet for cold storage.\n• Buy a small amount of bitcoin — not as investment advice, but as 'now I have skin in the game'. Even 5,000 sats teaches more than 5,000 articles.\n• Follow a few people on Nostr who explain things calmly: fiatjaf, jb55, Lyn Alden, Knut Svanholm, Marty Bent.\n• Read 'The Bitcoin Standard' or 'Inventing Bitcoin' if you want depth.\n• Keep using sats. Lightning addresses are everywhere now. Tip your favourite podcaster, your friend, a random stranger on Nostr.\n\nWelcome to Bitcoin. Don't stop.",
+                "You generated a real Nostr identity, learned Lightning, sent a signet on-chain transaction, and walked the full 58-mission curriculum across all eight skill trees. You're past the hard part: understanding.\n\nWhat to do from here:\n\n• Pick a wallet. Phoenix (Lightning, semi-self-custodial) is a great starter. Sparrow + a hardware wallet for cold storage.\n• Buy a small amount of bitcoin — not as investment advice, but as 'now I have skin in the game'. Even 5,000 sats teaches more than 5,000 articles.\n• Follow a few people on Nostr who explain things calmly: fiatjaf, jb55, Lyn Alden, Knut Svanholm, Marty Bent.\n• Read 'The Bitcoin Standard' or 'Inventing Bitcoin' if you want depth.\n• Keep using sats. Lightning addresses are everywhere now. Tip your favourite podcaster, your friend, a random stranger on Nostr.\n\nWelcome to Bitcoin. Don't stop.",
             tip: "The best Bitcoin education is using it. Earnestly, in tiny amounts, until it's boring.",
         },
         quiz: {
@@ -1443,9 +1443,163 @@ export const MISSIONS: MissionDef[] = [
         actionLabel: 'Finish BitPilot 🎉',
         helper: 'You finished. We hope this was worth the time.',
     }),
+    knowledge({
+        id: 51,
+        emoji: '🔁',
+        topic: 'Privacy',
+        tech: 'bitcoin',
+        name: 'Address reuse, in detail',
+        tagline: 'One reused address can unravel your whole wallet',
+        learn: {
+            heading: 'Why "fresh address every time" matters',
+            body:
+                "When you receive a payment to address A and later spend from A, the chain shows the world: \"these coins belong to the same wallet.\" If you then receive to address B and combine A+B in a transaction, B is now publicly linked to A. Repeat this a few times and a chain-analysis firm can cluster every address you've ever used into a single ball of yarn.\n\nModern wallets give you a fresh address for every receive — use it. The cost is zero, the benefit is real. Your xpub still tracks them all internally; only the outside world is forced to guess.\n\nWhere reuse is unavoidable (donation pages, exchange deposits), accept that the address is a public identity tied to you.",
+            tip: 'Treat addresses like single-use envelopes. Cheap to print, hard to take back.',
+        },
+        quiz: {
+            question: 'Why does reusing an address weaken privacy more than you might think?',
+            options: [
+                { text: 'It slows down confirmations', correct: false },
+                { text: 'Spending from a reused address links every receive to that address into one cluster', correct: true },
+                { text: 'It triggers higher fees', correct: false },
+            ],
+        },
+    }),
+    knowledge({
+        id: 52,
+        emoji: '🔎',
+        topic: 'Privacy',
+        tech: 'bitcoin',
+        name: 'How chain analysis works',
+        tagline: 'The heuristics that turn a public chain into a surveillance feed',
+        learn: {
+            heading: 'Chainalysis is mostly clever guessing',
+            body:
+                "Chain-analysis firms (Chainalysis, Elliptic, CipherTrace) sell databases that cluster addresses to real-world entities. They don't have magical insight into the chain — they apply heuristics:\n\n• Common-input ownership: if multiple addresses are spent in the same transaction, the same wallet probably controls all of them.\n• Change detection: in a 2-output transaction, the one that looks like change (round-numbered, fresh script type matching the input) often belongs to the sender.\n• Address-format clustering: a wallet usually uses one script type (P2WPKH, P2TR…) consistently.\n• Off-chain leaks: exchange KYC, mempool relay timing, IP addresses watching your node.\n\nDefences exist — CoinJoin breaks common-input heuristics, PayJoin breaks change detection, running your own node closes the IP leak. None are silver bullets; layered habits are what work.",
+            tip: 'Most de-anonymisation comes from off-chain leaks (KYC, IPs) — not the chain itself.',
+        },
+        quiz: {
+            question: 'Which of these is a chain-analysis heuristic, not a chain feature?',
+            options: [
+                { text: 'The 21 million supply cap', correct: false },
+                { text: '"All inputs to a transaction belong to the same wallet"', correct: true, why: 'It is usually true, but it is a guess — CoinJoin deliberately breaks it.' },
+                { text: 'The 10-minute block target', correct: false },
+            ],
+        },
+    }),
+    knowledge({
+        id: 53,
+        emoji: '🗝️',
+        topic: 'Sovereignty',
+        tech: 'bitcoin',
+        name: 'Sovereignty vs custody',
+        tagline: 'What you actually own when "you own bitcoin"',
+        learn: {
+            heading: 'Not your keys, not your coins',
+            body:
+                "If your bitcoin lives on an exchange, you do not own bitcoin. You own a *claim* on the exchange's balance sheet. That claim is excellent until the day it isn't — Mt. Gox, QuadrigaCX, FTX, Celsius. Every collapse follows the same shape: customers thought they had assets; really they had IOUs.\n\nSelf-custody means *you* hold the keys. The trade-off is responsibility: there is no support line, no password reset, no chargeback. If you lose your seed, the coins are gone. If someone steals your seed, the coins are gone.\n\nThe honest answer for most people is: keep small spending funds on a Lightning wallet you control, keep savings in a hardware wallet whose seed only you have seen, and never use an exchange as a savings account.",
+            tip: '"Self-custody" is not just a button in an app — it\'s the discipline of holding a 12-word phrase that nobody else has ever seen.',
+        },
+        quiz: {
+            question: 'Why do bitcoiners say "not your keys, not your coins"?',
+            options: [
+                { text: 'It rhymes', correct: false },
+                { text: 'Coins held by someone else are a credit risk, not real ownership', correct: true },
+                { text: 'The protocol literally refuses transactions from custodians', correct: false, why: 'The protocol does not care; the warning is about counterparty risk.' },
+            ],
+        },
+    }),
+    knowledge({
+        id: 54,
+        emoji: '🖥️',
+        topic: 'Sovereignty',
+        tech: 'bitcoin',
+        name: 'Your first node, practically',
+        tagline: 'What it actually takes to run one at home',
+        learn: {
+            heading: 'A weekend, a Pi, and some patience',
+            body:
+                "Running your own Bitcoin node sounds heavy. The reality in 2026:\n\n• Hardware: a Raspberry Pi 5 with an external SSD, total ~$200. Or a refurb mini-PC for $150. Or just bitcoind on your existing laptop if you leave it on.\n• Software: a packaged distro does all the wiring — Umbrel, Start9, MyNode, Citadel. Flash an SD card, plug in the SSD, point a browser at the device.\n• Sync: the first download is ~700 GB and takes 1–7 days depending on your link. Set it up before bed for a week; it'll finish.\n• Wiring your wallet: in Sparrow or BlueWallet, point the wallet at your own node. From then on, every query about your balance is answered by your machine, not someone else's.\n\nOnce it's running, the node mostly takes care of itself — block downloads happen in the background. The single biggest payoff is psychological: you stop trusting strangers about your money.",
+            tip: 'Don\'t buy a "Bitcoin appliance" with a logo on it for $700. The same software runs on a $200 Pi.',
+        },
+        quiz: {
+            question: 'What is the main practical benefit of pointing your wallet at your own node?',
+            options: [
+                { text: 'Faster Lightning payments', correct: false, why: 'A node speeds up *your* lookups, not the Lightning network.' },
+                { text: 'Your wallet no longer leaks your addresses and balances to a stranger\'s server', correct: true },
+                { text: 'Lower on-chain fees', correct: false, why: 'Fees are set by the mempool; nodes do not change them.' },
+            ],
+        },
+    }),
+    knowledge({
+        id: 55,
+        emoji: '✍️',
+        topic: 'eCash',
+        tech: 'ecash',
+        name: 'Blind signatures, plainly',
+        tagline: 'How a mint can sign a token without seeing it',
+        learn: {
+            heading: 'The trick that makes eCash private',
+            body:
+                "Blind signatures sound like cryptography theatre but the idea is simple. Imagine you want a notary to stamp a sealed envelope, but you don\'t want the notary to read what is inside.\n\nYou put your document into a carbon-copy envelope, then ask the notary to stamp the envelope. The stamp soaks through onto the document. You walk away with a stamped document the notary never read.\n\neCash mints do the same with maths. You pay 1,000 sats and send the mint a \"blinded\" token. The mint signs the blinded form, returns it, you \"unblind\" it locally. The resulting token is provably issued by the mint, worth 1,000 sats, and the mint cannot recognise it later when you spend it.\n\nThat\'s the entire reason eCash is private: redemptions cannot be linked to the original mint.",
+            tip: 'A blind signature is a stamp on something the signer never sees. That is the whole magic.',
+        },
+        quiz: {
+            question: 'What does a blind signature give an eCash mint?',
+            options: [
+                { text: 'The ability to refuse redemptions', correct: false },
+                { text: 'A way to certify a token without learning which token it is later', correct: true },
+                { text: 'A backup of every token issued', correct: false, why: 'The mint deliberately does not hold this — that is the point.' },
+            ],
+        },
+    }),
+    knowledge({
+        id: 56,
+        emoji: '🏛️',
+        topic: 'eCash',
+        tech: 'ecash',
+        name: 'Cashu vs Fedimint',
+        tagline: 'Two flavours of Bitcoin-backed eCash',
+        learn: {
+            heading: 'Same idea, different trust model',
+            body:
+                "Cashu and Fedimint both issue blind-signed tokens backed by Bitcoin. The difference is who holds the sats:\n\n• Cashu: one mint operator. Small, swappable, easy to spin up. You trust *that one operator* not to disappear. The defence is to hold tiny balances and move funds out quickly.\n\n• Fedimint: a federation of guardians (typically 4-of-7 or similar). The sats live in a multisig wallet that a majority must sign to move. Hardier against a single operator going rogue or offline, at the cost of being much harder to set up.\n\nRule of thumb: Cashu is pocket cash; Fedimint is a community bank. Both let you spend privately, neither is for long-term savings.",
+            tip: 'Picking between them is mostly about how much you trust the operator and how much money is at stake.',
+        },
+        quiz: {
+            question: 'How does Fedimint reduce the single-operator risk that Cashu has?',
+            options: [
+                { text: 'It uses zero-knowledge proofs instead of blind signatures', correct: false },
+                { text: 'Funds live in a multisig held by a federation of guardians; a majority must sign', correct: true },
+                { text: 'It is on a separate blockchain', correct: false, why: 'Fedimint settles on Bitcoin like Cashu.' },
+            ],
+        },
+    }),
+    knowledge({
+        id: 57,
+        emoji: '🤝',
+        topic: 'eCash',
+        tech: 'ecash',
+        name: 'Mint trust: 1-of-N vs federation',
+        tagline: 'How to think about who is holding your sats',
+        learn: {
+            heading: 'Custody is a spectrum, not a switch',
+            body:
+                "Every eCash mint is custodial — that is the deal in exchange for privacy. The interesting question is: custodial by *how many*, and how easy is it to walk away?\n\n• Single-operator mint (Cashu): 1-of-1 trust. One person can rug. Mitigation: hold little, redeem often, use mints run by people in your community whose reputation is the actual collateral.\n\n• Federated mint (Fedimint): m-of-n trust. To steal funds, a majority of guardians must collude. Mitigation against the operator collapsing into a single point of failure, at the cost of complexity and coordination.\n\n• Your own mint: 1-of-1, but the 1 is you. Honest with yourself: are you really willing to run mint infrastructure 24/7?\n\nNone of these are wrong choices. The wrong choice is treating any mint like a savings account. eCash is for spending privately right now, not for storing wealth across years.",
+            tip: 'Match the mint\'s trust model to the size of the balance you are willing to lose.',
+        },
+        quiz: {
+            question: 'Which framing is the most honest about eCash mints?',
+            options: [
+                { text: 'They\'re trustless like Bitcoin', correct: false, why: 'They are explicitly custodial; that is the trade for privacy.' },
+                { text: 'They\'re custodial — the choice is how many people you trust, and for how much', correct: true },
+                { text: 'They\'re only useful on Lightning', correct: false },
+            ],
+        },
+    }),
 ]
 
-/** Total mission count. The frontend never hardcodes 51 — it reads this. */
+/** Total mission count. The frontend never hardcodes 58 — it reads this. */
 export const MISSION_COUNT = MISSIONS.length
 
 /** Lookup a mission def by id (= mission number). Returns undefined if out of range. */
