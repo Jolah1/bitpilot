@@ -1773,7 +1773,7 @@ function FinishedScreen() {
                     maxWidth: 480,
                 }}
             >
-                51 missions across eight skill trees. You used Bitcoin, Lightning, Nostr, and eCash for real, and you actually understand
+                58 missions across eight skill trees. You used Bitcoin, Lightning, Nostr, and eCash for real, and you actually understand
                 what each one does. That puts you ahead of about 99% of people on earth.
             </p>
             <ul

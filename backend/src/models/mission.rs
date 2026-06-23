@@ -27,19 +27,19 @@ pub enum Tree {
 }
 
 impl Tree {
-    /// Map a mission id (0..=50) to its skill tree. Explicit per-mission
-    /// arms — not a range — because the curriculum is organized by topic,
-    /// not by linear difficulty band.
+    /// Map a mission id (0..=Mission::LAST) to its skill tree. Explicit
+    /// per-mission arms — not a range — because the curriculum is
+    /// organized by topic, not by linear difficulty band.
     pub fn from_mission(number: u8) -> Tree {
         match number {
             0 | 1 | 2 | 5 | 9 | 10 => Tree::Money,
             6 | 7 | 8 | 18 | 19 | 40 | 48 | 49 => Tree::Bitcoin,
             21 | 22 | 23 | 24 | 25 | 38 | 39 => Tree::Lightning,
             13 | 14 | 15 | 16 | 17 | 26 | 27 | 28 | 29 | 30 | 35 | 36 | 37 => Tree::Nostr,
-            31 | 32 | 33 | 34 => Tree::Ecash,
+            31 | 32 | 33 | 34 | 55 | 56 | 57 => Tree::Ecash,
             3 | 4 | 11 | 12 | 20 | 41 | 43 | 44 | 45 => Tree::SelfCustody,
-            46 => Tree::Privacy,
-            42 | 47 | 50 => Tree::Sovereignty,
+            46 | 51 | 52 => Tree::Privacy,
+            42 | 47 | 50 | 53 | 54 => Tree::Sovereignty,
             // Out-of-range numbers fall through to Money as a safe default.
             // The mission_id range check in routes/missions.rs gates this
             // before it would matter at runtime.
@@ -136,11 +136,20 @@ const CATALOGUE: &[Row] = &[
 
     // ── Privacy ────────────────────────────────────────────────────────
     Row { number: 46, title: "Privacy basics",                simulated: false, description: "The chain is public — act accordingly." },
+    Row { number: 51, title: "Address reuse, in detail",      simulated: false, description: "Why one shared address leaks your whole history." },
+    Row { number: 52, title: "How chain analysis works",      simulated: false, description: "Clustering, heuristics, and what blockchain sleuths actually see." },
 
     // ── Sovereignty ────────────────────────────────────────────────────
     Row { number: 42, title: "Send a signet on-chain tx",     simulated: false, description: "For the first time in this app, you broadcast to a real blockchain." },
     Row { number: 47, title: "Run a node (one day)",          simulated: false, description: "Why running your own Bitcoin node matters." },
+    Row { number: 53, title: "Sovereignty vs custody",        simulated: false, description: "Two distinct ideas often blurred together." },
+    Row { number: 54, title: "Your first node, practically",  simulated: false, description: "Pi, Umbrel, StartOS — picking a path that fits." },
     Row { number: 50, title: "You made it",                   simulated: false, description: "What to do from here." },
+
+    // ── eCash (extended) ───────────────────────────────────────────────
+    Row { number: 55, title: "Blind signatures, plainly",     simulated: false, description: "The math trick that makes eCash private." },
+    Row { number: 56, title: "Cashu vs Fedimint",             simulated: false, description: "Two flavors of Bitcoin-backed eCash, compared." },
+    Row { number: 57, title: "Mint trust: 1-of-N vs federation", simulated: false, description: "Where the failure modes actually live." },
 ];
 
 impl Mission {
@@ -169,7 +178,7 @@ impl Mission {
     pub const FIRST: u8 = 0;
 
     /// Last valid mission id (inclusive).
-    pub const LAST: u8 = 50;
+    pub const LAST: u8 = 57;
 
     /// Which `DoKind` does this mission use? Used by `verify_proof` to know
     /// which ledger to check. Kept in lock-step with the frontend's
@@ -184,6 +193,7 @@ impl Mission {
             21 | 22 | 25 | 28 | 29 => DoKind::Knowledge,
             31 | 32 | 35 | 37 | 38 | 39 | 40 => DoKind::Knowledge,
             43 | 44 | 45 | 46 | 47 | 48 | 49 | 50 => DoKind::Knowledge,
+            51 | 52 | 53 | 54 | 55 | 56 | 57 => DoKind::Knowledge,
 
             // Action missions:
             11 => DoKind::SeedWords,
