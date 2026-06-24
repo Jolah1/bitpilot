@@ -210,6 +210,8 @@ async fn join_session(
             session_id: body.session_id,
             current_mission: 0,
             completed_missions: vec![],
+            // New row, no completions → every tree points at its first mission.
+            current_per_tree: Participant::hydrate_per_tree("{}", &[]),
             nostr_pubkey: None,
         },
         auth_token,
@@ -297,8 +299,8 @@ pub async fn load_participant(
     state: &AppState,
     participant_id: &str,
 ) -> Result<Participant, AppError> {
-    let row: Option<(String, String, String, i64, Option<String>)> = sqlx::query_as(
-        "SELECT id, name, session_id, current_mission, nostr_pubkey \
+    let row: Option<(String, String, String, i64, Option<String>, String)> = sqlx::query_as(
+        "SELECT id, name, session_id, current_mission, nostr_pubkey, current_per_tree \
          FROM participants WHERE id = ?",
     )
     .bind(participant_id)
@@ -314,13 +316,17 @@ pub async fn load_participant(
     .fetch_all(&state.db)
     .await?;
 
+    let completed_missions: Vec<u8> = completed.into_iter().map(|(m,)| m as u8).collect();
+    let current_per_tree = Participant::hydrate_per_tree(&row.5, &completed_missions);
+
     Ok(Participant {
         id: row.0,
         name: row.1,
         session_id: row.2,
         current_mission: row.3 as u8,
         nostr_pubkey: row.4,
-        completed_missions: completed.into_iter().map(|(m,)| m as u8).collect(),
+        completed_missions,
+        current_per_tree,
     })
 }
 
@@ -328,8 +334,8 @@ async fn load_participants_by_session(
     state: &AppState,
     session_id: &str,
 ) -> Result<Vec<Participant>, AppError> {
-    let rows: Vec<(String, String, String, i64, Option<String>)> = sqlx::query_as(
-        "SELECT id, name, session_id, current_mission, nostr_pubkey \
+    let rows: Vec<(String, String, String, i64, Option<String>, String)> = sqlx::query_as(
+        "SELECT id, name, session_id, current_mission, nostr_pubkey, current_per_tree \
          FROM participants WHERE session_id = ? ORDER BY created_at",
     )
     .bind(session_id)
@@ -348,13 +354,17 @@ async fn load_participants_by_session(
         .fetch_all(&state.db)
         .await?;
 
+        let completed_missions: Vec<u8> = completed.into_iter().map(|(m,)| m as u8).collect();
+        let current_per_tree = Participant::hydrate_per_tree(&r.5, &completed_missions);
+
         out.push(Participant {
             id: r.0,
             name: r.1,
             session_id: r.2,
             current_mission: r.3 as u8,
             nostr_pubkey: r.4,
-            completed_missions: completed.into_iter().map(|(m,)| m as u8).collect(),
+            completed_missions,
+            current_per_tree,
         });
     }
     Ok(out)

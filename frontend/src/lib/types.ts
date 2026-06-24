@@ -5,6 +5,13 @@ export interface Participant {
     session_id: string
     current_mission: number
     completed_missions: number[]
+    /**
+     * Per-tree pointer: for each of the 8 trees, the next-incomplete
+     * mission id (or `null` if the tree is fully complete). Hydrated by
+     * the backend on every read, so the frontend can render a tree
+     * picker without recomputing from `completed_missions`.
+     */
+    current_per_tree: Record<Tree, number | null>
     nostr_pubkey: string | null
 }
 
@@ -54,10 +61,11 @@ export const TREES: TreeMeta[] = [
     { key: 'bitcoin',      label: 'Bitcoin',      missions: [6, 7, 8, 18, 19, 40, 48, 49],                 tagline: 'Blocks, mempool, miners, UTXOs, networks, L2s.' },
     { key: 'lightning',    label: 'Lightning',    missions: [21, 22, 23, 24, 25, 38, 39],                  tagline: 'Channels, invoices, Lightning addresses, routing.' },
     { key: 'nostr',        label: 'Nostr',        missions: [13, 14, 15, 16, 17, 26, 27, 28, 29, 30, 35, 36, 37], tagline: 'Identity without a server. Notes, profiles, zaps.' },
-    { key: 'ecash',        label: 'eCash',        missions: [31, 32, 33, 34],                              tagline: 'Bearer money backed by a mint. Cashu tokens.' },
+    { key: 'ecash',        label: 'eCash',        missions: [31, 32, 33, 34, 55, 56, 57],                  tagline: 'Bearer money backed by a mint. Cashu, Fedimint, trust.' },
     { key: 'self-custody', label: 'Self-custody', missions: [3, 4, 11, 12, 20, 41, 43, 44, 45],            tagline: 'Wallets, seeds, addresses, hardware, multisig.' },
-    { key: 'privacy',      label: 'Privacy',      missions: [46],                                          tagline: 'The chain is public — act accordingly.' },
-    { key: 'sovereignty',  label: 'Sovereignty',  missions: [42, 47, 50],                                  tagline: 'Signet on-chain, your own node, the long game.' },
+    { key: 'privacy',      label: 'Privacy',      missions: [46, 51, 52],                                  tagline: 'The chain is public. Address reuse and chain analysis.' },
+    // Mission 50 ("You made it") stays last — it's the graduation lesson.
+    { key: 'sovereignty',  label: 'Sovereignty',  missions: [42, 47, 53, 54, 50],                          tagline: 'Signet on-chain, your own node, the long game.' },
 ]
 
 /** Returns the tree a mission id belongs to. */

@@ -13,7 +13,7 @@ pub enum MissionStatus {
 /// Each mission belongs to exactly one tree. Within a tree, lessons are
 /// taken in order; across trees, learners pick freely (Money 101 first
 /// for newcomers, Lightning first for someone who already knows Bitcoin).
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[serde(rename_all = "kebab-case")]
 pub enum Tree {
     Money,
@@ -27,24 +27,47 @@ pub enum Tree {
 }
 
 impl Tree {
-    /// Map a mission id (0..=Mission::LAST) to its skill tree. Explicit
-    /// per-mission arms — not a range — because the curriculum is
-    /// organized by topic, not by linear difficulty band.
-    pub fn from_mission(number: u8) -> Tree {
-        match number {
-            0 | 1 | 2 | 5 | 9 | 10 => Tree::Money,
-            6 | 7 | 8 | 18 | 19 | 40 | 48 | 49 => Tree::Bitcoin,
-            21 | 22 | 23 | 24 | 25 | 38 | 39 => Tree::Lightning,
-            13 | 14 | 15 | 16 | 17 | 26 | 27 | 28 | 29 | 30 | 35 | 36 | 37 => Tree::Nostr,
-            31 | 32 | 33 | 34 | 55 | 56 | 57 => Tree::Ecash,
-            3 | 4 | 11 | 12 | 20 | 41 | 43 | 44 | 45 => Tree::SelfCustody,
-            46 | 51 | 52 => Tree::Privacy,
-            42 | 47 | 50 | 53 | 54 => Tree::Sovereignty,
-            // Out-of-range numbers fall through to Money as a safe default.
-            // The mission_id range check in routes/missions.rs gates this
-            // before it would matter at runtime.
-            _ => Tree::Money,
+    /// Every tree in display order. Mirrored on the frontend in `TREES`.
+    pub const ALL: &'static [Tree] = &[
+        Tree::Money,
+        Tree::Bitcoin,
+        Tree::Lightning,
+        Tree::Nostr,
+        Tree::Ecash,
+        Tree::SelfCustody,
+        Tree::Privacy,
+        Tree::Sovereignty,
+    ];
+
+    /// Ordered mission ids that make up this tree, in pedagogical order.
+    /// Single source of truth — `from_mission` and the badge code both
+    /// derive from this, and the frontend `TREES` constant mirrors it.
+    pub fn missions(self) -> &'static [u8] {
+        match self {
+            Tree::Money       => &[0, 1, 2, 5, 9, 10],
+            Tree::Bitcoin     => &[6, 7, 8, 18, 19, 40, 48, 49],
+            Tree::Lightning   => &[21, 22, 23, 24, 25, 38, 39],
+            Tree::Nostr       => &[13, 14, 15, 16, 17, 26, 27, 28, 29, 30, 35, 36, 37],
+            Tree::Ecash       => &[31, 32, 33, 34, 55, 56, 57],
+            Tree::SelfCustody => &[3, 4, 11, 12, 20, 41, 43, 44, 45],
+            Tree::Privacy     => &[46, 51, 52],
+            // 50 ("You made it") stays last — it's the graduation lesson.
+            Tree::Sovereignty => &[42, 47, 53, 54, 50],
         }
+    }
+
+    /// Map a mission id (0..=Mission::LAST) to its skill tree.
+    /// Derived from `missions()` so the two cannot drift.
+    pub fn from_mission(number: u8) -> Tree {
+        for &t in Self::ALL {
+            if t.missions().contains(&number) {
+                return t;
+            }
+        }
+        // Out-of-range numbers fall through to Money as a safe default.
+        // The mission_id range check in routes/missions.rs gates this
+        // before it would matter at runtime.
+        Tree::Money
     }
 }
 
@@ -210,6 +233,38 @@ impl Mission {
             42 => DoKind::OnchainSignet,
 
             _ => DoKind::Knowledge, // safe default for out-of-range numbers
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashSet;
+
+    #[test]
+    fn every_mission_belongs_to_exactly_one_tree() {
+        let mut seen: HashSet<u8> = HashSet::new();
+        for &tree in Tree::ALL {
+            for &m in tree.missions() {
+                assert!(
+                    seen.insert(m),
+                    "mission {m} appears in more than one tree"
+                );
+            }
+        }
+        for n in Mission::FIRST..=Mission::LAST {
+            assert!(seen.contains(&n), "mission {n} is in no tree");
+        }
+        assert_eq!(seen.len(), (Mission::LAST - Mission::FIRST + 1) as usize);
+    }
+
+    #[test]
+    fn from_mission_round_trips_through_missions() {
+        for &tree in Tree::ALL {
+            for &m in tree.missions() {
+                assert_eq!(Tree::from_mission(m), tree);
+            }
         }
     }
 }
