@@ -226,6 +226,13 @@ fn create_session_then_join_then_self_fetch() {
     // New curriculum starts at mission 0.
     assert_eq!(v["current_mission"], 0);
     assert_eq!(v["completed_missions"].as_array().unwrap().len(), 0);
+    // Per-tree pointer is hydrated from the empty completions list, so
+    // every tree's pointer is its first mission (no completions yet).
+    let per_tree = v["current_per_tree"].as_object().unwrap();
+    assert_eq!(per_tree.len(), 8, "expected all 8 trees");
+    assert_eq!(per_tree["money"], 0);
+    assert_eq!(per_tree["bitcoin"], 6);
+    assert_eq!(per_tree["privacy"], 46);
 }
 
 #[test]
@@ -326,6 +333,46 @@ fn cannot_complete_same_mission_twice() {
     assert!(
         err.contains("already") || err.contains("current"),
         "expected duplicate-or-current error, got: {err}"
+    );
+}
+
+#[test]
+fn can_jump_across_trees_via_per_tree_gate() {
+    // The per-tree gate lets a learner start any tree without finishing
+    // earlier missions in other trees. Money's first mission is 0,
+    // Bitcoin's first is 6 — completing 6 with no prior completions
+    // should succeed even though `current_mission` started at 0.
+    let h = Harness::start();
+    let s = create_session(&h.base, "tree-jump");
+    let j = join_session(&h.base, "ivy", &s.id);
+
+    // Bitcoin tree: mission 6 is the first lesson. No prior completions.
+    let r = complete(&h.base, &j.auth_token, 6, "acknowledged");
+    assert_eq!(r.status(), 200, "first mission of Bitcoin tree should be open");
+
+    let v: Value = r.json().unwrap();
+    // Next within Bitcoin is mission 7.
+    assert_eq!(v["next_mission"], 7);
+    // Money tree pointer untouched.
+    assert_eq!(v["participant"]["current_per_tree"]["money"], 0);
+    assert_eq!(v["participant"]["current_per_tree"]["bitcoin"], 7);
+}
+
+#[test]
+fn per_tree_gate_blocks_skipping_within_tree() {
+    // Within a tree, lessons are still ordered. Mission 7 is Bitcoin's
+    // second lesson; you can't take it before mission 6.
+    let h = Harness::start();
+    let s = create_session(&h.base, "tree-skip");
+    let j = join_session(&h.base, "ken", &s.id);
+
+    let r = complete(&h.base, &j.auth_token, 7, "acknowledged");
+    assert_eq!(r.status(), 400);
+    let v: Value = r.json().unwrap();
+    assert!(
+        v["error"].as_str().unwrap().contains("current mission"),
+        "expected per-tree skip error, got {:?}",
+        v["error"]
     );
 }
 
@@ -563,9 +610,10 @@ fn me_badges_starts_empty_then_unlocks_money_after_tree_clear() {
     assert_eq!(money["required"], 6);
     assert_eq!(money["completed"], 0);
 
-    // Clear the Money tree's knowledge missions. We can only complete
-    // missions in order (gated by current_mission), so we have to walk
-    // 0..=10 even though only 6 of them belong to Money.
+    // Clear the Money tree by walking the first 11 missions. Each tree's
+    // gate is independent now, so we could jump straight to Money's
+    // members (0,1,2,5,9,10) — but completing 0..=10 sequentially also
+    // works and exercises the cross-tree advancement path.
     for m in 0..=10u8 {
         let r = complete(&h.base, &j.auth_token, m, "acknowledged");
         assert_eq!(r.status(), 200, "completing mission {m}");

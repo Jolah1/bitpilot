@@ -86,8 +86,20 @@ async fn complete_mission(
     if p.completed_missions.contains(&body.mission) {
         return Err(AppError::BadRequest("Mission already completed".into()));
     }
-    if p.current_mission != body.mission {
-        return Err(AppError::BadRequest("Not your current mission".into()));
+
+    // Per-tree gate: the requested mission must be the next-incomplete
+    // mission within its tree. Trees advance independently — a learner
+    // working on Lightning isn't blocked by an unfinished Money lesson.
+    let tree = Tree::from_mission(body.mission);
+    let pointer = p.current_per_tree.get(&tree).copied().flatten();
+    if pointer != Some(body.mission) {
+        return Err(AppError::BadRequest(format!(
+            "Not your current mission in this tree (expected {}, got {})",
+            pointer
+                .map(|n| n.to_string())
+                .unwrap_or_else(|| "(tree complete)".into()),
+            body.mission
+        )));
     }
 
     // ── Verify the proof against the appropriate server-side ledger ─────
@@ -98,6 +110,25 @@ async fn complete_mission(
         body.proof.trim(),
     )
     .await?;
+
+    // Compute the new per-tree pointer for this tree: the first mission in
+    // the tree's ordered list that isn't completed once we add `body.mission`
+    // to the completed set.
+    let mut completed_after: Vec<u8> = p.completed_missions.clone();
+    completed_after.push(body.mission);
+    let next_in_tree = tree
+        .missions()
+        .iter()
+        .find(|m| !completed_after.contains(m))
+        .copied();
+
+    // Update the persisted per-tree JSON. We rewrite the whole 8-key
+    // object every time so the column is canonical after any write — no
+    // partial-state interpretation headaches at read time.
+    let mut new_per_tree = p.current_per_tree.clone();
+    new_per_tree.insert(tree, next_in_tree);
+    let per_tree_json = serde_json::to_string(&new_per_tree)
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("serialize per-tree: {e}")))?;
 
     let mut tx = state.db.begin().await?;
     sqlx::query(
@@ -111,24 +142,27 @@ async fn complete_mission(
     .execute(&mut *tx)
     .await?;
 
-    let next_mission = if body.mission < Mission::LAST {
-        Some(body.mission + 1)
-    } else {
-        None
-    };
-
-    sqlx::query("UPDATE participants SET current_mission = ? WHERE id = ?")
-        .bind(next_mission.unwrap_or(body.mission) as i64)
-        .bind(&authed.participant_id)
-        .execute(&mut *tx)
-        .await?;
+    // Keep the legacy `current_mission` column in sync for any backwards-
+    // compat readers. It now tracks the most-recently-advanced tree's
+    // pointer; nothing inside this route gates on it anymore.
+    let legacy_current = next_in_tree.unwrap_or(body.mission);
+    sqlx::query(
+        "UPDATE participants \
+         SET current_mission = ?, current_per_tree = ? \
+         WHERE id = ?",
+    )
+    .bind(legacy_current as i64)
+    .bind(&per_tree_json)
+    .bind(&authed.participant_id)
+    .execute(&mut *tx)
+    .await?;
 
     tx.commit().await?;
 
     let updated = load_participant(&state, &authed.participant_id).await?;
     Ok(Json(CompleteMissionResponse {
         participant: updated,
-        next_mission,
+        next_mission: next_in_tree,
     }))
 }
 

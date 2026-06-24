@@ -1,4 +1,7 @@
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
+
+use crate::models::mission::Tree;
 
 /// Wire-format participant — the shape returned over the API.
 ///
@@ -7,6 +10,12 @@ use serde::{Deserialize, Serialize};
 ///   as a separate field (see `JoinSessionResponse`) and never re-emitted.
 /// - `completed_missions` is reconstructed in the route handler from the
 ///   `mission_completions` table, not stored as a column.
+///
+/// `current_per_tree` is hydrated from the `participants.current_per_tree`
+/// JSON column when present, otherwise derived from `completed_missions`
+/// (first incomplete mission in each tree's ordered list). Always contains
+/// all 8 trees on the wire so the frontend can render without branching on
+/// "is this tree initialized yet".
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Participant {
     pub id: String,
@@ -14,7 +23,41 @@ pub struct Participant {
     pub session_id: String,
     pub current_mission: u8,
     pub completed_missions: Vec<u8>,
+    /// One entry per tree (all 8). `None` means every mission in the tree
+    /// is done; `Some(n)` is the next mission to take.
+    pub current_per_tree: BTreeMap<Tree, Option<u8>>,
     pub nostr_pubkey: Option<String>,
+}
+
+impl Participant {
+    /// Compute the per-tree pointer map.
+    ///
+    /// `stored_json` is the raw value of the `current_per_tree` column —
+    /// `'{}'` for participants who joined before this column was written
+    /// to, otherwise a `{"tree-key": next_mission_or_null}` object.
+    /// Missing trees are derived from `completed` (first incomplete in
+    /// the tree's ordered mission list).
+    pub fn hydrate_per_tree(
+        stored_json: &str,
+        completed: &[u8],
+    ) -> BTreeMap<Tree, Option<u8>> {
+        let stored: BTreeMap<Tree, Option<u8>> =
+            serde_json::from_str(stored_json).unwrap_or_default();
+        Tree::ALL
+            .iter()
+            .map(|&tree| {
+                let next = if let Some(&v) = stored.get(&tree) {
+                    v
+                } else {
+                    tree.missions()
+                        .iter()
+                        .find(|m| !completed.contains(m))
+                        .copied()
+                };
+                (tree, next)
+            })
+            .collect()
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

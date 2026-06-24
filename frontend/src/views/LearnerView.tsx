@@ -11,12 +11,14 @@ import {
 import { api, ApiError } from '../lib/api'
 import { useIsTechReal } from '../lib/runtime'
 import {
-    MISSIONS,
     MISSION_COUNT,
     TREES,
+    missionById,
     treeFor,
     type Badge,
     type MissionDef,
+    type Tree,
+    type TreeMeta,
 } from '../lib/types'
 import { TierProgressionMark } from '../components/TierProgressionMark'
 import {
@@ -73,27 +75,30 @@ interface DoOutcome {
 }
 
 /**
- * The learner experience. One mission at a time, three phases per mission
- * (Learn → Quiz → Do). The backend stores progress; the frontend hydrates
- * from `/api/participants/me` on mount.
+ * The learner experience. The home screen is a **tree picker**: 8 skill
+ * trees presented as peers, the learner picks one and flows linearly
+ * through it (Learn → Quiz → Do per mission). Trees advance independently
+ * server-side — finishing Money 101 doesn't gate Bitcoin or Lightning.
  *
  * Mobile-first: padding shrinks on small viewports, primary action button
  * stays visible (no fixed widths that overflow), ProgressRail is tree-based
- * not per-mission so 51 missions don't pile up into invisible slivers.
+ * so 58 missions don't pile up into invisible slivers.
  */
 export default function LearnerView({ participantId }: { participantId: string }) {
-    // `missionIdx` is the mission the learner is *viewing*. `currentMission`
-    // is the server's pointer — the highest mission they're allowed to
-    // *complete*. Decoupling these two is what makes the "← Previous"
-    // button work: the learner can scroll back through their finished
-    // missions to re-read them without the completion flow getting
-    // confused about where they are.
-    //
-    // Invariant: `missionIdx <= currentMission` at all times. The nav
-    // buttons enforce this; nothing else should write `missionIdx`
-    // directly except the initial hydration and `goNextMission`.
-    const [missionIdx, setMissionIdx] = useState(0)
-    const [currentMission, setCurrentMission] = useState(0)
+    // `activeTreeKey === null` ⇒ tree picker is shown; otherwise we're
+    // inside the linear flow of that tree. `treeIdx` is the position
+    // within the *active tree's* ordered mission list (NOT a global
+    // mission number). Decoupled from `mission.id` because a tree's
+    // missions are non-contiguous numbers (e.g. Money = 0,1,2,5,9,10).
+    const [activeTreeKey, setActiveTreeKey] = useState<Tree | null>(null)
+    const [treeIdx, setTreeIdx] = useState(0)
+    // Per-tree pointer from the server — `next incomplete mission id` per
+    // tree (`null` once the tree is fully done). Used to gate the "Next"
+    // review button (can't review-jump past the tree's current frontier)
+    // and to pick the starting `treeIdx` when entering a tree.
+    const [currentPerTree, setCurrentPerTree] = useState<Record<Tree, number | null>>(
+        emptyPerTreeMap(),
+    )
     const [phase, setPhase] = useState<Phase>('learn')
 
     const [selected, setSelected] = useState<number | null>(null)
@@ -117,28 +122,40 @@ export default function LearnerView({ participantId }: { participantId: string }
     // The badge currently displayed in the share/download modal, if any.
     const [sharingBadge, setSharingBadge] = useState<Badge | null>(null)
 
-    // The mission catalogue lookup is by id (mission number). missionIdx
-    // is BOTH the position in MISSIONS *and* the mission number, because
-    // MISSIONS is contiguous 0..50 in order. Keep these synonymous below.
-    const mission: MissionDef = MISSIONS[missionIdx]
-    const isLast = missionIdx === MISSION_COUNT - 1
-    const allDone = completedMissions.length === MISSION_COUNT
-    const tone = techTone(mission.tech)
+    // Derived from `activeTreeKey + treeIdx`. When `activeTree` is null
+    // we're on the tree picker; `mission` is undefined and the mission
+    // card isn't rendered. When a tree is active, `mission` is its
+    // `treeIdx`-th lesson (looked up by id in the catalogue).
+    const activeTree: TreeMeta | undefined = activeTreeKey
+        ? TREES.find((t) => t.key === activeTreeKey)
+        : undefined
+    const missionId: number | undefined = activeTree?.missions[treeIdx]
+    const mission: MissionDef | undefined =
+        missionId !== undefined ? missionById(missionId) : undefined
+    const isLast = !!activeTree && treeIdx === activeTree.missions.length - 1
+    // "All done" = every tree's pointer is null (the badge for it is
+    // earned). Drives the final celebration screen.
+    const allDone = TREES.every((t) => currentPerTree[t.key] === null)
+    // `tone` is only consumed in the DoPanel branch (mission is defined
+    // there); the 'cyan' fallback is unreachable but keeps the type narrow.
+    const tone = mission ? techTone(mission.tech) : 'cyan'
+    // The tree-relative position of the next-incomplete mission in the
+    // active tree. We gate the review-Next button on this so a learner
+    // can't review-jump past their frontier.
+    const treeIdxFrontier: number = activeTree
+        ? (() => {
+              const next = currentPerTree[activeTree.key]
+              if (next === null) return activeTree.missions.length - 1
+              const i = activeTree.missions.indexOf(next)
+              return i === -1 ? activeTree.missions.length - 1 : i
+          })()
+        : 0
     /** True when the learner is *re-viewing* a mission they've already
-     *  completed AND there's no fresh result block on screen.
-     *
-     *  Two distinct UI states share this code path:
-     *    - **Just finished it** (`doOutcome` is set): show the celebratory
-     *      result block + "Next: …" button. Not review mode.
-     *    - **Came back later** (no `doOutcome`, mission is in
-     *      `completedMissions` OR `missionIdx < currentMission`): show the
-     *      "✓ You've completed this mission" callout in DoPanel.
-     *
-     *  Mixing these would erase the celebration the moment the action
-     *  succeeds, which feels wrong. */
+     *  completed AND there's no fresh result block on screen. */
     const isReviewing =
+        !!mission &&
         !doOutcome &&
-        (missionIdx < currentMission || completedMissions.includes(missionIdx))
+        completedMissions.includes(mission.id)
 
     // Move focus to the live result region whenever it appears.
     const resultRef = useRef<HTMLDivElement | null>(null)
@@ -149,9 +166,10 @@ export default function LearnerView({ participantId }: { participantId: string }
     }, [doOutcome])
 
     // On first mount, rehydrate progress from the server. The backend is
-    // the source of truth: even if local state was wiped by a refresh, the
-    // participant's `current_mission` and `completed_missions` are stored
-    // in SQLite and come back via /api/participants/me.
+    // the source of truth: `completed_missions` and `current_per_tree`
+    // are stored in SQLite and come back via /api/participants/me.
+    // We always land on the tree picker (`activeTreeKey === null`), not
+    // mid-tree — picking is a deliberate action, not a default.
     useEffect(() => {
         let cancelled = false
         ;(async () => {
@@ -161,16 +179,14 @@ export default function LearnerView({ participantId }: { participantId: string }
                 setCompletedMissions(p.completed_missions ?? [])
                 setBadges(b)
                 setParticipantName(p.name ?? '')
-                // current_mission is the same as missionIdx (both 0-indexed
-                // in the new curriculum). Clamp defensively in case the
-                // catalogue shrank under a participant.
-                const idx = Math.max(0, Math.min(MISSION_COUNT - 1, p.current_mission ?? 0))
-                setMissionIdx(idx)
-                setCurrentMission(idx)
+                if (p.current_per_tree) {
+                    setCurrentPerTree(mergePerTreeMap(p.current_per_tree))
+                }
             } catch {
-                // If the fetch fails (network down, token rejected), just
-                // start at mission 0. The Do action will fail loudly if
-                // the token is bad, which is the right place to surface it.
+                // If the fetch fails (network down, token rejected), the
+                // user lands on the tree picker with no progress. The Do
+                // action will fail loudly if the token is bad, which is
+                // the right place to surface it.
             }
         })()
         return () => {
@@ -192,19 +208,26 @@ export default function LearnerView({ participantId }: { participantId: string }
     }
 
     const goNextMission = () => {
-        setCompletedMissions((prev) => [...new Set([...prev, missionIdx])])
-        if (missionIdx < MISSION_COUNT - 1) {
-            const next = missionIdx + 1
-            setMissionIdx(next)
-            // Advance the server-truth pointer too. The Do action that
-            // just succeeded was on the highest unfinished mission, so
-            // `next` is the new floor.
-            setCurrentMission((c) => Math.max(c, next))
+        if (!activeTree || !mission) return
+        setCompletedMissions((prev) => [...new Set([...prev, mission.id])])
+        // Walk to the next mission *within the active tree*. If we just
+        // finished the tree's last lesson, stay put — the DoPanel's
+        // celebratory block shows and the learner can hit "Back to trees".
+        if (treeIdx < activeTree.missions.length - 1) {
+            setTreeIdx(treeIdx + 1)
             resetForNext()
         }
-        // Refresh badges and surface any newly-earned one. We do this even
-        // when the mission isn't the last in its tree (cheap call, simpler
-        // than gating on tree membership here).
+        // The completed mission was the tree's frontier; advance the
+        // pointer locally so the next render reflects "all done" or the
+        // next lesson without waiting for the badges refetch.
+        setCurrentPerTree((prev) => {
+            const nextInTree =
+                activeTree.missions.find(
+                    (m) => m !== mission.id && !completedMissions.includes(m),
+                ) ?? null
+            return { ...prev, [activeTree.key]: nextInTree }
+        })
+        // Refresh badges and surface any newly-earned one.
         ;(async () => {
             try {
                 const next = await api.getMyBadges()
@@ -224,26 +247,47 @@ export default function LearnerView({ participantId }: { participantId: string }
     }
 
     /**
-     * Step navigation. `Previous` walks back through any completed
-     * mission; `Next` only advances if the learner is currently
-     * reviewing — never past `currentMission`. The actual completion
-     * flow uses `goNextMission`, not this.
+     * Step navigation, scoped to the active tree. `Previous` walks back
+     * through any completed mission in the tree. `Next` only advances if
+     * the learner is currently reviewing — never past the tree's
+     * frontier. The actual completion flow uses `goNextMission`.
      */
     const goPrev = () => {
-        if (missionIdx > 0) {
-            setMissionIdx(missionIdx - 1)
+        if (treeIdx > 0) {
+            setTreeIdx(treeIdx - 1)
             resetForNext()
         }
     }
     const goNextReview = () => {
-        if (missionIdx < currentMission) {
-            setMissionIdx(missionIdx + 1)
+        if (activeTree && treeIdx < treeIdxFrontier) {
+            setTreeIdx(treeIdx + 1)
             resetForNext()
         }
     }
 
+    /**
+     * Enter a tree from the picker: jump straight to its current
+     * frontier (= next-incomplete mission). If the tree is fully done,
+     * land on the last mission so the learner can review.
+     */
+    const enterTree = (tree: TreeMeta) => {
+        const next = currentPerTree[tree.key]
+        const idx =
+            next === null
+                ? tree.missions.length - 1
+                : Math.max(0, tree.missions.indexOf(next))
+        setActiveTreeKey(tree.key)
+        setTreeIdx(idx)
+        resetForNext()
+    }
+
+    const exitToTreePicker = () => {
+        setActiveTreeKey(null)
+        resetForNext()
+    }
+
     const handleQuizSubmit = () => {
-        if (selected === null) return
+        if (selected === null || !mission) return
         const correct = mission.quiz.options[selected].correct
         setQuizResult(correct ? 'correct' : 'wrong')
         if (correct) {
@@ -257,6 +301,7 @@ export default function LearnerView({ participantId }: { participantId: string }
      * missions.rs. For knowledge missions, proof = "acknowledged".
      */
     const handleDo = async () => {
+        if (!mission) return
         setLoading(true)
         setDoError(null)
         try {
@@ -530,7 +575,7 @@ export default function LearnerView({ participantId }: { participantId: string }
             // the request (which the backend would 400, but the UX would
             // still be wrong). Marking it here means review-mode kicks in
             // immediately after a successful action.
-            setCompletedMissions((prev) => [...new Set([...prev, missionIdx])])
+            setCompletedMissions((prev) => [...new Set([...prev, mission.id])])
         } catch (e) {
             const msg =
                 e instanceof ApiError
@@ -569,13 +614,37 @@ export default function LearnerView({ participantId }: { participantId: string }
         </Suspense>
     )
 
-    // ── Final celebration screen ──
+    // ── Final celebration screen ── (every tree complete, last lesson of
+    // the last tree just finished).
     if (allDone && isLast && doOutcome) {
         return (
             <>
                 <FinishedScreen />
                 {modals}
             </>
+        )
+    }
+
+    // ── Tree picker (home) ──
+    if (!activeTree || !mission) {
+        return (
+            <main
+                id="learner-main"
+                style={{
+                    padding: 'clamp(0.75rem, 3vw, 1.5rem) clamp(0.5rem, 3vw, 1rem) 5rem',
+                    maxWidth: 960,
+                    margin: '0 auto',
+                }}
+                aria-label="Skill trees"
+            >
+                <BadgesStrip badges={badges} onShareBadge={setSharingBadge} />
+                {modals}
+                <TreePicker
+                    completedMissions={completedMissions}
+                    currentPerTree={currentPerTree}
+                    onEnter={enterTree}
+                />
+            </main>
         )
     }
 
@@ -592,17 +661,22 @@ export default function LearnerView({ participantId }: { participantId: string }
             }}
             aria-label={`Mission ${mission.id} of ${MISSION_COUNT - 1}: ${mission.name}`}
         >
-            <ProgressRail missionIdx={missionIdx} completed={completedMissions} />
+            <ProgressRail
+                activeTreeKey={activeTree.key}
+                completed={completedMissions}
+            />
 
             <BadgesStrip badges={badges} onShareBadge={setSharingBadge} />
 
             {modals}
 
             <MissionNav
-                missionIdx={missionIdx}
-                currentMission={currentMission}
+                tree={activeTree}
+                treeIdx={treeIdx}
+                treeIdxFrontier={treeIdxFrontier}
                 onPrev={goPrev}
                 onNext={goNextReview}
+                onExit={exitToTreePicker}
             />
 
             <article style={{ ...card, overflow: 'hidden', marginTop: 14 }}>
@@ -666,7 +740,11 @@ export default function LearnerView({ participantId }: { participantId: string }
                             isReviewing={isReviewing}
                             onReviewNext={goNextReview}
                             resultRef={resultRef}
-                            nextMissionName={isLast ? null : MISSIONS[missionIdx + 1].name}
+                            nextMissionName={
+                                isLast
+                                    ? null
+                                    : missionById(activeTree.missions[treeIdx + 1])?.name ?? null
+                            }
                         />
                     )}
                 </div>
@@ -675,38 +753,63 @@ export default function LearnerView({ participantId }: { participantId: string }
     )
 }
 
+// ── Per-tree pointer helpers ─────────────────────────────────────────────
+
+/** Initial per-tree map — every tree's pointer is its first mission. */
+function emptyPerTreeMap(): Record<Tree, number | null> {
+    const out: Record<string, number | null> = {}
+    for (const t of TREES) {
+        out[t.key] = t.missions[0] ?? null
+    }
+    return out as Record<Tree, number | null>
+}
+
+/**
+ * Merge a server-supplied per-tree map with the default. Missing keys
+ * fall back to the tree's first mission — defensive against the backend
+ * temporarily omitting a tree (shouldn't happen, but cheap insurance).
+ */
+function mergePerTreeMap(
+    server: Record<string, number | null>,
+): Record<Tree, number | null> {
+    const out = emptyPerTreeMap()
+    for (const t of TREES) {
+        if (t.key in server) {
+            out[t.key] = server[t.key]
+        }
+    }
+    return out
+}
+
 // ─── Sub-components ──────────────────────────────────────────────────────────
 
 /**
- * Step navigation row above the mission card.
+ * Step navigation row above the mission card, scoped to the active tree.
  *
- *   ← Previous · Mission n / N · Next →
+ *   ← Trees · ← Prev · Mission n / m in <tree> · Next →
  *
- * - **Previous** is enabled whenever `missionIdx > 0` so the learner can
- *   walk back through anything they've finished. When they land on a
- *   completed mission the DoPanel switches to read-only mode.
- * - **Next** is enabled only while *reviewing* — i.e. `missionIdx <
- *   currentMission`. We never advance past the server-truth pointer with
- *   this button; the way to unlock the next mission is to complete the
- *   current one via the action button inside DoPanel.
- *
- * The bar is intentionally compact so it doesn't compete with the
- * mission card below. On the active mission, Next looks disabled — that
- * is correct: the only way forward is to finish.
+ * - **Trees** returns to the tree picker (home).
+ * - **Previous** walks back through any completed mission *in this tree*.
+ * - **Next** is enabled only while reviewing within the tree — never past
+ *   the tree's frontier (next-incomplete mission).
  */
 function MissionNav({
-    missionIdx,
-    currentMission,
+    tree,
+    treeIdx,
+    treeIdxFrontier,
     onPrev,
     onNext,
+    onExit,
 }: {
-    missionIdx: number
-    currentMission: number
+    tree: TreeMeta
+    treeIdx: number
+    treeIdxFrontier: number
     onPrev: () => void
     onNext: () => void
+    onExit: () => void
 }) {
-    const canPrev = missionIdx > 0
-    const canNext = missionIdx < currentMission
+    const canPrev = treeIdx > 0
+    const canNext = treeIdx < treeIdxFrontier
     return (
         <nav
             aria-label="Mission navigation"
@@ -715,18 +818,29 @@ function MissionNav({
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                gap: 10,
+                gap: 8,
+                flexWrap: 'wrap',
             }}
         >
-            <button
-                type="button"
-                onClick={onPrev}
-                disabled={!canPrev}
-                aria-label="Previous mission"
-                style={navButtonStyle(canPrev)}
-            >
-                ← Previous
-            </button>
+            <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                    type="button"
+                    onClick={onExit}
+                    aria-label="Back to skill trees"
+                    style={navButtonStyle(true)}
+                >
+                    ← Trees
+                </button>
+                <button
+                    type="button"
+                    onClick={onPrev}
+                    disabled={!canPrev}
+                    aria-label="Previous mission in this tree"
+                    style={navButtonStyle(canPrev)}
+                >
+                    ← Prev
+                </button>
+            </div>
             <span
                 style={{
                     fontSize: 11,
@@ -739,18 +853,18 @@ function MissionNav({
                     flexShrink: 0,
                 }}
                 title={
-                    missionIdx < currentMission
-                        ? `Reviewing — your current mission is #${currentMission}`
-                        : 'Your current mission'
+                    treeIdx < treeIdxFrontier
+                        ? `Reviewing — current is mission ${treeIdxFrontier + 1} of ${tree.missions.length}`
+                        : `Mission ${treeIdx + 1} of ${tree.missions.length} in ${tree.label}`
                 }
             >
-                {missionIdx < currentMission ? 'Reviewing' : 'Current'} · #{missionIdx}
+                {tree.label} · {treeIdx + 1}/{tree.missions.length}
             </span>
             <button
                 type="button"
                 onClick={onNext}
                 disabled={!canNext}
-                aria-label="Next mission"
+                aria-label="Next mission in this tree"
                 style={navButtonStyle(canNext)}
                 title={
                     canNext
@@ -761,6 +875,183 @@ function MissionNav({
                 Next →
             </button>
         </nav>
+    )
+}
+
+/**
+ * The home screen: 8 skill trees as peers, the learner picks one.
+ *
+ * Each tile shows the tree's label, a one-line tagline, completion
+ * count (e.g. "3/6"), and a clear CTA. Earned trees are marked. Tiles
+ * are big, tap-friendly, and the layout collapses cleanly on mobile.
+ */
+function TreePicker({
+    completedMissions,
+    currentPerTree,
+    onEnter,
+}: {
+    completedMissions: number[]
+    currentPerTree: Record<Tree, number | null>
+    onEnter: (tree: TreeMeta) => void
+}) {
+    return (
+        <section
+            aria-label="Pick a skill tree to learn"
+            style={{
+                marginTop: 18,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 18,
+            }}
+        >
+            <header style={{ textAlign: 'center', padding: '0 8px' }}>
+                <h1
+                    style={{
+                        fontSize: 'clamp(22px, 5vw, 28px)',
+                        fontWeight: 800,
+                        letterSpacing: '-0.02em',
+                        margin: 0,
+                    }}
+                >
+                    <span className="gradient-text">Pick a tree to learn</span>
+                </h1>
+                <p
+                    style={{
+                        marginTop: 6,
+                        fontSize: 14,
+                        color: 'var(--muted)',
+                        lineHeight: 1.5,
+                    }}
+                >
+                    Eight skill trees, peers not stages. Start anywhere —
+                    Money 101 if you're new to Bitcoin, Lightning if you're
+                    not. Each tree is short and self-contained.
+                </p>
+            </header>
+            <ol
+                style={{
+                    listStyle: 'none',
+                    margin: 0,
+                    padding: 0,
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
+                    gap: 12,
+                }}
+            >
+                {TREES.map((t) => {
+                    const total = t.missions.length
+                    const done = t.missions.filter((m) =>
+                        completedMissions.includes(m),
+                    ).length
+                    const isDone = done === total
+                    const next = currentPerTree[t.key]
+                    const cta = isDone
+                        ? 'Review tree →'
+                        : done === 0
+                          ? 'Start →'
+                          : 'Continue →'
+                    const subline = isDone
+                        ? 'Tree complete'
+                        : next === null
+                          ? `${done}/${total} complete`
+                          : `${done}/${total} · next: mission ${t.missions.indexOf(next) + 1}`
+                    return (
+                        <li key={t.key}>
+                            <button
+                                type="button"
+                                onClick={() => onEnter(t)}
+                                style={{
+                                    width: '100%',
+                                    textAlign: 'left',
+                                    background: isDone
+                                        ? 'rgba(247, 147, 26, 0.10)'
+                                        : 'var(--surface)',
+                                    border: isDone
+                                        ? '1px solid rgba(247, 147, 26, 0.40)'
+                                        : '1px solid var(--border)',
+                                    borderRadius: 'var(--radius-3)',
+                                    padding: '14px 16px',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: 6,
+                                    fontFamily: 'var(--font-sans)',
+                                    color: 'var(--text)',
+                                }}
+                            >
+                                <div
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'space-between',
+                                        gap: 8,
+                                    }}
+                                >
+                                    <span
+                                        style={{
+                                            fontSize: 15,
+                                            fontWeight: 700,
+                                            letterSpacing: '-0.01em',
+                                        }}
+                                    >
+                                        {t.label}
+                                    </span>
+                                    {isDone && (
+                                        <span
+                                            aria-label="Tree complete"
+                                            style={{
+                                                ...chip('green'),
+                                                fontSize: 10,
+                                            }}
+                                        >
+                                            ✓ Done
+                                        </span>
+                                    )}
+                                </div>
+                                <p
+                                    style={{
+                                        margin: 0,
+                                        fontSize: 12.5,
+                                        color: 'var(--muted)',
+                                        lineHeight: 1.45,
+                                    }}
+                                >
+                                    {t.tagline}
+                                </p>
+                                <div
+                                    style={{
+                                        marginTop: 4,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'space-between',
+                                        gap: 8,
+                                    }}
+                                >
+                                    <span
+                                        style={{
+                                            fontSize: 11,
+                                            color: 'var(--muted)',
+                                            fontFamily: 'var(--font-mono)',
+                                        }}
+                                    >
+                                        {subline}
+                                    </span>
+                                    <span
+                                        style={{
+                                            fontSize: 13,
+                                            fontWeight: 600,
+                                            color: 'var(--bitcoin)',
+                                        }}
+                                    >
+                                        {cta}
+                                    </span>
+                                </div>
+                            </button>
+                        </li>
+                    )
+                })}
+            </ol>
+        </section>
     )
 }
 
@@ -792,13 +1083,13 @@ function navButtonStyle(enabled: boolean): CSSProperties {
  * computed by membership: `t.missions` contains the ids that belong.
  */
 function ProgressRail({
-    missionIdx,
+    activeTreeKey,
     completed,
 }: {
-    missionIdx: number
+    activeTreeKey: Tree
     completed: number[]
 }) {
-    const currentTree = treeFor(missionIdx)
+    const currentTree = TREES.find((t) => t.key === activeTreeKey) ?? TREES[0]
     return (
         <nav aria-label="Mission progress" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <ol
@@ -879,11 +1170,12 @@ function ProgressRail({
                     flexWrap: 'wrap',
                 }}
             >
-                <span style={{ color: 'var(--text)' }}>
-                    Mission {missionIdx}/{MISSION_COUNT - 1}
-                </span>
+                <span style={{ color: 'var(--text)' }}>{currentTree.label} tree</span>
                 <span aria-hidden="true">·</span>
-                <span>{currentTree.label} tree</span>
+                <span>
+                    {completed.filter((m) => currentTree.missions.includes(m)).length}/
+                    {currentTree.missions.length}
+                </span>
             </div>
         </nav>
     )
