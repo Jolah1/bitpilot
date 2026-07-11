@@ -62,7 +62,7 @@ export const TREES: TreeMeta[] = [
     { key: 'lightning',    label: 'Lightning',    missions: [21, 22, 79, 80, 23, 24, 25, 38, 81, 82, 39, 83], tagline: 'Channels, HTLCs, liquidity, LSPs, watchtowers, splicing.' },
     { key: 'nostr',        label: 'Nostr',        missions: [13, 14, 15, 16, 17, 26, 27, 28, 29, 30, 35, 36, 37], tagline: 'Identity without a server. Notes, profiles, zaps.' },
     { key: 'ecash',        label: 'eCash',        missions: [31, 32, 33, 34, 84, 55, 56, 85, 57, 86],      tagline: 'Bearer money backed by a mint. Cashu, Fedimint, honest failure modes.' },
-    { key: 'self-custody', label: 'Self-custody', missions: [3, 4, 11, 12, 20, 41, 43, 44, 45],            tagline: 'Wallets, seeds, addresses, hardware, multisig.' },
+    { key: 'self-custody', label: 'Self-custody', missions: [3, 4, 11, 12, 91, 92, 93, 20, 41, 94, 95, 43, 44, 45, 96], tagline: 'Wallets, seeds, passphrases, PSBTs, descriptors, multisig.' },
     { key: 'privacy',      label: 'Privacy',      missions: [46, 51, 52, 58, 59, 60, 61, 62, 63, 64, 65, 66], tagline: 'Chain analysis, CoinJoin, KYC leaks, threat models.' },
     // Mission 50 ("You made it") stays last — it's the graduation lesson.
     { key: 'sovereignty',  label: 'Sovereignty',  missions: [42, 47, 53, 54, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 50], tagline: 'Signet, nodes, exit optionality, and the long game.' },
@@ -215,7 +215,7 @@ function knowledge(o: KnowledgeOpts): MissionDef {
 }
 
 /**
- * The full BitPilot curriculum: 91 missions (0..=90) across 8 skill trees.
+ * The full BitPilot curriculum: 97 missions (0..=96) across 8 skill trees.
  *
  * Mission ids are stable across tree reshuffles — they don't renumber when
  * a mission moves to a different tree. The catalogue below is ordered by
@@ -238,7 +238,7 @@ export const MISSIONS: MissionDef[] = [
         learn: {
             heading: 'Why this exists',
             body:
-                "Most people learn about Bitcoin by reading. You'll learn by using. Over the next 91 missions you'll generate real cryptographic keys, send (testnet) payments, publish a message to a network nobody owns, and end up understanding more than 99% of people who 'know about crypto'.\n\nNo wallet to install. No money at risk. Every action that touches a real network is clearly labeled — and everything that's just a demonstration is too.\n\nMissions are grouped into eight skill trees — Money, Bitcoin, Lightning, Nostr, eCash, Self-custody, Privacy, Sovereignty. Start anywhere, finish a tree, earn its compass badge.",
+                "Most people learn about Bitcoin by reading. You'll learn by using. Over the next 97 missions you'll generate real cryptographic keys, send (testnet) payments, publish a message to a network nobody owns, and end up understanding more than 99% of people who 'know about crypto'.\n\nNo wallet to install. No money at risk. Every action that touches a real network is clearly labeled — and everything that's just a demonstration is too.\n\nMissions are grouped into eight skill trees — Money, Bitcoin, Lightning, Nostr, eCash, Self-custody, Privacy, Sovereignty. Start anywhere, finish a tree, earn its compass badge.",
             tip: 'You\'ll learn to think in sats — the unit real Bitcoiners use. No money changes hands inside BitPilot.',
         },
         quiz: {
@@ -1438,7 +1438,7 @@ export const MISSIONS: MissionDef[] = [
         learn: {
             heading: 'Curriculum complete. Now build the habit.',
             body:
-                "You generated a real Nostr identity, learned Lightning, sent a signet on-chain transaction, and walked the full 91-mission curriculum across all eight skill trees. You're past the hard part: understanding.\n\nWhat to do from here:\n\n• Pick a wallet. Phoenix (Lightning, semi-self-custodial) is a great starter. Sparrow + a hardware wallet for cold storage.\n• Buy a small amount of bitcoin — not as investment advice, but as 'now I have skin in the game'. Even 5,000 sats teaches more than 5,000 articles.\n• Follow a few people on Nostr who explain things calmly: fiatjaf, jb55, Lyn Alden, Knut Svanholm, Marty Bent.\n• Read 'The Bitcoin Standard' or 'Inventing Bitcoin' if you want depth.\n• Keep using sats. Lightning addresses are everywhere now. Tip your favourite podcaster, your friend, a random stranger on Nostr.\n\nWelcome to Bitcoin. Don't stop.",
+                "You generated a real Nostr identity, learned Lightning, sent a signet on-chain transaction, and walked the full 97-mission curriculum across all eight skill trees. You're past the hard part: understanding.\n\nWhat to do from here:\n\n• Pick a wallet. Phoenix (Lightning, semi-self-custodial) is a great starter. Sparrow + a hardware wallet for cold storage.\n• Buy a small amount of bitcoin — not as investment advice, but as 'now I have skin in the game'. Even 5,000 sats teaches more than 5,000 articles.\n• Follow a few people on Nostr who explain things calmly: fiatjaf, jb55, Lyn Alden, Knut Svanholm, Marty Bent.\n• Read 'The Bitcoin Standard' or 'Inventing Bitcoin' if you want depth.\n• Keep using sats. Lightning addresses are everywhere now. Tip your favourite podcaster, your friend, a random stranger on Nostr.\n\nWelcome to Bitcoin. Don't stop.",
             tip: "The best Bitcoin education is using it. Earnestly, in tiny amounts, until it's boring.",
         },
         quiz: {
@@ -2329,6 +2329,138 @@ export const MISSIONS: MissionDef[] = [
                 { text: 'They own most of the hashrate directly', correct: false, why: 'Miners are widely distributed and can point their machines elsewhere.' },
                 { text: 'They pick which transactions their miners include in blocks — a censorship surface', correct: true },
                 { text: 'They set the difficulty', correct: false, why: 'Difficulty is set by every node running the formula.' },
+            ],
+        },
+    }),
+    knowledge({
+        id: 91,
+        emoji: '🔢',
+        topic: 'Self-custody',
+        tech: 'bitcoin',
+        name: 'BIPs 39, 32, 44 — the numbers on your wallet',
+        tagline: 'Why every wallet uses the same 12 words. Why they all agree on the derivation path.',
+        learn: {
+            heading: 'Three standards that let wallets talk to each other',
+            body:
+                "Open any Bitcoin wallet's advanced settings and you'll see numbers: BIP39, BIP32, BIP44 (or BIP84, BIP86 depending on script type). They're the standards that make your seed portable across apps.\n\n**BIP39** is the seed phrase. 128 bits of entropy → 12 words picked from a fixed 2048-word list, with a checksum baked in. Any BIP39-compatible wallet, anywhere, can turn those 12 words back into the same set of keys. \"12 words\" is what makes recovery possible.\n\n**BIP32** is hierarchical deterministic wallets. Instead of storing a random set of keypairs, your wallet grows a whole tree of them from a single master key. Every child key is deterministically derived. That's how a wallet can hand out fresh addresses forever without asking you to back anything up beyond the seed.\n\n**BIP44 / 49 / 84 / 86** are the standard *paths* through that tree. Different paths for different script types (legacy, wrapped segwit, native segwit, taproot). Every wallet uses the same paths so you can restore a seed in a different wallet and see the same addresses.\n\nIf those three didn't line up, exporting a seed would give you your money back only if you imported it into the exact same software. BIPs made portability the default.",
+            tip: 'Twelve words is a seed. What "twelve words" turns into depends on BIP39, BIP32, and the derivation path.',
+        },
+        quiz: {
+            question: 'What lets you restore the same seed phrase in a *different* wallet app and still see the same addresses?',
+            options: [
+                { text: 'The developers all know each other', correct: false },
+                { text: 'BIP39 (words → entropy) + BIP32 (deterministic key tree) + standard derivation paths', correct: true },
+                { text: 'A central Bitcoin registry', correct: false, why: 'There is no such thing.' },
+            ],
+        },
+    }),
+    knowledge({
+        id: 92,
+        emoji: '🎭',
+        topic: 'Self-custody',
+        tech: 'bitcoin',
+        name: 'The 25th word (passphrase)',
+        tagline: 'A separate secret that turns one seed into infinite hidden wallets',
+        learn: {
+            heading: 'A passphrase is not a password on your seed — it is another seed',
+            body:
+                "BIP39 lets you extend a 12-word seed with an optional passphrase — an extra string only you know. The critical property: a different passphrase produces a *completely different set of addresses*, all derived from the same 12 words.\n\nThis is powerful and dangerous.\n\n**Powerful**: an attacker who finds your paper backup gets nothing valuable, because the 12 words on paper unlock only an empty (or decoy) wallet. Your real balance lives under a passphrase they don't have. This is real, working plausible deniability.\n\n**Dangerous**: passphrases are usually only in your head. Forget the exact spelling, capitalisation, or spacing → your bitcoin is gone. There is no recovery. It is the single biggest reason people lose passphrase-protected funds.\n\nIf you use one:\n\n• Test recovery on a small amount first, actually going through the flow.\n• Write it down and put it somewhere completely separate from the seed words. Never together.\n• Simpler is usually better than clever. \"my-first-house-street\" is fine; \"@k9!*Xz\" gets forgotten.\n• If nobody else in your life knows how to type it, plan for that — your family cannot recover funds nobody can spell.",
+            tip: "A passphrase is a decoy layer on top of your seed. Powerful — and the most common way people permanently lock themselves out.",
+        },
+        quiz: {
+            question: 'What is the practical effect of adding a BIP39 passphrase to your seed?',
+            options: [
+                { text: 'It encrypts the seed words on disk', correct: false, why: 'It generates a different wallet, not encryption.' },
+                { text: 'The same 12 words with a different passphrase produce a completely different set of addresses', correct: true },
+                { text: 'It replaces the need for a hardware wallet', correct: false, why: 'It complements it.' },
+            ],
+        },
+    }),
+    knowledge({
+        id: 93,
+        emoji: '📄',
+        topic: 'Self-custody',
+        tech: 'bitcoin',
+        name: 'Backing up a seed, seriously',
+        tagline: 'Paper, steel, splits — pick the one that outlives your next move',
+        learn: {
+            heading: 'The seed backup is the wallet. Design it like it matters.',
+            body:
+                "A seed written on receipt paper in a drawer will be ruined by a flood, a fire, or a house move. Backups get taken seriously when you internalise: the piece of paper *is* the money.\n\n**Paper**: fine for testing. Use archival paper, laminate it, keep it in two locations. Assume any single location will eventually fail (fire, roof leak, snoopy relative).\n\n**Metal**: engraved or stamped into stainless steel plates (Cobo, Blockmit, ColdCard, DIY punch-set). Survives fires, floods, and being buried. This is the standard for a real backup. Under $100 for a lifetime.\n\n**SLIP-39 / Shamir shares**: split the seed into (say) 5 shares, any 3 of which can reconstruct it. Great for distributing across a few trusted locations without any single one being fatal. Fewer wallets support it — Trezor is the main one.\n\n**BIP85 children**: one master seed can deterministically derive many child seeds. Useful for organising multiple wallets from one backup, but the master is still the single point of failure.\n\nThe test: draw a line on your calendar 10 years out. Is your backup still going to be readable then, in whichever building you happen to live in? If not, upgrade now.",
+            tip: 'Steel outlives paper. Two locations outlive one. Neither outlives your ability to actually find the seed again in twenty years.',
+        },
+        quiz: {
+            question: 'Which backup approach best survives a house fire?',
+            options: [
+                { text: 'A photo of the seed on your phone', correct: false, why: 'Cloud sync is the opposite of secure.' },
+                { text: 'Words punched into stainless steel plates', correct: true },
+                { text: 'Paper in a safe deposit box', correct: false, why: 'Better than nothing — but a single location and paper still fails.' },
+            ],
+        },
+    }),
+    knowledge({
+        id: 94,
+        emoji: '📦',
+        topic: 'Self-custody',
+        tech: 'bitcoin',
+        name: 'PSBTs — signing without touching the internet',
+        tagline: 'The file format that lets a cold wallet sign a hot wallet\'s transaction',
+        learn: {
+            heading: 'Partially Signed Bitcoin Transactions, explained',
+            body:
+                "A PSBT (BIP174) is a file that contains an unsigned or partially-signed Bitcoin transaction, plus all the context a signer needs to check what it's about to authorize (which inputs, what amounts, what outputs, what change).\n\nWhy this matters:\n\n• You watch balances on a hot wallet (Sparrow on your laptop) that only has *public* keys.\n• You draft a send in the hot wallet. It produces a PSBT — an unsigned transaction.\n• You transfer the PSBT to a cold wallet (a hardware wallet, an air-gapped machine, a phone in flight mode) via SD card, USB, or QR.\n• The cold wallet displays what's actually being signed (\"send 100k sats to bc1q... plus 5k change back\"). You confirm. It signs.\n• The signed PSBT comes back. The hot wallet broadcasts.\n\nAt no point does the cold wallet touch a network. At no point do the private keys leave the cold environment. It is the standard way real cold-storage flows work — Sparrow ↔ ColdCard, Nunchuk ↔ multiple signers, etc.",
+            tip: "PSBT is the boring plumbing that makes serious cold storage practical. If your wallet supports PSBT import/export, it's grown up.",
+        },
+        quiz: {
+            question: 'What does a PSBT let you do that a regular transaction file does not?',
+            options: [
+                { text: 'Move the whole transaction between an online device and an offline signer without exposing keys', correct: true },
+                { text: 'Skip paying fees', correct: false },
+                { text: 'Send bitcoin without a signature', correct: false, why: 'Every valid Bitcoin transaction needs signatures.' },
+            ],
+        },
+    }),
+    knowledge({
+        id: 95,
+        emoji: '🧬',
+        topic: 'Self-custody',
+        tech: 'bitcoin',
+        name: 'Descriptors — what your wallet really is',
+        tagline: 'A one-line recipe that tells any wallet exactly which addresses to watch',
+        learn: {
+            heading: 'One string that describes a whole address family',
+            body:
+                "An output descriptor is a compact text expression like `wpkh([abcd1234/84h/0h/0h]xpub.../<0;1>/*)` that fully specifies how a wallet generates addresses: script type, master fingerprint, derivation path, extended public key, receive/change branches, and the address range.\n\nWhy this exists: exporting just an xpub used to be ambiguous. Different wallets guessed different script types (legacy? segwit? taproot?), different derivation paths, and produced different addresses from the same xpub. Descriptors kill the guessing — they say exactly what to do.\n\nWhat it means practically:\n\n• A watch-only wallet on your laptop can be set up from a single descriptor string — no fumbling with settings.\n• A multisig setup is described by a *combined descriptor* that names every signer and the threshold. One string, unambiguous.\n• Migrating between wallets is: export descriptor from A, import descriptor into B, done. As long as both support descriptors (Bitcoin Core, Sparrow, Nunchuk, BlueWallet, Electrum).\n\nDescriptors are boring. That is the highest praise for wallet infrastructure.",
+            tip: 'If a wallet asks for "xpub", give it a descriptor if you can. Fewer things guess. Fewer things go wrong.',
+        },
+        quiz: {
+            question: 'What problem do output descriptors solve for wallet imports?',
+            options: [
+                { text: 'They encrypt the seed', correct: false },
+                { text: 'They fully specify script type + derivation path so different wallets do not guess and diverge', correct: true },
+                { text: 'They let you send bitcoin without a private key', correct: false },
+            ],
+        },
+    }),
+    knowledge({
+        id: 96,
+        emoji: '🔄',
+        topic: 'Self-custody',
+        tech: 'bitcoin',
+        name: 'Migrating wallets safely',
+        tagline: 'How to move between apps without losing sats or leaking addresses',
+        learn: {
+            heading: 'The five-step wallet migration playbook',
+            body:
+                "Wallets die. Companies pivot. New tools ship. Eventually you will need to move a working wallet from one app to another. Do it in this order:\n\n1. **Get your seed and passphrase out first.** Confirm you have them written down (or on steel). If you can't reconstruct the wallet from words alone in a hostile environment, you don't own it yet.\n\n2. **Import into the new wallet on a test amount.** Move 10,000 sats first. Confirm it arrives. Send it back. Confirm the round trip works before you touch the real balance.\n\n3. **Use the same derivation path.** If the new wallet asks — check the export from the old one. Native segwit uses BIP84 (m/84'/0'/0'), taproot uses BIP86, legacy uses BIP44. Mismatched paths = wrong addresses = looks empty even though your money is there.\n\n4. **For real migrations (change of security posture): sweep, don't just import.** Generate a fresh seed on the new wallet, send everything to the new wallet's addresses. This gives you a clean cryptographic identity if you suspect the old wallet was ever exposed.\n\n5. **Destroy the old backup** only after the new wallet has confirmed the funds for weeks. Not days. Weeks. Reversing this is the mistake nobody talks about.",
+            tip: 'The dangerous moment is between "old wallet forgotten" and "new wallet actually verified holding the funds." Move slowly.',
+        },
+        quiz: {
+            question: 'What is the first thing to do before migrating from one wallet app to another?',
+            options: [
+                { text: 'Delete the old wallet to force yourself to commit', correct: false, why: 'Never delete before verifying the new setup works.' },
+                { text: 'Confirm you have the seed (and passphrase, if any) and can reconstruct the wallet from words alone', correct: true },
+                { text: 'Buy new hardware', correct: false },
             ],
         },
     }),

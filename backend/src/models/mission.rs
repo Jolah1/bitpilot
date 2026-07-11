@@ -49,7 +49,7 @@ impl Tree {
             Tree::Lightning   => &[21, 22, 79, 80, 23, 24, 25, 38, 81, 82, 39, 83],
             Tree::Nostr       => &[13, 14, 15, 16, 17, 26, 27, 28, 29, 30, 35, 36, 37],
             Tree::Ecash       => &[31, 32, 33, 34, 84, 55, 56, 85, 57, 86],
-            Tree::SelfCustody => &[3, 4, 11, 12, 20, 41, 43, 44, 45],
+            Tree::SelfCustody => &[3, 4, 11, 12, 91, 92, 93, 20, 41, 94, 95, 43, 44, 45, 96],
             Tree::Privacy     => &[46, 51, 52, 58, 59, 60, 61, 62, 63, 64, 65, 66],
             // 50 ("You made it") stays last — it's the graduation lesson.
             Tree::Sovereignty => &[42, 47, 53, 54, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 50],
@@ -165,11 +165,17 @@ const CATALOGUE: &[Row] = &[
     Row { number: 4,  title: "Addresses: your inbox for sats",simulated: false, description: "Long string. Infinite supply. Free to make." },
     Row { number: 11, title: "Generate a seed phrase",        simulated: true,  description: "12 BIP39 words generated in your browser. The backup is the wallet." },
     Row { number: 12, title: "Your seed IS your wallet",      simulated: false, description: "Why losing the seed means losing the bitcoin." },
+    Row { number: 91, title: "BIPs 39, 32, 44",               simulated: false, description: "The standards that make your seed portable across wallets." },
+    Row { number: 92, title: "The 25th word (passphrase)",    simulated: false, description: "A separate secret that turns one seed into infinite hidden wallets." },
+    Row { number: 93, title: "Backing up a seed, seriously",  simulated: false, description: "Paper, steel, splits — pick what outlives your next move." },
     Row { number: 20, title: "Five ways people lose bitcoin", simulated: false, description: "Read before you ever hold real sats." },
     Row { number: 41, title: "Derive your first address",     simulated: true,  description: "From 12 words to an actual address — in your browser." },
+    Row { number: 94, title: "PSBTs — signing without touching the internet", simulated: false, description: "The file format behind serious cold storage flows." },
+    Row { number: 95, title: "Descriptors — what your wallet really is", simulated: false, description: "One string that fully specifies your address family." },
     Row { number: 43, title: "Hardware wallets",              simulated: false, description: "Why a $50 device is the cheapest peace of mind in crypto." },
     Row { number: 44, title: "Multisig 101",                  simulated: false, description: "2-of-3 keys → you control bitcoin even if one device is lost." },
     Row { number: 45, title: "Cold vs hot storage",           simulated: false, description: "Why your savings shouldn't be on your phone." },
+    Row { number: 96, title: "Migrating wallets safely",      simulated: false, description: "Move between apps without losing sats or leaking addresses." },
 
     // ── Privacy ────────────────────────────────────────────────────────
     Row { number: 46, title: "Privacy basics",                simulated: false, description: "The chain is public — act accordingly." },
@@ -234,7 +240,7 @@ impl Mission {
     pub const FIRST: u8 = 0;
 
     /// Last valid mission id (inclusive).
-    pub const LAST: u8 = 90;
+    pub const LAST: u8 = 96;
 
     /// Which `DoKind` does this mission use? Used by `verify_proof` to know
     /// which ledger to check. Kept in lock-step with the frontend's
@@ -256,6 +262,7 @@ impl Mission {
             79 | 80 | 81 | 82 | 83 => DoKind::Knowledge,
             84 | 85 | 86 => DoKind::Knowledge,
             87 | 88 | 89 | 90 => DoKind::Knowledge,
+            91 | 92 | 93 | 94 | 95 | 96 => DoKind::Knowledge,
 
             // Action missions:
             11 => DoKind::SeedWords,
