@@ -60,7 +60,7 @@ export const TREES: TreeMeta[] = [
     { key: 'money',        label: 'Money 101',    missions: [0, 1, 77, 78, 2, 5, 9, 10],                   tagline: 'What money is, why fiat leaks, why Bitcoin exists.' },
     { key: 'bitcoin',      label: 'Bitcoin',      missions: [6, 7, 8, 87, 88, 18, 19, 89, 40, 90, 48, 49], tagline: 'Blocks, mempool, miners, UTXOs, Script, Taproot, pools.' },
     { key: 'lightning',    label: 'Lightning',    missions: [21, 22, 79, 80, 23, 24, 25, 38, 81, 82, 39, 83], tagline: 'Channels, HTLCs, liquidity, LSPs, watchtowers, splicing.' },
-    { key: 'nostr',        label: 'Nostr',        missions: [13, 14, 15, 16, 17, 26, 27, 28, 29, 30, 35, 36, 37], tagline: 'Identity without a server. Notes, profiles, zaps.' },
+    { key: 'nostr',        label: 'Nostr',        missions: [13, 14, 15, 97, 16, 17, 26, 27, 98, 28, 29, 30, 35, 36, 37, 99], tagline: 'Identity without a server. Notes, signers, DMs, the wider ecosystem.' },
     { key: 'ecash',        label: 'eCash',        missions: [31, 32, 33, 34, 84, 55, 56, 85, 57, 86],      tagline: 'Bearer money backed by a mint. Cashu, Fedimint, honest failure modes.' },
     { key: 'self-custody', label: 'Self-custody', missions: [3, 4, 11, 12, 91, 92, 93, 20, 41, 94, 95, 43, 44, 45, 96], tagline: 'Wallets, seeds, passphrases, PSBTs, descriptors, multisig.' },
     { key: 'privacy',      label: 'Privacy',      missions: [46, 51, 52, 58, 59, 60, 61, 62, 63, 64, 65, 66], tagline: 'Chain analysis, CoinJoin, KYC leaks, threat models.' },
@@ -215,7 +215,7 @@ function knowledge(o: KnowledgeOpts): MissionDef {
 }
 
 /**
- * The full BitPilot curriculum: 97 missions (0..=96) across 8 skill trees.
+ * The full BitPilot curriculum: 100 missions (0..=99) across 8 skill trees.
  *
  * Mission ids are stable across tree reshuffles — they don't renumber when
  * a mission moves to a different tree. The catalogue below is ordered by
@@ -238,7 +238,7 @@ export const MISSIONS: MissionDef[] = [
         learn: {
             heading: 'Why this exists',
             body:
-                "Most people learn about Bitcoin by reading. You'll learn by using. Over the next 97 missions you'll generate real cryptographic keys, send (testnet) payments, publish a message to a network nobody owns, and end up understanding more than 99% of people who 'know about crypto'.\n\nNo wallet to install. No money at risk. Every action that touches a real network is clearly labeled — and everything that's just a demonstration is too.\n\nMissions are grouped into eight skill trees — Money, Bitcoin, Lightning, Nostr, eCash, Self-custody, Privacy, Sovereignty. Start anywhere, finish a tree, earn its compass badge.",
+                "Most people learn about Bitcoin by reading. You'll learn by using. Over the next 100 missions you'll generate real cryptographic keys, send (testnet) payments, publish a message to a network nobody owns, and end up understanding more than 99% of people who 'know about crypto'.\n\nNo wallet to install. No money at risk. Every action that touches a real network is clearly labeled — and everything that's just a demonstration is too.\n\nMissions are grouped into eight skill trees — Money, Bitcoin, Lightning, Nostr, eCash, Self-custody, Privacy, Sovereignty. Start anywhere, finish a tree, earn its compass badge.",
             tip: 'You\'ll learn to think in sats — the unit real Bitcoiners use. No money changes hands inside BitPilot.',
         },
         quiz: {
@@ -1438,7 +1438,7 @@ export const MISSIONS: MissionDef[] = [
         learn: {
             heading: 'Curriculum complete. Now build the habit.',
             body:
-                "You generated a real Nostr identity, learned Lightning, sent a signet on-chain transaction, and walked the full 97-mission curriculum across all eight skill trees. You're past the hard part: understanding.\n\nWhat to do from here:\n\n• Pick a wallet. Phoenix (Lightning, semi-self-custodial) is a great starter. Sparrow + a hardware wallet for cold storage.\n• Buy a small amount of bitcoin — not as investment advice, but as 'now I have skin in the game'. Even 5,000 sats teaches more than 5,000 articles.\n• Follow a few people on Nostr who explain things calmly: fiatjaf, jb55, Lyn Alden, Knut Svanholm, Marty Bent.\n• Read 'The Bitcoin Standard' or 'Inventing Bitcoin' if you want depth.\n• Keep using sats. Lightning addresses are everywhere now. Tip your favourite podcaster, your friend, a random stranger on Nostr.\n\nWelcome to Bitcoin. Don't stop.",
+                "You generated a real Nostr identity, learned Lightning, sent a signet on-chain transaction, and walked the full 100-mission curriculum across all eight skill trees. You're past the hard part: understanding.\n\nWhat to do from here:\n\n• Pick a wallet. Phoenix (Lightning, semi-self-custodial) is a great starter. Sparrow + a hardware wallet for cold storage.\n• Buy a small amount of bitcoin — not as investment advice, but as 'now I have skin in the game'. Even 5,000 sats teaches more than 5,000 articles.\n• Follow a few people on Nostr who explain things calmly: fiatjaf, jb55, Lyn Alden, Knut Svanholm, Marty Bent.\n• Read 'The Bitcoin Standard' or 'Inventing Bitcoin' if you want depth.\n• Keep using sats. Lightning addresses are everywhere now. Tip your favourite podcaster, your friend, a random stranger on Nostr.\n\nWelcome to Bitcoin. Don't stop.",
             tip: "The best Bitcoin education is using it. Earnestly, in tiny amounts, until it's boring.",
         },
         quiz: {
@@ -2461,6 +2461,72 @@ export const MISSIONS: MissionDef[] = [
                 { text: 'Delete the old wallet to force yourself to commit', correct: false, why: 'Never delete before verifying the new setup works.' },
                 { text: 'Confirm you have the seed (and passphrase, if any) and can reconstruct the wallet from words alone', correct: true },
                 { text: 'Buy new hardware', correct: false },
+            ],
+        },
+    }),
+    knowledge({
+        id: 97,
+        emoji: '✍️',
+        topic: 'Nostr',
+        tech: 'nostr',
+        name: 'Signers — never paste your nsec',
+        tagline: 'The pattern that keeps your private key out of every app you use',
+        learn: {
+            heading: 'Nsecs go in one place. Everything else asks that place to sign.',
+            body:
+                "Your nsec is a private key — the whole reason your Nostr identity is yours. Paste it into a web app and you're trusting that page, its JavaScript, its analytics, its cache, and every browser extension listening in. One leak, and someone else is you on Nostr forever.\n\nThe better pattern: put your nsec in a *signer*, and never let anything else see it.\n\n• **NIP-07 browser extensions** (nos2x, Alby, Nostore, Flamingo). Your key lives inside the extension. Nostr web apps ask the extension \"please sign this event\" and get back a signed event, never the key. The web app never sees plaintext.\n• **Bunker signers (NIP-46)** run a separate process (on your phone, or a home server) that holds the key. Clients connect via a signed URI and ask the bunker to sign things. Same trust boundary, works cross-device.\n• **Hardware signers** (some Nostr wallets are experimenting) push the key into a chip that never exposes it.\n\nThe usability trade-off is small; the security payoff is enormous. Web apps you use for a week come and go. Your identity doesn't.",
+            tip: "If a Nostr web app asks for your nsec directly, close the tab. That is 2019 pattern. Use a NIP-07 signer.",
+        },
+        quiz: {
+            question: 'Why should you never paste your nsec directly into a web app?',
+            options: [
+                { text: 'The nsec is limited-use', correct: false, why: 'It is not — it is the key forever.' },
+                { text: 'The web app, its scripts, extensions, and cache all get to see your identity\'s master key', correct: true },
+                { text: 'Web apps cannot generate signatures', correct: false, why: 'They can — with a signer, they get signatures without seeing the key.' },
+            ],
+        },
+    }),
+    knowledge({
+        id: 98,
+        emoji: '🎁',
+        topic: 'Nostr',
+        tech: 'nostr',
+        name: 'Private DMs — NIP-04 and gift-wrap',
+        tagline: 'Two DM standards. One leaks metadata; the other doesn\'t.',
+        learn: {
+            heading: 'A brief history of \"private\" on Nostr',
+            body:
+                "For years, Nostr had exactly one DM standard: **NIP-04**. It encrypted message *contents* between sender and recipient — but every relay could see WHO was talking to WHOM, WHEN, and how OFTEN. Recipient's npub was in plaintext. Sender's npub was in plaintext. Perfect metadata for anyone building a social graph, terrible for anything actually sensitive.\n\n**NIP-17** (2024, gift-wrap DMs) fixed this by borrowing an idea from Signal: wrap the message in layers of encryption, each addressed to what looks like a randomly-generated key, so that from the outside a DM looks like an anonymous kind-1059 event. The recipient's real client peels the layers to find the actual message inside.\n\nWhat leaks now:\n\n• That *some* private message happened, roughly when.\n• Nothing about who sent to whom, or their social relationship.\n\nWhat still leaks: the timing (a relay-side observer can correlate posts if they know both endpoints).\n\nWallet/client support is mixed. Amethyst, Damus (recent), and 0xchat implement NIP-17. Older clients still use NIP-04. If your DMs matter, check which your client uses — and treat NIP-04 as postcards, not envelopes.",
+            tip: 'NIP-04 encrypts message content and leaks everything else. NIP-17 fixes it. Check which one your client uses before sending anything sensitive.',
+        },
+        quiz: {
+            question: 'What is the main upgrade NIP-17 gives over NIP-04 for Nostr DMs?',
+            options: [
+                { text: 'Faster delivery', correct: false },
+                { text: 'The sender/recipient metadata is no longer visible to relays', correct: true },
+                { text: 'Longer message length', correct: false },
+            ],
+        },
+    }),
+    knowledge({
+        id: 99,
+        emoji: '🌐',
+        topic: 'Nostr',
+        tech: 'nostr',
+        name: 'The wider Nostr ecosystem',
+        tagline: 'Long-form, marketplaces, video, communities — the whole thing keeps growing',
+        learn: {
+            heading: 'Nostr is bigger than short notes',
+            body:
+                "The first Nostr client you saw was probably a Twitter-clone (Damus, Amethyst, Snort). That's the loudest use case — but the protocol keeps growing sideways.\n\n**Long-form** (NIP-23): Habla.news, Yakihonne. Signed articles that live on relays, not on Substack. The same npub, same follows, different content type.\n\n**Marketplaces** (NIP-99, NIP-15): Plebeian Market, Shopstr, Nostrocket. Bitcoin-native listings with Lightning payment and Nostr reviews. Small but real trade happening.\n\n**Video** (NIP-71): Flare, Amethyst's video tab. Signed videos that don't live on any single platform. Nascent, worth watching.\n\n**Communities** (NIP-72): Reddit-shaped groups on Nostr — modded, threaded, portable. 0xchat and Amethyst show them.\n\n**Custom event kinds**: anyone can define a new event kind. Music kinds, RSS mirroring kinds, calendar events, workout logs. Not all of them stick; the ones that do become de-facto standards.\n\nThe design that makes all of this work: your npub is one identity that carries you across all of these. Same follows, same identity, different apps. That's the actual product Nostr is shipping — not the Twitter clone, the *portability* underneath.",
+            tip: 'Nostr is not a Twitter clone with extra steps. It is an identity layer that a hundred small apps are quietly building on top of.',
+        },
+        quiz: {
+            question: 'What is the single feature that ties all these different Nostr apps together?',
+            options: [
+                { text: 'They share a database', correct: false, why: 'They use different relays and event kinds.' },
+                { text: 'They all use the same npub identity, so your follow graph and reputation move with you', correct: true },
+                { text: 'They share a company', correct: false, why: 'Different teams, different apps.' },
             ],
         },
     }),

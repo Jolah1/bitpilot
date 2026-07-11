@@ -47,7 +47,7 @@ impl Tree {
             Tree::Money       => &[0, 1, 77, 78, 2, 5, 9, 10],
             Tree::Bitcoin     => &[6, 7, 8, 87, 88, 18, 19, 89, 40, 90, 48, 49],
             Tree::Lightning   => &[21, 22, 79, 80, 23, 24, 25, 38, 81, 82, 39, 83],
-            Tree::Nostr       => &[13, 14, 15, 16, 17, 26, 27, 28, 29, 30, 35, 36, 37],
+            Tree::Nostr       => &[13, 14, 15, 97, 16, 17, 26, 27, 98, 28, 29, 30, 35, 36, 37, 99],
             Tree::Ecash       => &[31, 32, 33, 34, 84, 55, 56, 85, 57, 86],
             Tree::SelfCustody => &[3, 4, 11, 12, 91, 92, 93, 20, 41, 94, 95, 43, 44, 45, 96],
             Tree::Privacy     => &[46, 51, 52, 58, 59, 60, 61, 62, 63, 64, 65, 66],
@@ -150,6 +150,9 @@ const CATALOGUE: &[Row] = &[
     Row { number: 35, title: "What is a Zap?",                simulated: false, description: "Bitcoin tips threaded through Lightning + Nostr." },
     Row { number: 36, title: "Receive your first zap",        simulated: true,  description: "Generate a zap receipt against your npub." },
     Row { number: 37, title: "NIP-05: human-readable handles",simulated: false, description: "Why some Nostr names look like emails." },
+    Row { number: 97, title: "Signers — never paste your nsec", simulated: false, description: "NIP-07 browser extensions, NIP-46 bunkers, hardware signers." },
+    Row { number: 98, title: "Private DMs — NIP-04 and gift-wrap", simulated: false, description: "Two DM standards. One leaks metadata; the other doesn't." },
+    Row { number: 99, title: "The wider Nostr ecosystem",      simulated: false, description: "Long-form, marketplaces, video, communities — all one npub." },
 
     // ── eCash ──────────────────────────────────────────────────────────
     Row { number: 31, title: "What eCash is",                 simulated: false, description: "Private bearer money, backed by a mint." },
@@ -240,7 +243,7 @@ impl Mission {
     pub const FIRST: u8 = 0;
 
     /// Last valid mission id (inclusive).
-    pub const LAST: u8 = 96;
+    pub const LAST: u8 = 99;
 
     /// Which `DoKind` does this mission use? Used by `verify_proof` to know
     /// which ledger to check. Kept in lock-step with the frontend's
@@ -263,6 +266,7 @@ impl Mission {
             84 | 85 | 86 => DoKind::Knowledge,
             87 | 88 | 89 | 90 => DoKind::Knowledge,
             91 | 92 | 93 | 94 | 95 | 96 => DoKind::Knowledge,
+            97 | 98 | 99 => DoKind::Knowledge,
 
             // Action missions:
             11 => DoKind::SeedWords,
