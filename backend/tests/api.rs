@@ -394,10 +394,10 @@ fn out_of_range_mission_rejected() {
     let s = create_session(&h.base, "range-test");
     let j = join_session(&h.base, "frank", &s.id);
 
-    let r = complete(&h.base, &j.auth_token, 77, "anything");
+    let r = complete(&h.base, &j.auth_token, 79, "anything");
     assert_eq!(r.status(), 400);
     let v: Value = r.json().unwrap();
-    assert!(v["error"].as_str().unwrap().contains("0..=76"));
+    assert!(v["error"].as_str().unwrap().contains("0..=78"));
 }
 
 #[test]
@@ -406,8 +406,10 @@ fn mission_11_requires_64_hex_commitment() {
     let s = create_session(&h.base, "seed-test");
     let j = join_session(&h.base, "grace", &s.id);
 
-    // Walk to mission 11.
-    for m in 0..=10 {
+    // Walk the Self-Custody tree to just before 11: prerequisites are 3, 4.
+    // Cross-tree jumps are allowed by the per-tree gate, so we don't need
+    // to touch Money or other trees to get here.
+    for m in [3u8, 4] {
         let r = complete(&h.base, &j.auth_token, m, "acknowledged");
         assert_eq!(r.status(), 200, "mission {m} should succeed");
     }
@@ -433,14 +435,8 @@ fn mission_14_requires_bech32_npub() {
     let s = create_session(&h.base, "id-test");
     let j = join_session(&h.base, "hank", &s.id);
 
-    // Walk to mission 14.
-    for m in 0..=10 {
-        assert_eq!(complete(&h.base, &j.auth_token, m, "acknowledged").status(), 200);
-    }
-    assert_eq!(complete(&h.base, &j.auth_token, 11, &"a".repeat(64)).status(), 200);
-    for m in 12..=13 {
-        assert_eq!(complete(&h.base, &j.auth_token, m, "acknowledged").status(), 200);
-    }
+    // Walk the Nostr tree to just before 14: prerequisite is 13.
+    assert_eq!(complete(&h.base, &j.auth_token, 13, "acknowledged").status(), 200);
 
     // Reject a non-npub proof.
     let r = complete(&h.base, &j.auth_token, 14, "not-an-npub");
@@ -495,8 +491,11 @@ fn proof_archive_lists_completions_in_order() {
     let arr: Vec<Value> = r.json().unwrap();
     assert!(arr.is_empty());
 
-    // Do a few missions, then re-list.
-    for m in 0..=3 {
+    // Do the first mission of four different trees — the per-tree gate
+    // lets us jump across trees freely, so this covers the ordering assert
+    // without depending on any particular tree layout.
+    let ids = [0u8, 3, 6, 13];
+    for m in ids {
         complete(&h.base, &j.auth_token, m, "acknowledged");
     }
 
@@ -510,7 +509,7 @@ fn proof_archive_lists_completions_in_order() {
     assert_eq!(arr.len(), 4);
     // Sorted ascending by mission number.
     for (i, item) in arr.iter().enumerate() {
-        assert_eq!(item["mission"], i as i64);
+        assert_eq!(item["mission"], ids[i] as i64);
         assert_eq!(item["proof"], "acknowledged");
         assert!(item["completed_at"].as_i64().unwrap() > 0);
     }
@@ -522,7 +521,7 @@ fn missions_list_is_public_no_auth_required() {
     let r = client().get(format!("{}/api/missions", h.base)).send().unwrap();
     assert_eq!(r.status(), 200);
     let arr: Vec<Value> = r.json().unwrap();
-    assert_eq!(arr.len(), 77, "curriculum is 0..=76 = 77 missions");
+    assert_eq!(arr.len(), 79, "curriculum is 0..=78 = 79 missions");
     // Tree assignment check — by mission number (catalogue order is
     // grouped by tree, not numeric, so we look up by `number` field).
     let by_num = |n: i64| arr.iter().find(|m| m["number"] == n).unwrap();
@@ -607,14 +606,15 @@ fn me_badges_starts_empty_then_unlocks_money_after_tree_clear() {
     assert_eq!(badges.len(), 8);
     assert!(badges.iter().all(|b| b["earned"] == false));
     let money = badges.iter().find(|b| b["tree"] == "money").unwrap();
-    assert_eq!(money["required"], 6);
+    assert_eq!(money["required"], 8);
     assert_eq!(money["completed"], 0);
 
-    // Clear the Money tree by walking the first 11 missions. Each tree's
-    // gate is independent now, so we could jump straight to Money's
-    // members (0,1,2,5,9,10) — but completing 0..=10 sequentially also
-    // works and exercises the cross-tree advancement path.
-    for m in 0..=10u8 {
+    // Clear the Money tree by walking its missions in tree order — the
+    // per-tree gate requires each pointer to match exactly, so we cannot
+    // just iterate 0..=N and expect it to work when non-Money ids sit
+    // between Money ids.
+    let money_ids: [u8; 8] = [0, 1, 77, 78, 2, 5, 9, 10];
+    for m in money_ids {
         let r = complete(&h.base, &j.auth_token, m, "acknowledged");
         assert_eq!(r.status(), 200, "completing mission {m}");
     }
@@ -622,7 +622,7 @@ fn me_badges_starts_empty_then_unlocks_money_after_tree_clear() {
     let badges = fetch();
     let money = badges.iter().find(|b| b["tree"] == "money").unwrap();
     assert_eq!(money["earned"], true);
-    assert_eq!(money["completed"], 6);
+    assert_eq!(money["completed"], 8);
     assert!(money["earned_at"].as_i64().unwrap() > 0);
     // Privacy is single-mission (46), so still locked since we stopped at 10.
     let privacy = badges.iter().find(|b| b["tree"] == "privacy").unwrap();

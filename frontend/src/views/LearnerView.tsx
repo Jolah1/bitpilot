@@ -1075,7 +1075,7 @@ function navButtonStyle(enabled: boolean): CSSProperties {
  * Tree-grouped progress rail. Shows 8 stacked bars (one per skill tree),
  * with a sub-line showing which tree the current mission belongs to.
  *
- * Why not 77 per-mission ticks? At 77 missions, each one would be 4-5px
+ * Why not 79 per-mission ticks? At 79 missions, each one would be 4-5px
  * wide on mobile — invisible, useless. Tree rails communicate progress
  * in a way you can read at a glance.
  *
@@ -2065,7 +2065,7 @@ function FinishedScreen() {
                     maxWidth: 480,
                 }}
             >
-                77 missions across eight skill trees. You used Bitcoin, Lightning, Nostr, and eCash for real, and you actually understand
+                79 missions across eight skill trees. You used Bitcoin, Lightning, Nostr, and eCash for real, and you actually understand
                 what each one does. That puts you ahead of about 99% of people on earth.
             </p>
             <ul

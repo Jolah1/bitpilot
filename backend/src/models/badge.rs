@@ -75,14 +75,18 @@ mod tests {
 
     #[test]
     fn full_money_tree_earns_only_money() {
-        // Money tree = missions 0,1,2,5,9,10 (see Tree::from_mission).
-        let money_ids: [u8; 6] = [0, 1, 2, 5, 9, 10];
-        let completions: Vec<(u8, i64)> =
-            money_ids.iter().map(|m| (*m, 100 + *m as i64)).collect();
+        // Derive from Tree::Money.missions() so this test survives tree growth.
+        let completions: Vec<(u8, i64)> = Tree::Money
+            .missions()
+            .iter()
+            .enumerate()
+            .map(|(i, &m)| (m, 100 + i as i64))
+            .collect();
+        let expected_last = completions.last().unwrap().1;
         let badges = Badge::all_for(&completions);
         let money = badges.iter().find(|b| b.tree == Tree::Money).unwrap();
         assert!(money.earned);
-        assert_eq!(money.earned_at, Some(110));
+        assert_eq!(money.earned_at, Some(expected_last));
         for b in badges.iter().filter(|b| b.tree != Tree::Money) {
             assert!(!b.earned, "expected {:?} not earned", b.tree);
         }

@@ -57,7 +57,7 @@ export interface TreeMeta {
  * mirror is here so the UI can group/render without a network call.
  */
 export const TREES: TreeMeta[] = [
-    { key: 'money',        label: 'Money 101',    missions: [0, 1, 2, 5, 9, 10],                           tagline: 'What money is, why Bitcoin exists, sats vs bitcoin.' },
+    { key: 'money',        label: 'Money 101',    missions: [0, 1, 77, 78, 2, 5, 9, 10],                   tagline: 'What money is, why fiat leaks, why Bitcoin exists.' },
     { key: 'bitcoin',      label: 'Bitcoin',      missions: [6, 7, 8, 18, 19, 40, 48, 49],                 tagline: 'Blocks, mempool, miners, UTXOs, networks, L2s.' },
     { key: 'lightning',    label: 'Lightning',    missions: [21, 22, 23, 24, 25, 38, 39],                  tagline: 'Channels, invoices, Lightning addresses, routing.' },
     { key: 'nostr',        label: 'Nostr',        missions: [13, 14, 15, 16, 17, 26, 27, 28, 29, 30, 35, 36, 37], tagline: 'Identity without a server. Notes, profiles, zaps.' },
@@ -215,7 +215,7 @@ function knowledge(o: KnowledgeOpts): MissionDef {
 }
 
 /**
- * The full BitPilot curriculum: 77 missions (0..=76) across 8 skill trees.
+ * The full BitPilot curriculum: 79 missions (0..=78) across 8 skill trees.
  *
  * Mission ids are stable across tree reshuffles — they don't renumber when
  * a mission moves to a different tree. The catalogue below is ordered by
@@ -238,7 +238,7 @@ export const MISSIONS: MissionDef[] = [
         learn: {
             heading: 'Why this exists',
             body:
-                "Most people learn about Bitcoin by reading. You'll learn by using. Over the next 77 missions you'll generate real cryptographic keys, send (testnet) payments, publish a message to a network nobody owns, and end up understanding more than 99% of people who 'know about crypto'.\n\nNo wallet to install. No money at risk. Every action that touches a real network is clearly labeled — and everything that's just a demonstration is too.\n\nMissions are grouped into eight skill trees — Money, Bitcoin, Lightning, Nostr, eCash, Self-custody, Privacy, Sovereignty. Start anywhere, finish a tree, earn its compass badge.",
+                "Most people learn about Bitcoin by reading. You'll learn by using. Over the next 79 missions you'll generate real cryptographic keys, send (testnet) payments, publish a message to a network nobody owns, and end up understanding more than 99% of people who 'know about crypto'.\n\nNo wallet to install. No money at risk. Every action that touches a real network is clearly labeled — and everything that's just a demonstration is too.\n\nMissions are grouped into eight skill trees — Money, Bitcoin, Lightning, Nostr, eCash, Self-custody, Privacy, Sovereignty. Start anywhere, finish a tree, earn its compass badge.",
             tip: 'You\'ll learn to think in sats — the unit real Bitcoiners use. No money changes hands inside BitPilot.',
         },
         quiz: {
@@ -1438,7 +1438,7 @@ export const MISSIONS: MissionDef[] = [
         learn: {
             heading: 'Curriculum complete. Now build the habit.',
             body:
-                "You generated a real Nostr identity, learned Lightning, sent a signet on-chain transaction, and walked the full 77-mission curriculum across all eight skill trees. You're past the hard part: understanding.\n\nWhat to do from here:\n\n• Pick a wallet. Phoenix (Lightning, semi-self-custodial) is a great starter. Sparrow + a hardware wallet for cold storage.\n• Buy a small amount of bitcoin — not as investment advice, but as 'now I have skin in the game'. Even 5,000 sats teaches more than 5,000 articles.\n• Follow a few people on Nostr who explain things calmly: fiatjaf, jb55, Lyn Alden, Knut Svanholm, Marty Bent.\n• Read 'The Bitcoin Standard' or 'Inventing Bitcoin' if you want depth.\n• Keep using sats. Lightning addresses are everywhere now. Tip your favourite podcaster, your friend, a random stranger on Nostr.\n\nWelcome to Bitcoin. Don't stop.",
+                "You generated a real Nostr identity, learned Lightning, sent a signet on-chain transaction, and walked the full 79-mission curriculum across all eight skill trees. You're past the hard part: understanding.\n\nWhat to do from here:\n\n• Pick a wallet. Phoenix (Lightning, semi-self-custodial) is a great starter. Sparrow + a hardware wallet for cold storage.\n• Buy a small amount of bitcoin — not as investment advice, but as 'now I have skin in the game'. Even 5,000 sats teaches more than 5,000 articles.\n• Follow a few people on Nostr who explain things calmly: fiatjaf, jb55, Lyn Alden, Knut Svanholm, Marty Bent.\n• Read 'The Bitcoin Standard' or 'Inventing Bitcoin' if you want depth.\n• Keep using sats. Lightning addresses are everywhere now. Tip your favourite podcaster, your friend, a random stranger on Nostr.\n\nWelcome to Bitcoin. Don't stop.",
             tip: "The best Bitcoin education is using it. Earnestly, in tiny amounts, until it's boring.",
         },
         quiz: {
@@ -2021,6 +2021,50 @@ export const MISSIONS: MissionDef[] = [
                 { text: 'Money', correct: false, why: 'Hardware and infra is a few hundred dollars — a small factor.' },
                 { text: 'The cognitive load of every transaction being final and irreversible', correct: true },
                 { text: 'Legal risk', correct: false, why: 'In most jurisdictions holding your own bitcoin is fully legal.' },
+            ],
+        },
+    }),
+    knowledge({
+        id: 77,
+        emoji: '💭',
+        topic: 'Money',
+        tech: 'bitcoin',
+        name: 'What money even is',
+        tagline: 'Three jobs. Every money either does them or fails at them.',
+        learn: {
+            heading: 'Medium of exchange, unit of account, store of value',
+            body:
+                "Economists have argued about money for two hundred years, but they mostly agree on the shape: any decent money does three jobs.\n\n**Medium of exchange**: people accept it in trade. Nobody wants your goat if they wanted a chicken; money solves the double-coincidence-of-wants problem.\n\n**Unit of account**: prices get quoted in it. A latte is \"$5\", not \"three eggs or half a haircut\". This is what makes comparison possible at all.\n\n**Store of value**: you can hold it for a while and it still buys roughly what it did last year. Without this, everyone rushes to spend the instant they earn.\n\nSeashells, gold, cigarettes, paper dollars, and bitcoin have all played this role in different places and times. Whichever one is best-at-doing-all-three tends to win, for that context. Bitcoin's entire pitch is: \"I do the third job (store of value) better than fiat, and Lightning brings me back for the first two.\"",
+            tip: "When someone asks 'is X real money?', they usually mean: does it do all three jobs well enough for the people around me?",
+        },
+        quiz: {
+            question: 'Which of the three classic jobs of money is bitcoin most obviously good at, from day one?',
+            options: [
+                { text: 'Medium of exchange', correct: false, why: 'On-chain is slow for coffee — Lightning is fixing this.' },
+                { text: 'Unit of account', correct: false, why: 'Almost nobody prices things in sats yet.' },
+                { text: 'Store of value — durable, capped, hard to seize', correct: true },
+            ],
+        },
+    }),
+    knowledge({
+        id: 78,
+        emoji: '📉',
+        topic: 'Money',
+        tech: 'bitcoin',
+        name: 'Why fiat loses value',
+        tagline: 'The dollar in your wallet is not the same dollar as ten years ago',
+        learn: {
+            heading: 'Inflation is not weather — it is a policy',
+            body:
+                "Fiat money loses value because central banks print more of it. That is not a conspiracy claim; it is the openly-stated policy. The US Federal Reserve targets 2% annual inflation; the ECB targets a similar number. Over 30 years, 2% a year compounds to about 45% purchasing-power loss. Salaries that were fine in the 1990s do not clear the same lifestyle now.\n\nWhy print? Governments spend more than they tax. To close the gap they either borrow (which markets eventually push back on) or dilute the currency (which markets do not notice as fast). Printing has been the winning political move basically everywhere, basically always. It's a slow tax you can't opt out of, paid mostly by savers and salaried workers.\n\nBitcoin exists as a bet that the option to opt out of that tax is worth building. A supply that literally cannot be inflated is the entire pitch. \"Number go up\" is really \"number stays put while the ruler shrinks\".",
+            tip: "Inflation isn't the price of things going up — it's the value of the money going down. Same shirt, worse dollar.",
+        },
+        quiz: {
+            question: 'The main reason fiat money loses value over time is:',
+            options: [
+                { text: 'Random economic shocks', correct: false, why: 'They exist, but the long trend is deliberate.' },
+                { text: 'Central bank policy expands the money supply by design', correct: true },
+                { text: 'People spending too much', correct: false, why: 'Consumer behaviour is a downstream symptom, not the cause.' },
             ],
         },
     }),
