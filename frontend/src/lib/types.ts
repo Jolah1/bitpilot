@@ -59,7 +59,7 @@ export interface TreeMeta {
 export const TREES: TreeMeta[] = [
     { key: 'money',        label: 'Money 101',    missions: [0, 1, 77, 78, 2, 5, 9, 10],                   tagline: 'What money is, why fiat leaks, why Bitcoin exists.' },
     { key: 'bitcoin',      label: 'Bitcoin',      missions: [6, 7, 8, 18, 19, 40, 48, 49],                 tagline: 'Blocks, mempool, miners, UTXOs, networks, L2s.' },
-    { key: 'lightning',    label: 'Lightning',    missions: [21, 22, 23, 24, 25, 38, 39],                  tagline: 'Channels, invoices, Lightning addresses, routing.' },
+    { key: 'lightning',    label: 'Lightning',    missions: [21, 22, 79, 80, 23, 24, 25, 38, 81, 82, 39, 83], tagline: 'Channels, HTLCs, liquidity, LSPs, watchtowers, splicing.' },
     { key: 'nostr',        label: 'Nostr',        missions: [13, 14, 15, 16, 17, 26, 27, 28, 29, 30, 35, 36, 37], tagline: 'Identity without a server. Notes, profiles, zaps.' },
     { key: 'ecash',        label: 'eCash',        missions: [31, 32, 33, 34, 55, 56, 57],                  tagline: 'Bearer money backed by a mint. Cashu, Fedimint, trust.' },
     { key: 'self-custody', label: 'Self-custody', missions: [3, 4, 11, 12, 20, 41, 43, 44, 45],            tagline: 'Wallets, seeds, addresses, hardware, multisig.' },
@@ -215,7 +215,7 @@ function knowledge(o: KnowledgeOpts): MissionDef {
 }
 
 /**
- * The full BitPilot curriculum: 79 missions (0..=78) across 8 skill trees.
+ * The full BitPilot curriculum: 84 missions (0..=83) across 8 skill trees.
  *
  * Mission ids are stable across tree reshuffles — they don't renumber when
  * a mission moves to a different tree. The catalogue below is ordered by
@@ -238,7 +238,7 @@ export const MISSIONS: MissionDef[] = [
         learn: {
             heading: 'Why this exists',
             body:
-                "Most people learn about Bitcoin by reading. You'll learn by using. Over the next 79 missions you'll generate real cryptographic keys, send (testnet) payments, publish a message to a network nobody owns, and end up understanding more than 99% of people who 'know about crypto'.\n\nNo wallet to install. No money at risk. Every action that touches a real network is clearly labeled — and everything that's just a demonstration is too.\n\nMissions are grouped into eight skill trees — Money, Bitcoin, Lightning, Nostr, eCash, Self-custody, Privacy, Sovereignty. Start anywhere, finish a tree, earn its compass badge.",
+                "Most people learn about Bitcoin by reading. You'll learn by using. Over the next 84 missions you'll generate real cryptographic keys, send (testnet) payments, publish a message to a network nobody owns, and end up understanding more than 99% of people who 'know about crypto'.\n\nNo wallet to install. No money at risk. Every action that touches a real network is clearly labeled — and everything that's just a demonstration is too.\n\nMissions are grouped into eight skill trees — Money, Bitcoin, Lightning, Nostr, eCash, Self-custody, Privacy, Sovereignty. Start anywhere, finish a tree, earn its compass badge.",
             tip: 'You\'ll learn to think in sats — the unit real Bitcoiners use. No money changes hands inside BitPilot.',
         },
         quiz: {
@@ -1438,7 +1438,7 @@ export const MISSIONS: MissionDef[] = [
         learn: {
             heading: 'Curriculum complete. Now build the habit.',
             body:
-                "You generated a real Nostr identity, learned Lightning, sent a signet on-chain transaction, and walked the full 79-mission curriculum across all eight skill trees. You're past the hard part: understanding.\n\nWhat to do from here:\n\n• Pick a wallet. Phoenix (Lightning, semi-self-custodial) is a great starter. Sparrow + a hardware wallet for cold storage.\n• Buy a small amount of bitcoin — not as investment advice, but as 'now I have skin in the game'. Even 5,000 sats teaches more than 5,000 articles.\n• Follow a few people on Nostr who explain things calmly: fiatjaf, jb55, Lyn Alden, Knut Svanholm, Marty Bent.\n• Read 'The Bitcoin Standard' or 'Inventing Bitcoin' if you want depth.\n• Keep using sats. Lightning addresses are everywhere now. Tip your favourite podcaster, your friend, a random stranger on Nostr.\n\nWelcome to Bitcoin. Don't stop.",
+                "You generated a real Nostr identity, learned Lightning, sent a signet on-chain transaction, and walked the full 84-mission curriculum across all eight skill trees. You're past the hard part: understanding.\n\nWhat to do from here:\n\n• Pick a wallet. Phoenix (Lightning, semi-self-custodial) is a great starter. Sparrow + a hardware wallet for cold storage.\n• Buy a small amount of bitcoin — not as investment advice, but as 'now I have skin in the game'. Even 5,000 sats teaches more than 5,000 articles.\n• Follow a few people on Nostr who explain things calmly: fiatjaf, jb55, Lyn Alden, Knut Svanholm, Marty Bent.\n• Read 'The Bitcoin Standard' or 'Inventing Bitcoin' if you want depth.\n• Keep using sats. Lightning addresses are everywhere now. Tip your favourite podcaster, your friend, a random stranger on Nostr.\n\nWelcome to Bitcoin. Don't stop.",
             tip: "The best Bitcoin education is using it. Earnestly, in tiny amounts, until it's boring.",
         },
         quiz: {
@@ -2065,6 +2065,116 @@ export const MISSIONS: MissionDef[] = [
                 { text: 'Random economic shocks', correct: false, why: 'They exist, but the long trend is deliberate.' },
                 { text: 'Central bank policy expands the money supply by design', correct: true },
                 { text: 'People spending too much', correct: false, why: 'Consumer behaviour is a downstream symptom, not the cause.' },
+            ],
+        },
+    }),
+    knowledge({
+        id: 79,
+        emoji: '🔒',
+        topic: 'Lightning',
+        tech: 'lightning',
+        name: 'HTLCs, the atomic-payment trick',
+        tagline: 'How a payment hops through strangers without any of them being able to steal it',
+        learn: {
+            heading: 'Hash Time-Locked Contracts, plainly',
+            body:
+                "A Lightning payment can hop through five random nodes and none of them can grab the sats. The trick is a Hash Time-Locked Contract — HTLC.\n\nThe recipient picks a secret number and hashes it. That hash is the \"puzzle\". Every hop along the route is told: \"here are sats, but you only get them if you show me the pre-image (the secret) within 30 blocks, otherwise the sats go back.\"\n\nThe recipient reveals the pre-image to their last hop to claim their sats. That hop can now show it to the previous hop and claim from them, and so on backwards. Either the whole chain settles or (if someone drops out) all the locked sats time out and return home.\n\nNo hop can steal because they don't know the pre-image until the recipient shares it. No hop can double-cross because their inbound and outbound are locked to the same puzzle. That is Lightning routing in one sentence.",
+            tip: "The recipient chooses the secret. Everyone else is just moving locked promises around.",
+        },
+        quiz: {
+            question: 'What stops an intermediate Lightning hop from stealing the sats mid-route?',
+            options: [
+                { text: 'A trusted routing coordinator watches for cheating', correct: false, why: 'There is no coordinator. That is the point.' },
+                { text: 'The hop cannot claim without revealing a secret only the recipient generated', correct: true },
+                { text: 'The payment is encrypted so the hop can\'t see the amount', correct: false, why: 'It is encrypted, but the theft prevention is the HTLC, not the encryption.' },
+            ],
+        },
+    }),
+    knowledge({
+        id: 80,
+        emoji: '⚗️',
+        topic: 'Lightning',
+        tech: 'lightning',
+        name: 'Inbound vs outbound liquidity',
+        tagline: 'Why "your channel is full" is a real thing',
+        learn: {
+            heading: 'A channel has two sides. You use both.',
+            body:
+                "Every Lightning channel is a shared escrow between two nodes. When the channel is opened, one side puts up the sats — the *outbound* liquidity — and the other side starts with zero. That is fine when you are the sender, but the moment you want to *receive*, you have a problem: nothing's on the other side to move to yours.\n\nInbound liquidity is capacity to receive. It exists only where sats have already flowed away from you at some point. Fresh nodes have plenty of outbound (they funded it) and zero inbound (nothing has flowed the other way yet).\n\nOptions for a receiver:\n\n• Spend some sats first — every payment out builds inbound on that channel.\n• Buy a channel-open from an LSP that pre-loads their side (Voltage, LNBig).\n• Use a service that offers inbound liquidity as a fee.\n• Splice funds in from an already-flowing channel (BOLT-2 splicing, newer).\n\nOnce you understand the two-sided nature, \"invoice failed to route\" stops feeling like a bug and starts looking like an accounting problem.",
+            tip: "Outbound = you can send. Inbound = you can receive. They are separate, and both matter.",
+        },
+        quiz: {
+            question: 'You just opened a brand-new Lightning channel and funded 100k sats on your side. You try to receive a 5k-sat payment. What likely happens?',
+            options: [
+                { text: 'It works fine — you have plenty of liquidity', correct: false, why: 'You have outbound. Receiving needs inbound.' },
+                { text: 'The invoice cannot be paid because you have no inbound liquidity yet', correct: true },
+                { text: 'You get charged a routing fee', correct: false },
+            ],
+        },
+    }),
+    knowledge({
+        id: 81,
+        emoji: '🏗️',
+        topic: 'Lightning',
+        tech: 'lightning',
+        name: 'LSPs — the wallets you actually use',
+        tagline: 'Almost every Lightning wallet has one behind it. Know what they do.',
+        learn: {
+            heading: 'A Lightning Service Provider is a partner node',
+            body:
+                "Running a Lightning node 24/7 with good uptime and enough liquidity is not for phones. So most consumer Lightning wallets (Phoenix, Muun, Wallet of Satoshi, Alby, Zeus, Breez, Blitz) pair the user with an LSP — a Lightning Service Provider — that runs the always-on side of things.\n\nWhat the LSP does:\n\n• Opens a channel to your wallet on demand (usually for a small fee taken from the first payment).\n• Provides inbound liquidity so you can receive.\n• Stays online, so your wallet can be offline sometimes without missing payments.\n• Routes your payments to the rest of the network.\n\nWhat it means practically:\n\n• The LSP is a business dependency. Phoenix goes down → Phoenix wallets briefly cannot send.\n• The LSP sees your payments (endpoints, amounts, timing). Not a stranger — a specific known company.\n• Fees are usually small but not zero. \"Free\" is often \"free-until-the-first-inbound-channel-open\".\n\nSelf-hosted alternatives exist (Umbrel, Start9, RaspiBlitz + your own channels) but require a home node running 24/7. For most people the LSP model is the right trade.",
+            tip: "\"My Lightning wallet\" almost always means \"my wallet plus its LSP\". Know which LSP you are on.",
+        },
+        quiz: {
+            question: 'Which of these is the LSP\'s job in a Phoenix-style Lightning wallet?',
+            options: [
+                { text: 'Custody the sats on your behalf', correct: false, why: 'Well-designed LSPs are non-custodial — you hold the keys to the channel.' },
+                { text: 'Run the always-on Lightning node your phone talks to', correct: true },
+                { text: 'Confirm on-chain transactions', correct: false },
+            ],
+        },
+    }),
+    knowledge({
+        id: 82,
+        emoji: '🗼',
+        topic: 'Lightning',
+        tech: 'lightning',
+        name: 'Watchtowers, briefly',
+        tagline: 'The guard that catches a partner trying to close with a stale balance',
+        learn: {
+            heading: 'What happens if your channel partner cheats?',
+            body:
+                "Every Lightning channel has a rule: if either side broadcasts an old channel state to try to steal, the other side has a window (usually ~144 blocks / ~24 hours) to publish a \"justice transaction\" that takes *everything* in the channel as punishment.\n\nThe catch: you have to be online to notice and act within the window. If your node is offline for a week and your partner cheats, you miss the window and lose the funds.\n\nA watchtower is a service you register with. You give it a small \"encoded punishment package\" for every channel state; if your partner ever broadcasts an old state, the tower publishes the justice transaction on your behalf, without ever knowing your channel balance in cleartext.\n\nFor consumer wallets on an LSP, the LSP typically watches for you — one more reason the LSP knows what you're doing. For self-hosted nodes, either run your own watchtower on a separate machine or subscribe to a third-party one.\n\nWatchtowers are the \"you can safely go on holiday\" layer of Lightning.",
+            tip: "If your node is offline and unwatched, and your partner is willing to try, you can lose your channel balance. Watchtowers close that hole.",
+        },
+        quiz: {
+            question: 'Why does a Lightning node need a watchtower if it goes offline for long stretches?',
+            options: [
+                { text: 'To route payments while it is off', correct: false, why: 'Nothing routes payments for an offline node.' },
+                { text: 'To publish the punishment transaction if a channel partner tries to close with an old, stale state', correct: true },
+                { text: 'To store the seed backup', correct: false },
+            ],
+        },
+    }),
+    knowledge({
+        id: 83,
+        emoji: '🔧',
+        topic: 'Lightning',
+        tech: 'lightning',
+        name: 'Splicing and BOLT-12',
+        tagline: 'The upgrades that make Lightning stop feeling pointy',
+        learn: {
+            heading: 'Two protocol upgrades worth knowing',
+            body:
+                "**Splicing**: for years, changing a channel's size meant closing the old channel and opening a fresh one — two on-chain transactions, downtime for the channel, sats stuck while it happens. Splicing lets you add or remove funds *without closing*: one on-chain transaction that quietly resizes the escrow. Phoenix rolled it out in production in 2024; more wallets are following.\n\n**BOLT-12 offers**: the old Lightning invoice was one-shot — generate an invoice, someone pays it, done. A BOLT-12 \"offer\" is a durable, reusable payment code. You post it on your website; anyone can pay it, and each payment gets its own private invoice negotiated on the fly. This is what makes recurring donations, subscriptions, and merchant flows work sensibly on Lightning.\n\nBoth land quietly. Neither will show up as a headline. But they close two of the biggest \"why is Lightning like this\" complaints, and mostly-invisibly. Watch for wallets that announce them; those are the ones investing in the future of the protocol rather than the current-year status quo.",
+            tip: "Splicing kills channel-close-and-reopen. BOLT-12 kills one-shot invoices. Both were Lightning's biggest ergonomic problems for years.",
+        },
+        quiz: {
+            question: 'What does splicing let a Lightning channel avoid?',
+            options: [
+                { text: 'Paying routing fees', correct: false },
+                { text: 'The close-and-reopen dance every time you want to change channel size', correct: true },
+                { text: 'The 6-block confirmation wait', correct: false, why: 'Splicing still uses the chain — it just avoids doing two transactions.' },
             ],
         },
     }),
