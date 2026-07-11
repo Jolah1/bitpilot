@@ -58,7 +58,7 @@ export interface TreeMeta {
  */
 export const TREES: TreeMeta[] = [
     { key: 'money',        label: 'Money 101',    missions: [0, 1, 77, 78, 2, 5, 9, 10],                   tagline: 'What money is, why fiat leaks, why Bitcoin exists.' },
-    { key: 'bitcoin',      label: 'Bitcoin',      missions: [6, 7, 8, 18, 19, 40, 48, 49],                 tagline: 'Blocks, mempool, miners, UTXOs, networks, L2s.' },
+    { key: 'bitcoin',      label: 'Bitcoin',      missions: [6, 7, 8, 87, 88, 18, 19, 89, 40, 90, 48, 49], tagline: 'Blocks, mempool, miners, UTXOs, Script, Taproot, pools.' },
     { key: 'lightning',    label: 'Lightning',    missions: [21, 22, 79, 80, 23, 24, 25, 38, 81, 82, 39, 83], tagline: 'Channels, HTLCs, liquidity, LSPs, watchtowers, splicing.' },
     { key: 'nostr',        label: 'Nostr',        missions: [13, 14, 15, 16, 17, 26, 27, 28, 29, 30, 35, 36, 37], tagline: 'Identity without a server. Notes, profiles, zaps.' },
     { key: 'ecash',        label: 'eCash',        missions: [31, 32, 33, 34, 84, 55, 56, 85, 57, 86],      tagline: 'Bearer money backed by a mint. Cashu, Fedimint, honest failure modes.' },
@@ -215,7 +215,7 @@ function knowledge(o: KnowledgeOpts): MissionDef {
 }
 
 /**
- * The full BitPilot curriculum: 87 missions (0..=86) across 8 skill trees.
+ * The full BitPilot curriculum: 91 missions (0..=90) across 8 skill trees.
  *
  * Mission ids are stable across tree reshuffles — they don't renumber when
  * a mission moves to a different tree. The catalogue below is ordered by
@@ -238,7 +238,7 @@ export const MISSIONS: MissionDef[] = [
         learn: {
             heading: 'Why this exists',
             body:
-                "Most people learn about Bitcoin by reading. You'll learn by using. Over the next 87 missions you'll generate real cryptographic keys, send (testnet) payments, publish a message to a network nobody owns, and end up understanding more than 99% of people who 'know about crypto'.\n\nNo wallet to install. No money at risk. Every action that touches a real network is clearly labeled — and everything that's just a demonstration is too.\n\nMissions are grouped into eight skill trees — Money, Bitcoin, Lightning, Nostr, eCash, Self-custody, Privacy, Sovereignty. Start anywhere, finish a tree, earn its compass badge.",
+                "Most people learn about Bitcoin by reading. You'll learn by using. Over the next 91 missions you'll generate real cryptographic keys, send (testnet) payments, publish a message to a network nobody owns, and end up understanding more than 99% of people who 'know about crypto'.\n\nNo wallet to install. No money at risk. Every action that touches a real network is clearly labeled — and everything that's just a demonstration is too.\n\nMissions are grouped into eight skill trees — Money, Bitcoin, Lightning, Nostr, eCash, Self-custody, Privacy, Sovereignty. Start anywhere, finish a tree, earn its compass badge.",
             tip: 'You\'ll learn to think in sats — the unit real Bitcoiners use. No money changes hands inside BitPilot.',
         },
         quiz: {
@@ -1438,7 +1438,7 @@ export const MISSIONS: MissionDef[] = [
         learn: {
             heading: 'Curriculum complete. Now build the habit.',
             body:
-                "You generated a real Nostr identity, learned Lightning, sent a signet on-chain transaction, and walked the full 87-mission curriculum across all eight skill trees. You're past the hard part: understanding.\n\nWhat to do from here:\n\n• Pick a wallet. Phoenix (Lightning, semi-self-custodial) is a great starter. Sparrow + a hardware wallet for cold storage.\n• Buy a small amount of bitcoin — not as investment advice, but as 'now I have skin in the game'. Even 5,000 sats teaches more than 5,000 articles.\n• Follow a few people on Nostr who explain things calmly: fiatjaf, jb55, Lyn Alden, Knut Svanholm, Marty Bent.\n• Read 'The Bitcoin Standard' or 'Inventing Bitcoin' if you want depth.\n• Keep using sats. Lightning addresses are everywhere now. Tip your favourite podcaster, your friend, a random stranger on Nostr.\n\nWelcome to Bitcoin. Don't stop.",
+                "You generated a real Nostr identity, learned Lightning, sent a signet on-chain transaction, and walked the full 91-mission curriculum across all eight skill trees. You're past the hard part: understanding.\n\nWhat to do from here:\n\n• Pick a wallet. Phoenix (Lightning, semi-self-custodial) is a great starter. Sparrow + a hardware wallet for cold storage.\n• Buy a small amount of bitcoin — not as investment advice, but as 'now I have skin in the game'. Even 5,000 sats teaches more than 5,000 articles.\n• Follow a few people on Nostr who explain things calmly: fiatjaf, jb55, Lyn Alden, Knut Svanholm, Marty Bent.\n• Read 'The Bitcoin Standard' or 'Inventing Bitcoin' if you want depth.\n• Keep using sats. Lightning addresses are everywhere now. Tip your favourite podcaster, your friend, a random stranger on Nostr.\n\nWelcome to Bitcoin. Don't stop.",
             tip: "The best Bitcoin education is using it. Earnestly, in tiny amounts, until it's boring.",
         },
         quiz: {
@@ -2241,6 +2241,94 @@ export const MISSIONS: MissionDef[] = [
                 { text: 'Cashu mints are audited and cannot fail', correct: false, why: 'They can fail and have. There are no audits.' },
                 { text: 'Assume it will fail at some point, and size your balance accordingly', correct: true },
                 { text: 'Fedimint federations cannot fail', correct: false, why: 'Federations have had guardian dropouts that threatened recovery.' },
+            ],
+        },
+    }),
+    knowledge({
+        id: 87,
+        emoji: '📏',
+        topic: 'Bitcoin',
+        tech: 'bitcoin',
+        name: 'Difficulty adjustment',
+        tagline: 'How Bitcoin keeps blocks arriving every ten minutes, forever',
+        learn: {
+            heading: 'The network retunes itself every 2016 blocks',
+            body:
+                "Bitcoin's block time target is 10 minutes. But mining power fluctuates — new machines come online, old ones drop off, whole countries occasionally ban mining. If nothing corrected for that, blocks would drift.\n\nEvery 2016 blocks (about two weeks), each node independently recomputes the mining difficulty. If the previous 2016 blocks took less than two weeks, difficulty goes up; if they took longer, it goes down. The formula clamps changes to ±4× per adjustment so a single wild swing can't destabilise everything.\n\nThis is unusual as engineering: no committee, no vote, no scheduled meeting. Every node runs the same math on the same data and reaches the same answer. The network self-regulates.\n\nBiggest observable effect: when the price rises sharply and miners rush to buy machines, difficulty follows a few months later. When a big mining region shuts down (China, 2021), difficulty drops. Then it recovers.",
+            tip: "10-minute blocks are a target, not a guarantee. The 2-week retune is what keeps it on track long-term.",
+        },
+        quiz: {
+            question: 'How does Bitcoin keep block times close to 10 minutes even as global mining power changes?',
+            options: [
+                { text: 'A committee vote', correct: false, why: 'No committee. Nodes compute it independently.' },
+                { text: 'Every 2016 blocks, each node retunes difficulty using the same formula', correct: true },
+                { text: 'Miners agree on a target off-chain', correct: false },
+            ],
+        },
+    }),
+    knowledge({
+        id: 88,
+        emoji: '📜',
+        topic: 'Bitcoin',
+        tech: 'bitcoin',
+        name: 'Script — Bitcoin\'s tiny language',
+        tagline: 'Every UTXO is locked by a mini-program. You unlock it to spend it.',
+        learn: {
+            heading: 'Not Turing-complete — on purpose',
+            body:
+                "When you send bitcoin, you're not just sending a number to an address. You're creating a UTXO with a tiny program attached: \"the spender must show a signature from the private key matching this public key\". That's what an address really is — a compact way to express a locking script.\n\nBitcoin's scripting language (called Script) is stack-based, deliberately limited, no loops. That's a feature: it makes transactions cheap to verify and their behaviour predictable. You cannot write an infinite loop that clogs the network. You cannot write a script that a node can't quickly evaluate.\n\nWhat you *can* express: multisig (n-of-m signatures required), time-locked payments (\"spendable after block X\"), hash-locked payments (\"spendable if you show pre-image of hash Y\" — this is what HTLCs use on Lightning), and combinations. Enough for real financial contracts. Not enough for anything to run wild.\n\nEthereum and its Turing-complete cousins chose the opposite path — more expressive, more attack surface. Bitcoin's team looked at that and shipped a smaller, safer instrument.",
+            tip: "Every UTXO is a puzzle. Spending it means solving the puzzle. The puzzle is written in Script.",
+        },
+        quiz: {
+            question: 'Why is Bitcoin\'s Script deliberately not Turing-complete?',
+            options: [
+                { text: 'They ran out of time to build loops', correct: false },
+                { text: 'Predictable, cheap-to-verify transactions matter more than expressiveness for a monetary system', correct: true },
+                { text: 'Ethereum has a patent', correct: false, why: 'It does not.' },
+            ],
+        },
+    }),
+    knowledge({
+        id: 89,
+        emoji: '🌱',
+        topic: 'Bitcoin',
+        tech: 'bitcoin',
+        name: 'Taproot, briefly',
+        tagline: 'The 2021 upgrade you\'ve been using without noticing',
+        learn: {
+            heading: 'Schnorr signatures, tapscript, and privacy-by-default',
+            body:
+                "Taproot (BIP341/342, activated November 2021) was Bitcoin's biggest soft fork since SegWit. Three practical effects:\n\n**Schnorr signatures**: replace ECDSA. Same math family, simpler algebra. The important trick: multiple signatures over the same message can be *aggregated* into one signature. Multisig spends look identical on the chain to single-sig spends — smaller, cheaper, more private.\n\n**Tapscript**: a cleaner, more extensible way to write locking scripts. Removes some quirky opcode restrictions, makes future upgrades easier.\n\n**Merklised script paths**: a complex script (say a 3-of-5 with an escape hatch) can be committed to as a single Merkle root. Only the spending path you actually use gets revealed. The other unused branches stay hidden forever. So a multisig wallet's on-chain footprint is indistinguishable from a plain single-sig — a real privacy win.\n\nMost Bitcoin users don't know Taproot activated, and that's the mark of a good upgrade: the wallets that adopted it got smaller fees, better privacy, and better multisig ergonomics without asking users to do anything.",
+            tip: "Taproot's win is: multisig, timelocks, and complex conditions all look like plain sends. Privacy without effort.",
+        },
+        quiz: {
+            question: 'What is one privacy win Taproot delivered?',
+            options: [
+                { text: 'Every transaction is now confidential', correct: false, why: 'Amounts and addresses are still public.' },
+                { text: 'Multisig and complex-script spends look identical on-chain to plain sends', correct: true },
+                { text: 'It hid the mempool', correct: false },
+            ],
+        },
+    }),
+    knowledge({
+        id: 90,
+        emoji: '⛏️',
+        topic: 'Bitcoin',
+        tech: 'bitcoin',
+        name: 'Mining pools',
+        tagline: 'Why solo mining is basically extinct — and why that\'s a concern',
+        learn: {
+            heading: 'Pooling variance out — at a cost to decentralisation',
+            body:
+                "Finding a Bitcoin block is a lottery: even a warehouse full of the latest ASICs might go months without winning. To smooth income, miners join *pools* — groups that combine their hash power, share the block subsidy proportionally, and get steady payouts instead of a jackpot every few years.\n\nThe pain: a handful of pools (Foundry, AntPool, F2Pool, Binance Pool) now coordinate the majority of mining hash power. The miners themselves are widely distributed and can leave a pool freely — but the pool operator decides *which transactions get included in blocks* while its miners are pointed at it. That is a real censorship surface, even if temporary.\n\nMitigations in flight:\n\n• **Stratum V2**: a new mining protocol that lets individual miners choose their own transaction sets, rather than delegating to the pool.\n• **Home mining resurgence**: small solo/lottery miners (Bitaxe, NerdMiner) that occasionally win a block and remind everyone the lottery is real.\n• **P2Pool-style decentralised pools**: no central operator.\n\nBitcoin's security assumes hashrate is distributed. Pools concentrate the *decision-making*, not the hashrate itself — but the two can look uncomfortably similar for stretches at a time.",
+            tip: "A pool controls which transactions get in a block. The miner controls where their hashrate goes. Both matter for the censorship story.",
+        },
+        quiz: {
+            question: 'What is the actual centralisation risk from large mining pools?',
+            options: [
+                { text: 'They own most of the hashrate directly', correct: false, why: 'Miners are widely distributed and can point their machines elsewhere.' },
+                { text: 'They pick which transactions their miners include in blocks — a censorship surface', correct: true },
+                { text: 'They set the difficulty', correct: false, why: 'Difficulty is set by every node running the formula.' },
             ],
         },
     }),

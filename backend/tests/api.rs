@@ -394,10 +394,10 @@ fn out_of_range_mission_rejected() {
     let s = create_session(&h.base, "range-test");
     let j = join_session(&h.base, "frank", &s.id);
 
-    let r = complete(&h.base, &j.auth_token, 87, "anything");
+    let r = complete(&h.base, &j.auth_token, 91, "anything");
     assert_eq!(r.status(), 400);
     let v: Value = r.json().unwrap();
-    assert!(v["error"].as_str().unwrap().contains("0..=86"));
+    assert!(v["error"].as_str().unwrap().contains("0..=90"));
 }
 
 #[test]
@@ -521,7 +521,7 @@ fn missions_list_is_public_no_auth_required() {
     let r = client().get(format!("{}/api/missions", h.base)).send().unwrap();
     assert_eq!(r.status(), 200);
     let arr: Vec<Value> = r.json().unwrap();
-    assert_eq!(arr.len(), 87, "curriculum is 0..=86 = 87 missions");
+    assert_eq!(arr.len(), 91, "curriculum is 0..=90 = 91 missions");
     // Tree assignment check — by mission number (catalogue order is
     // grouped by tree, not numeric, so we look up by `number` field).
     let by_num = |n: i64| arr.iter().find(|m| m["number"] == n).unwrap();
