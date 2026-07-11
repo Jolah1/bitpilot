@@ -50,7 +50,7 @@ impl Tree {
             Tree::Nostr       => &[13, 14, 15, 16, 17, 26, 27, 28, 29, 30, 35, 36, 37],
             Tree::Ecash       => &[31, 32, 33, 34, 55, 56, 57],
             Tree::SelfCustody => &[3, 4, 11, 12, 20, 41, 43, 44, 45],
-            Tree::Privacy     => &[46, 51, 52],
+            Tree::Privacy     => &[46, 51, 52, 58, 59, 60, 61, 62, 63, 64, 65, 66],
             // 50 ("You made it") stays last — it's the graduation lesson.
             Tree::Sovereignty => &[42, 47, 53, 54, 50],
         }
@@ -161,6 +161,15 @@ const CATALOGUE: &[Row] = &[
     Row { number: 46, title: "Privacy basics",                simulated: false, description: "The chain is public — act accordingly." },
     Row { number: 51, title: "Address reuse, in detail",      simulated: false, description: "Why one shared address leaks your whole history." },
     Row { number: 52, title: "How chain analysis works",      simulated: false, description: "Clustering, heuristics, and what blockchain sleuths actually see." },
+    Row { number: 58, title: "CoinJoin, plainly",             simulated: false, description: "The trick that breaks the biggest chain-analysis heuristic." },
+    Row { number: 59, title: "PayJoin: an invisible mix",     simulated: false, description: "Every payment can quietly be a small CoinJoin." },
+    Row { number: 60, title: "Lightning privacy, honestly",   simulated: false, description: "Better than on-chain — but the LSP still learns a lot." },
+    Row { number: 61, title: "KYC is the biggest leak",       simulated: false, description: "The privacy break usually happens at the on-ramp, not the chain." },
+    Row { number: 62, title: "Your node closes the IP leak",  simulated: false, description: "Third-party wallets tell strangers your balance in real time." },
+    Row { number: 63, title: "Wallet fingerprinting",         simulated: false, description: "Your wallet has an accent — analysts can hear it." },
+    Row { number: 64, title: "Nostr identities aren't private", simulated: false, description: "An npub is public forever — plan personas accordingly." },
+    Row { number: 65, title: "eCash privacy: shine and limits", simulated: false, description: "Bearer tokens the mint never sees — with an asterisk." },
+    Row { number: 66, title: "Threat model 101",              simulated: false, description: "Name the adversary before picking privacy tools." },
 
     // ── Sovereignty ────────────────────────────────────────────────────
     Row { number: 42, title: "Send a signet on-chain tx",     simulated: false, description: "For the first time in this app, you broadcast to a real blockchain." },
@@ -201,7 +210,7 @@ impl Mission {
     pub const FIRST: u8 = 0;
 
     /// Last valid mission id (inclusive).
-    pub const LAST: u8 = 57;
+    pub const LAST: u8 = 66;
 
     /// Which `DoKind` does this mission use? Used by `verify_proof` to know
     /// which ledger to check. Kept in lock-step with the frontend's
@@ -217,6 +226,7 @@ impl Mission {
             31 | 32 | 35 | 37 | 38 | 39 | 40 => DoKind::Knowledge,
             43 | 44 | 45 | 46 | 47 | 48 | 49 | 50 => DoKind::Knowledge,
             51 | 52 | 53 | 54 | 55 | 56 | 57 => DoKind::Knowledge,
+            58 | 59 | 60 | 61 | 62 | 63 | 64 | 65 | 66 => DoKind::Knowledge,
 
             // Action missions:
             11 => DoKind::SeedWords,

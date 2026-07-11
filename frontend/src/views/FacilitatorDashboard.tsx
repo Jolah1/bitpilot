@@ -12,7 +12,7 @@ import { card, chip, ghostButton, techGradient } from '../lib/ui'
  * progress strip for each participant.
  *
  * The earlier design tried to render a column grid one per mission. At
- * 58 missions that becomes ~2000px wide — completely broken on every
+ * 60+ missions that becomes ~2000px wide — completely broken on every
  * viewport. New design: 8 tree bars per participant, plus a percentage
  * and current-mission tag. Same info, much smaller footprint, works on
  * mobile.
@@ -344,8 +344,8 @@ function MissionHistogram({ participants }: { participants: Participant[] }) {
                     {active > 0 && ` · most on M${modeIdx} (${modeTree.label})`}
                 </span>
             </div>
-            {/* At 58 missions a `repeat(MISSION_COUNT, 1fr)` grid produces
-                ~6px columns on a 360px viewport — bars vanish. Wrap in a
+            {/* At 60+ missions a `repeat(MISSION_COUNT, 1fr)` grid produces
+                ~5px columns on a 360px viewport — bars vanish. Wrap in a
                 horizontal scroller with a min-width so each bar gets at
                 least ~10px even on mobile; the inner grid still pays the
                 tree color cue, the scroll lets a touch user investigate. */}
