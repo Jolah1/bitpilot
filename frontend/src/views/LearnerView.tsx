@@ -1075,7 +1075,7 @@ function navButtonStyle(enabled: boolean): CSSProperties {
  * Tree-grouped progress rail. Shows 8 stacked bars (one per skill tree),
  * with a sub-line showing which tree the current mission belongs to.
  *
- * Why not 51 per-mission ticks? At 51 missions, each one would be 6-7px
+ * Why not 58 per-mission ticks? At 58 missions, each one would be 5-6px
  * wide on mobile — invisible, useless. Tree rails communicate progress
  * in a way you can read at a glance.
  *

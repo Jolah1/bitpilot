@@ -138,7 +138,8 @@ export type DoKind =
     | 'paste-value'       /* generic "paste this thing" — used for npub copy, etc. */
 
 export interface MissionDef {
-    /** Mission number. Starts at 0 (Novice tier opens here). */
+    /** Mission number — stable across catalogue reshapes. Tree assignment
+     *  lives on the backend in `Tree::from_mission`. */
     id: number
     /** One-emoji shorthand. Used in the progress bar and cards. */
     emoji: string
@@ -371,7 +372,7 @@ export const MISSIONS: MissionDef[] = [
             heading: 'A block is a batch of transactions',
             body:
                 "Every ~10 minutes a miner wins the right to publish the next block, which bundles up recently broadcast transactions. Once your transaction is in a block, it has '1 confirmation'.\n\nFor small amounts, 1 confirmation is enough. For large amounts (think: buying a house), people wait for 6 confirmations — about an hour — because reorganising the chain that far back is astronomically expensive.\n\nThis is why on-chain Bitcoin is bad for buying coffee: 10-60 minutes is silly for $3. It's great for settlement of larger value, where waiting an hour buys you decades of mathematical certainty.",
-            tip: 'For day-to-day spending, use Lightning. We get to that tier soon.',
+            tip: 'For day-to-day spending, use Lightning. The Lightning tree covers that.',
         },
         quiz: {
             question: 'Why wait for 6 confirmations on a large payment?',
@@ -629,7 +630,7 @@ export const MISSIONS: MissionDef[] = [
         learn: {
             heading: 'A Nostr event has 5 fields',
             body:
-                "Everything on Nostr is an 'event': a JSON object with five fields — id, pubkey, kind, content, signature. The 'kind' number says what type of thing it is.\n\nKind 1: a short text note (a tweet, basically).\nKind 0: profile metadata (name, about, picture).\nKind 3: contact list (your follows).\nKind 7: a reaction (like/dislike).\nKind 9735: a zap receipt (we'll see this in tier 4).\n\nThat's the whole protocol. Add new kinds, build new apps — same plumbing.",
+                "Everything on Nostr is an 'event': a JSON object with five fields — id, pubkey, kind, content, signature. The 'kind' number says what type of thing it is.\n\nKind 1: a short text note (a tweet, basically).\nKind 0: profile metadata (name, about, picture).\nKind 3: contact list (your follows).\nKind 7: a reaction (like/dislike).\nKind 9735: a zap receipt (zaps come later in this tree).\n\nThat's the whole protocol. Add new kinds, build new apps — same plumbing.",
             tip: "Every post, follow, reaction, and zap is a JSON object you cryptographically signed.",
         },
         quiz: {

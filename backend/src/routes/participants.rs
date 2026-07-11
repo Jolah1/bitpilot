@@ -274,9 +274,9 @@ async fn list_completions(
     ))
 }
 
-/// `GET /api/participants/me/badges` — one tier badge per learning band
-/// (Novice → Captain). Derived from `mission_completions`; no badge table.
-/// Always returns exactly 5 entries in tier order.
+/// `GET /api/participants/me/badges` — one badge per skill tree.
+/// Derived from `mission_completions`; no badge table.
+/// Always returns exactly 8 entries in tree display order.
 async fn list_badges(
     State(state): State<Arc<AppState>>,
     Extension(authed): Extension<AuthedParticipant>,
