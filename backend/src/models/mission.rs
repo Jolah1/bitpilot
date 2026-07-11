@@ -46,7 +46,7 @@ impl Tree {
         match self {
             Tree::Money       => &[0, 1, 77, 78, 2, 5, 9, 10],
             Tree::Bitcoin     => &[6, 7, 8, 18, 19, 40, 48, 49],
-            Tree::Lightning   => &[21, 22, 23, 24, 25, 38, 39],
+            Tree::Lightning   => &[21, 22, 79, 80, 23, 24, 25, 38, 81, 82, 39, 83],
             Tree::Nostr       => &[13, 14, 15, 16, 17, 26, 27, 28, 29, 30, 35, 36, 37],
             Tree::Ecash       => &[31, 32, 33, 34, 55, 56, 57],
             Tree::SelfCustody => &[3, 4, 11, 12, 20, 41, 43, 44, 45],
@@ -121,11 +121,16 @@ const CATALOGUE: &[Row] = &[
     // ── Lightning ──────────────────────────────────────────────────────
     Row { number: 21, title: "Why Lightning exists",          simulated: false, description: "On-chain is great. Just not for coffee." },
     Row { number: 22, title: "Channels — Lightning's primitive", simulated: false, description: "Two parties, one escrow, infinite payments." },
+    Row { number: 79, title: "HTLCs, the atomic-payment trick", simulated: false, description: "How a payment hops through strangers without theft." },
+    Row { number: 80, title: "Inbound vs outbound liquidity", simulated: false, description: "Why 'your channel is full' is a real thing." },
     Row { number: 23, title: "Receive sats on Lightning",     simulated: true,  description: "Generate a real (or simulated) invoice." },
     Row { number: 24, title: "Send sats on Lightning",        simulated: true,  description: "Lightning addresses look like emails — and work the same way." },
     Row { number: 25, title: "How a Lightning payment routes",simulated: false, description: "Your sats hop through other people's channels." },
     Row { number: 38, title: "Lightning addresses, deeper",   simulated: false, description: "How alice@example.com resolves to an invoice." },
+    Row { number: 81, title: "LSPs — the wallets you actually use", simulated: false, description: "Phoenix, Muun, Wallet of Satoshi — what the LSP does." },
+    Row { number: 82, title: "Watchtowers, briefly",          simulated: false, description: "The guard that catches a stale channel close." },
     Row { number: 39, title: "Custodial vs self-hosted LN",   simulated: false, description: "Why your default Lightning wallet is probably custodial." },
+    Row { number: 83, title: "Splicing and BOLT-12",          simulated: false, description: "The upgrades that make Lightning stop feeling pointy." },
 
     // ── Nostr ──────────────────────────────────────────────────────────
     Row { number: 13, title: "Identity without a server",     simulated: false, description: "How Nostr ditches the username system." },
@@ -222,7 +227,7 @@ impl Mission {
     pub const FIRST: u8 = 0;
 
     /// Last valid mission id (inclusive).
-    pub const LAST: u8 = 78;
+    pub const LAST: u8 = 83;
 
     /// Which `DoKind` does this mission use? Used by `verify_proof` to know
     /// which ledger to check. Kept in lock-step with the frontend's
@@ -241,6 +246,7 @@ impl Mission {
             58 | 59 | 60 | 61 | 62 | 63 | 64 | 65 | 66 => DoKind::Knowledge,
             67 | 68 | 69 | 70 | 71 | 72 | 73 | 74 | 75 | 76 => DoKind::Knowledge,
             77 | 78 => DoKind::Knowledge,
+            79 | 80 | 81 | 82 | 83 => DoKind::Knowledge,
 
             // Action missions:
             11 => DoKind::SeedWords,
