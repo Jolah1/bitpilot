@@ -44,7 +44,7 @@ impl Tree {
     /// derive from this, and the frontend `TREES` constant mirrors it.
     pub fn missions(self) -> &'static [u8] {
         match self {
-            Tree::Money       => &[0, 1, 2, 5, 9, 10],
+            Tree::Money       => &[0, 1, 77, 78, 2, 5, 9, 10],
             Tree::Bitcoin     => &[6, 7, 8, 18, 19, 40, 48, 49],
             Tree::Lightning   => &[21, 22, 23, 24, 25, 38, 39],
             Tree::Nostr       => &[13, 14, 15, 16, 17, 26, 27, 28, 29, 30, 35, 36, 37],
@@ -101,6 +101,8 @@ const CATALOGUE: &[Row] = &[
     // ── Money 101 ──────────────────────────────────────────────────────
     Row { number: 0,  title: "Welcome aboard",                simulated: false, description: "Five minutes on why this exists. No prior knowledge needed." },
     Row { number: 1,  title: "What is Bitcoin?",              simulated: false, description: "Money that no government, bank, or company controls." },
+    Row { number: 77, title: "What money even is",            simulated: false, description: "Medium of exchange, unit of account, store of value." },
+    Row { number: 78, title: "Why fiat loses value",          simulated: false, description: "Inflation as policy — the slow tax on savers." },
     Row { number: 2,  title: "Sats, the unit of account",     simulated: false, description: "1 bitcoin = 100,000,000 satoshis. Think in sats." },
     Row { number: 5,  title: "Permissionless money",          simulated: false, description: "Why nobody has to approve your transaction." },
     Row { number: 9,  title: "The halving",                   simulated: false, description: "Why bitcoin gets harder to mine every 4 years." },
@@ -220,7 +222,7 @@ impl Mission {
     pub const FIRST: u8 = 0;
 
     /// Last valid mission id (inclusive).
-    pub const LAST: u8 = 76;
+    pub const LAST: u8 = 78;
 
     /// Which `DoKind` does this mission use? Used by `verify_proof` to know
     /// which ledger to check. Kept in lock-step with the frontend's
@@ -238,6 +240,7 @@ impl Mission {
             51 | 52 | 53 | 54 | 55 | 56 | 57 => DoKind::Knowledge,
             58 | 59 | 60 | 61 | 62 | 63 | 64 | 65 | 66 => DoKind::Knowledge,
             67 | 68 | 69 | 70 | 71 | 72 | 73 | 74 | 75 | 76 => DoKind::Knowledge,
+            77 | 78 => DoKind::Knowledge,
 
             // Action missions:
             11 => DoKind::SeedWords,
