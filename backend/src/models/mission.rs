@@ -52,7 +52,7 @@ impl Tree {
             Tree::SelfCustody => &[3, 4, 11, 12, 20, 41, 43, 44, 45],
             Tree::Privacy     => &[46, 51, 52, 58, 59, 60, 61, 62, 63, 64, 65, 66],
             // 50 ("You made it") stays last — it's the graduation lesson.
-            Tree::Sovereignty => &[42, 47, 53, 54, 50],
+            Tree::Sovereignty => &[42, 47, 53, 54, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 50],
         }
     }
 
@@ -176,6 +176,16 @@ const CATALOGUE: &[Row] = &[
     Row { number: 47, title: "Run a node (one day)",          simulated: false, description: "Why running your own Bitcoin node matters." },
     Row { number: 53, title: "Sovereignty vs custody",        simulated: false, description: "Two distinct ideas often blurred together." },
     Row { number: 54, title: "Your first node, practically",  simulated: false, description: "Pi, Umbrel, StartOS — picking a path that fits." },
+    Row { number: 67, title: "Be your own bank, literally",   simulated: false, description: "What the slogan actually means, unbundled job by job." },
+    Row { number: 68, title: "The exit option",               simulated: false, description: "Sovereignty is optionality, not isolation." },
+    Row { number: 69, title: "Circular economy",              simulated: false, description: "Earn sats, spend sats, skip the fiat rail." },
+    Row { number: 70, title: "Portable identity",             simulated: false, description: "A Nostr key travels; a Twitter handle does not." },
+    Row { number: 71, title: "Bitcoin as savings tech",       simulated: false, description: "Cold savings and hot spending are separate concerns." },
+    Row { number: 72, title: "Lowering your time preference", simulated: false, description: "Money that lasts changes how you plan." },
+    Row { number: 73, title: "DCA beats timing",              simulated: false, description: "Buy a little often. Consistently. Boring wins." },
+    Row { number: 74, title: "Inheritance planning",          simulated: false, description: "A stack your family can inherit vs. one only you can find." },
+    Row { number: 75, title: "Sovereignty ≠ isolation",       simulated: false, description: "A community of sovereigns is worth more than a lone one." },
+    Row { number: 76, title: "What sovereignty costs",        simulated: false, description: "The honest tradeoffs nobody puts on the poster." },
     Row { number: 50, title: "You made it",                   simulated: false, description: "What to do from here." },
 
     // ── eCash (extended) ───────────────────────────────────────────────
@@ -210,7 +220,7 @@ impl Mission {
     pub const FIRST: u8 = 0;
 
     /// Last valid mission id (inclusive).
-    pub const LAST: u8 = 66;
+    pub const LAST: u8 = 76;
 
     /// Which `DoKind` does this mission use? Used by `verify_proof` to know
     /// which ledger to check. Kept in lock-step with the frontend's
@@ -227,6 +237,7 @@ impl Mission {
             43 | 44 | 45 | 46 | 47 | 48 | 49 | 50 => DoKind::Knowledge,
             51 | 52 | 53 | 54 | 55 | 56 | 57 => DoKind::Knowledge,
             58 | 59 | 60 | 61 | 62 | 63 | 64 | 65 | 66 => DoKind::Knowledge,
+            67 | 68 | 69 | 70 | 71 | 72 | 73 | 74 | 75 | 76 => DoKind::Knowledge,
 
             // Action missions:
             11 => DoKind::SeedWords,
