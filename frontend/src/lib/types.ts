@@ -65,7 +65,7 @@ export const TREES: TreeMeta[] = [
     { key: 'self-custody', label: 'Self-custody', missions: [3, 4, 11, 12, 20, 41, 43, 44, 45],            tagline: 'Wallets, seeds, addresses, hardware, multisig.' },
     { key: 'privacy',      label: 'Privacy',      missions: [46, 51, 52, 58, 59, 60, 61, 62, 63, 64, 65, 66], tagline: 'Chain analysis, CoinJoin, KYC leaks, threat models.' },
     // Mission 50 ("You made it") stays last — it's the graduation lesson.
-    { key: 'sovereignty',  label: 'Sovereignty',  missions: [42, 47, 53, 54, 50],                          tagline: 'Signet on-chain, your own node, the long game.' },
+    { key: 'sovereignty',  label: 'Sovereignty',  missions: [42, 47, 53, 54, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 50], tagline: 'Signet, nodes, exit optionality, and the long game.' },
 ]
 
 /** Returns the tree a mission id belongs to. */
@@ -215,7 +215,7 @@ function knowledge(o: KnowledgeOpts): MissionDef {
 }
 
 /**
- * The full BitPilot curriculum: 67 missions (0..=66) across 8 skill trees.
+ * The full BitPilot curriculum: 77 missions (0..=76) across 8 skill trees.
  *
  * Mission ids are stable across tree reshuffles — they don't renumber when
  * a mission moves to a different tree. The catalogue below is ordered by
@@ -238,7 +238,7 @@ export const MISSIONS: MissionDef[] = [
         learn: {
             heading: 'Why this exists',
             body:
-                "Most people learn about Bitcoin by reading. You'll learn by using. Over the next 67 missions you'll generate real cryptographic keys, send (testnet) payments, publish a message to a network nobody owns, and end up understanding more than 99% of people who 'know about crypto'.\n\nNo wallet to install. No money at risk. Every action that touches a real network is clearly labeled — and everything that's just a demonstration is too.\n\nMissions are grouped into eight skill trees — Money, Bitcoin, Lightning, Nostr, eCash, Self-custody, Privacy, Sovereignty. Start anywhere, finish a tree, earn its compass badge.",
+                "Most people learn about Bitcoin by reading. You'll learn by using. Over the next 77 missions you'll generate real cryptographic keys, send (testnet) payments, publish a message to a network nobody owns, and end up understanding more than 99% of people who 'know about crypto'.\n\nNo wallet to install. No money at risk. Every action that touches a real network is clearly labeled — and everything that's just a demonstration is too.\n\nMissions are grouped into eight skill trees — Money, Bitcoin, Lightning, Nostr, eCash, Self-custody, Privacy, Sovereignty. Start anywhere, finish a tree, earn its compass badge.",
             tip: 'You\'ll learn to think in sats — the unit real Bitcoiners use. No money changes hands inside BitPilot.',
         },
         quiz: {
@@ -1438,7 +1438,7 @@ export const MISSIONS: MissionDef[] = [
         learn: {
             heading: 'Curriculum complete. Now build the habit.',
             body:
-                "You generated a real Nostr identity, learned Lightning, sent a signet on-chain transaction, and walked the full 67-mission curriculum across all eight skill trees. You're past the hard part: understanding.\n\nWhat to do from here:\n\n• Pick a wallet. Phoenix (Lightning, semi-self-custodial) is a great starter. Sparrow + a hardware wallet for cold storage.\n• Buy a small amount of bitcoin — not as investment advice, but as 'now I have skin in the game'. Even 5,000 sats teaches more than 5,000 articles.\n• Follow a few people on Nostr who explain things calmly: fiatjaf, jb55, Lyn Alden, Knut Svanholm, Marty Bent.\n• Read 'The Bitcoin Standard' or 'Inventing Bitcoin' if you want depth.\n• Keep using sats. Lightning addresses are everywhere now. Tip your favourite podcaster, your friend, a random stranger on Nostr.\n\nWelcome to Bitcoin. Don't stop.",
+                "You generated a real Nostr identity, learned Lightning, sent a signet on-chain transaction, and walked the full 77-mission curriculum across all eight skill trees. You're past the hard part: understanding.\n\nWhat to do from here:\n\n• Pick a wallet. Phoenix (Lightning, semi-self-custodial) is a great starter. Sparrow + a hardware wallet for cold storage.\n• Buy a small amount of bitcoin — not as investment advice, but as 'now I have skin in the game'. Even 5,000 sats teaches more than 5,000 articles.\n• Follow a few people on Nostr who explain things calmly: fiatjaf, jb55, Lyn Alden, Knut Svanholm, Marty Bent.\n• Read 'The Bitcoin Standard' or 'Inventing Bitcoin' if you want depth.\n• Keep using sats. Lightning addresses are everywhere now. Tip your favourite podcaster, your friend, a random stranger on Nostr.\n\nWelcome to Bitcoin. Don't stop.",
             tip: "The best Bitcoin education is using it. Earnestly, in tiny amounts, until it's boring.",
         },
         quiz: {
@@ -1801,6 +1801,226 @@ export const MISSIONS: MissionDef[] = [
                 { text: 'Buying the fanciest hardware wallet', correct: false },
                 { text: 'Naming the specific adversary you are trying to hide from', correct: true },
                 { text: 'Running a full node', correct: false, why: 'It is a good move — but useless if your threat model doesn\'t require it and you haven\'t addressed bigger leaks.' },
+            ],
+        },
+    }),
+    knowledge({
+        id: 67,
+        emoji: '🏦',
+        topic: 'Sovereignty',
+        tech: 'bitcoin',
+        name: 'Be your own bank, literally',
+        tagline: 'What "own bank" means before it becomes a slogan',
+        learn: {
+            heading: 'Every bank service, unbundled',
+            body:
+                "A bank quietly does six or seven jobs at once: it stores your money, moves it, checks your identity, gives you credit, keeps records, resolves disputes, and takes the phone call when something breaks. \"Be your own bank\" isn't a slogan — it's the offer to take those jobs on yourself.\n\nStore: a wallet you control (single-sig hardware, or multisig, or Lightning for spending).\nMove: broadcast a transaction or open a channel yourself.\nIdentity: no KYC, but you also can't reset a password.\nCredit: no overdraft; if you want borrowing, you build it from your own reserves or use a collateralised protocol.\nRecords: your own node keeps them; nobody can revise them.\nDisputes: none — every send is final. Learn to double-check.\nSupport: forums, docs, and community. You are the phone line.\n\nSelf-custody done well is the same job description a small-town bank had in 1900, minus the counter. That's the whole model.",
+            tip: 'The romance of "be your own bank" fades fast. What is left is the job of running a very small, very careful bank. That job is real.',
+        },
+        quiz: {
+            question: 'Which "bank job" cannot be replaced when you go fully self-custodial?',
+            options: [
+                { text: 'Storing value', correct: false },
+                { text: 'Reversing a transaction after you sent it to the wrong address', correct: true },
+                { text: 'Keeping a ledger', correct: false, why: 'Your node keeps a cryptographic ledger better than any bank could.' },
+            ],
+        },
+    }),
+    knowledge({
+        id: 68,
+        emoji: '🚪',
+        topic: 'Sovereignty',
+        tech: 'bitcoin',
+        name: 'The exit option',
+        tagline: 'You do not have to leave. You have to be *able* to.',
+        learn: {
+            heading: 'Sovereignty is optionality, not isolation',
+            body:
+                "Self-custody, running a node, holding your own keys — the payoff isn't that you use these things every day. The payoff is that you *could* leave any custodian, any exchange, any government-approved rail, at any time, with no permission.\n\nMost of the time, most people happily use custodial tools. That's fine. But the option to exit — to move your sats to a wallet nobody can freeze, to a country you weren't born in, across a border without asking — is what makes you not-captured.\n\nIt's the same principle as freedom of the press: not that you personally publish, but that the door is open. A regime that closes the door doesn't need to arrest you; the closed door is the coercion.\n\nBitcoin's whole political weight rests on this: it is the first form of money where the exit door cannot be closed by the party you're exiting.",
+            tip: 'The exit option matters even for people who never use it. It changes what everyone else has to negotiate with you about.',
+        },
+        quiz: {
+            question: 'What is the political point of self-custody, according to this framing?',
+            options: [
+                { text: 'To avoid taxes', correct: false, why: 'That is a different discussion, and legally fraught.' },
+                { text: 'To preserve the *option* to exit any custodian or rail, at any time', correct: true },
+                { text: 'To technologically outsmart banks', correct: false },
+            ],
+        },
+    }),
+    knowledge({
+        id: 69,
+        emoji: '🔄',
+        topic: 'Sovereignty',
+        tech: 'bitcoin',
+        name: 'Circular economy',
+        tagline: 'Sats never touching fiat is the point',
+        learn: {
+            heading: 'Earn sats, spend sats, skip the FX',
+            body:
+                "Every time you sell sats for dollars, you pay a spread, generate a tax event, and put yourself back on a fiat rail. The most sovereign use of Bitcoin is the one where fiat never touches the transaction at all.\n\nHow it looks in practice:\n\n• A freelance client pays you 200,000 sats to a Lightning address. Not \"$100 converted to sats\" — actually sats.\n• You pay a Nostr contributor 5,000 sats for their guide.\n• You buy a coffee from a shop that accepts Lightning (increasingly real in Bitcoin Beach, Prague, Nairobi).\n• You tip a podcaster 500 sats a week on Fountain.\n\nEach hop that stays inside Bitcoin skips the tax + FX + custody drag. Individually tiny; compounded over a life, it's the difference between owning bitcoin and using it.\n\nThe short handle for this is \"circular economy\" — a community large enough that people earn, save, spend, and pay each other without ever needing the fiat rail. It exists in patches today. It is what maturity looks like.",
+            tip: "'HODL' is passive. 'Earn and spend in sats' is what sovereignty looks like in motion.",
+        },
+        quiz: {
+            question: 'Why does keeping sats *inside* the Bitcoin economy matter?',
+            options: [
+                { text: 'It saves on wallet fees', correct: false, why: 'Fees exist in both worlds; the point is different.' },
+                { text: 'Each fiat-touching hop adds tax, FX, and custody drag you don\'t need to pay', correct: true },
+                { text: 'Only Bitcoin transactions are legal', correct: false },
+            ],
+        },
+    }),
+    knowledge({
+        id: 70,
+        emoji: '🪪',
+        topic: 'Sovereignty',
+        tech: 'nostr',
+        name: 'Portable identity',
+        tagline: 'Your Nostr key travels; your Twitter handle does not',
+        learn: {
+            heading: 'Own the identity, not just the account',
+            body:
+                "The gap between an X handle and a Nostr npub is the gap between renting your identity and owning it.\n\nAn X handle is a database row in a company you don't control. Delete-able by them, sellable by them, hostage to whichever CEO buys the platform next. Every follower you gained lives on their servers; take away the servers and the graph is gone.\n\nAn npub is a public key you generated. Your follower list is signed by *your* key and stored on relays, plural. You can pack up and leave for a different Nostr client tomorrow — same identity, same followers, same history — because the identity isn't hosted anywhere in particular. It's mathematical.\n\nThis is the sovereignty layer for how you show up online. Your handle can't be seized, deplatformed, or renamed at someone else's convenience. That is not a small feature.",
+            tip: "The test for identity sovereignty: if the platform disappears tomorrow, do you still have your followers? On Nostr: yes. On X: no.",
+        },
+        quiz: {
+            question: 'What makes a Nostr identity more sovereign than a platform handle?',
+            options: [
+                { text: 'It has a longer name', correct: false },
+                { text: 'The keypair — and therefore the follower graph — is yours, not the platform\'s', correct: true },
+                { text: 'It runs on a blockchain', correct: false, why: 'Nostr specifically does not — that is why it is fast and cheap.' },
+            ],
+        },
+    }),
+    knowledge({
+        id: 71,
+        emoji: '🧊',
+        topic: 'Sovereignty',
+        tech: 'bitcoin',
+        name: 'Bitcoin as savings tech',
+        tagline: 'Two different jobs: store value, move value',
+        learn: {
+            heading: 'Cold savings and hot spending are separate concerns',
+            body:
+                "The mistake is treating your Bitcoin stack like a single wallet. It isn't; it's a two-layer setup.\n\n**Cold savings**: sats you don't intend to touch this year. Live on a hardware wallet, ideally single-sig or 2-of-3 multisig, seed backed up on steel, never plugged into the internet-facing side of your life. Boring. Reliable. Grows.\n\n**Hot spending**: sats you use in the next few weeks. Live in a Lightning wallet on your phone. Small balance — think a couple weeks of coffee money. Refill periodically from the cold side. If the phone is lost or stolen, the loss is a bad afternoon, not a life event.\n\nThe two get confused because both are \"Bitcoin\". They shouldn't be. Design them for the job each is doing: cold for permanence, hot for velocity.",
+            tip: "Ask yourself: what fraction of my stack is on a phone right now? If the answer is >5%, redistribute.",
+        },
+        quiz: {
+            question: 'Why keep long-term Bitcoin savings separate from a phone Lightning wallet?',
+            options: [
+                { text: 'The phone wallet moves faster', correct: false, why: 'True but not the point.' },
+                { text: 'A phone is small, exposed, and lose-able — savings should tolerate the phone being gone', correct: true },
+                { text: 'Lightning cannot store large amounts', correct: false, why: 'It can — but a phone wallet still shouldn\'t.' },
+            ],
+        },
+    }),
+    knowledge({
+        id: 72,
+        emoji: '⏳',
+        topic: 'Sovereignty',
+        tech: 'bitcoin',
+        name: 'Lowering your time preference',
+        tagline: 'Money that lasts changes how you plan',
+        learn: {
+            heading: 'The half-life of your salary shapes your decisions',
+            body:
+                "Economists call it \"time preference\": how much you value now versus later. A high time preference means you consume soon; a low time preference means you save and plan.\n\nMost people's time preference isn't a personality trait. It's a response to the money they hold. When your salary loses value in the drawer, spending now is the rational move — the money is going to be worth less tomorrow. When your salary holds its value across decades, planting slow-growing things starts to make sense: education, a business, a home you actually intend to live in.\n\nBitcoin's hard supply cap doesn't lower your time preference by itself. But it removes the pressure to \"use it or lose it,\" which was the pressure holding your time preference up. Over years, that changes what feels like a sensible decision. People who save in bitcoin talk about this shift as almost the biggest thing about it — bigger than the price.",
+            tip: 'A currency that decays makes people consume. A currency that lasts makes people build.',
+        },
+        quiz: {
+            question: 'How does holding sats over years tend to change financial behaviour?',
+            options: [
+                { text: 'It makes people spend more, faster', correct: false, why: 'The reverse — the pressure to spend before value evaporates goes down.' },
+                { text: 'It lowers time preference: longer-horizon planning starts to feel rational', correct: true },
+                { text: 'It has no effect', correct: false },
+            ],
+        },
+    }),
+    knowledge({
+        id: 73,
+        emoji: '📊',
+        topic: 'Sovereignty',
+        tech: 'bitcoin',
+        name: 'DCA beats timing',
+        tagline: 'Buy a little often. Not much often. Consistently.',
+        learn: {
+            heading: 'Dollar-cost averaging is boring — that is why it works',
+            body:
+                "The trap for newcomers is trying to time the bottom. It rarely works, even for professionals with better data than you.\n\nDollar-cost averaging (DCA) is the mechanical alternative: buy a fixed amount every week or every month, regardless of price. In a rising asset over long horizons, DCA usually beats a random-timing strategy and comes very close to a perfect-timing strategy — while being emotionally sustainable, which perfect-timing isn't.\n\nSetup: pick an amount you don't mind losing. Set a weekly buy on an exchange or through a Bitcoin-only DCA service (Swan, Bitcoin Well, River). Withdraw to your own wallet on a schedule so sats don't pile up on someone else's balance sheet.\n\nThe hardest part is doing this for years while the price goes sideways or crashes. That's it. That's the whole strategy.",
+            tip: 'If you can\'t emotionally survive the buy going -60% next month, your DCA amount is too big.',
+        },
+        quiz: {
+            question: 'Why does DCA usually beat trying to time the bottom for a long-horizon buyer?',
+            options: [
+                { text: 'Because the price only goes up', correct: false, why: 'It does not. That is the reason DCA is the honest choice.' },
+                { text: 'It removes the requirement to be right about timing, which nobody consistently is', correct: true },
+                { text: 'It avoids taxes', correct: false, why: 'It does not.' },
+            ],
+        },
+    }),
+    knowledge({
+        id: 74,
+        emoji: '📜',
+        topic: 'Sovereignty',
+        tech: 'bitcoin',
+        name: 'Inheritance planning',
+        tagline: 'A stack your family can inherit is different from a stack only you can find',
+        learn: {
+            heading: 'What happens to your sats when you don\'t come home?',
+            body:
+                "Every self-custodial Bitcoiner faces this quietly: what happens if I die? If the seed lives only in your head, the sats die with you. If it lives in one hidden place, only the person who finds that place inherits.\n\nA reasonable plan looks like:\n\n• A 2-of-3 multisig where you hold one key, a trusted family member holds one, and a lawyer or bank vault holds a third. Losing any one key doesn't lose the coins; needing any two to move them prevents any single party going rogue.\n• A short, plain-language letter with your executor: \"there is bitcoin, here is roughly how much, here is the wallet type, here is the person who has the recovery guidance.\" No seed words in the letter itself.\n• A trial run — actually walk one heir through recovering a small amount so the process is real, not theoretical.\n\nThe worst version is the seed on a note in a shoebox. The next worst is nobody knowing the sats even exist. Both are avoidable in an afternoon.",
+            tip: 'Untested inheritance plans usually don\'t work. Rehearse yours on a small amount before you need it.',
+        },
+        quiz: {
+            question: 'Which inheritance setup avoids "the coins die with the holder" without giving any single heir full control?',
+            options: [
+                { text: 'A single seed hidden in one location', correct: false, why: 'Fine until the location is unknown or lost.' },
+                { text: 'A multisig with keys split across you, family, and a neutral party', correct: true },
+                { text: 'Telling one family member the whole seed', correct: false, why: 'One-of-one trust with none of the benefits of self-custody.' },
+            ],
+        },
+    }),
+    knowledge({
+        id: 75,
+        emoji: '🤝',
+        topic: 'Sovereignty',
+        tech: 'bitcoin',
+        name: 'Sovereignty ≠ isolation',
+        tagline: 'A community that runs its own money is stronger than a lone survivor',
+        learn: {
+            heading: 'You do not have to do this alone',
+            body:
+                "There is a corner of Bitcoin culture that reads sovereignty as \"me, alone, in a bunker, with a seed phrase.\" That is not what the technology is optimised for.\n\nBitcoin is optimised for *networks of self-custodial peers* trading with each other. The sovereignty is real, but the value only shows up when other people around you are also sovereign. A single self-custodial person surrounded by fiat rails is just a slightly-inconvenienced fiat user. A neighbourhood of people who accept sats, run nodes, and use Nostr becomes an actual parallel economy.\n\nThe practical version: teach one person. Set up someone's first non-custodial wallet with them. Buy something from a friend in sats. Join a local Bitcoin meetup. Every additional sovereign person around you increases the value of your own sovereignty. It's not a paradox; it's a network effect.\n\nThe bunker is a symbol. The neighbourhood is the actual product.",
+            tip: 'Self-custody is a personal skill. A local economy is a group skill. Both are needed.',
+        },
+        quiz: {
+            question: 'What multiplies the practical value of your own self-custody?',
+            options: [
+                { text: 'A bigger hardware wallet', correct: false },
+                { text: 'Other self-custodial people nearby you can transact with', correct: true },
+                { text: 'A more remote geographic location', correct: false, why: 'Isolation makes sovereignty theoretical, not more useful.' },
+            ],
+        },
+    }),
+    knowledge({
+        id: 76,
+        emoji: '⚖️',
+        topic: 'Sovereignty',
+        tech: 'bitcoin',
+        name: 'What sovereignty costs',
+        tagline: 'The honest tradeoffs nobody puts on the poster',
+        learn: {
+            heading: 'Every switch you flip has a cost',
+            body:
+                "Sovereignty isn't free. Being honest about the price is what separates people who last from people who quietly go back to custodial three months later.\n\nWhat it costs:\n\n• **Time**: initial setup, ongoing node maintenance, wallet updates, backup checks — a few hours a quarter, minimum.\n• **Cognitive load**: every send is final. Every seed is critical. \"Move fast\" is not an option; slow, deliberate transactions are the required posture.\n• **Convenience**: no password reset, no chargebacks, no support agent. A mistake at 2 AM is on you.\n• **Money**: hardware wallets, a node, backup materials — a few hundred dollars up front, tens per year after.\n• **Social friction**: your bank has no idea what you're doing with your money and would prefer you didn't.\n\nAgainst all of that, the payoff is the exit option, censorship-resistance, and durable savings. For some people the trade is obviously worth it; for others it isn't. Both answers are legitimate. What isn't legitimate is claiming the trade is free.",
+            tip: "If a Bitcoiner tells you sovereignty has no cost, they are selling you something. It has costs. They are usually worth it. Being honest about them is the point.",
+        },
+        quiz: {
+            question: 'What is the single biggest ongoing cost of full self-custody for most people?',
+            options: [
+                { text: 'Money', correct: false, why: 'Hardware and infra is a few hundred dollars — a small factor.' },
+                { text: 'The cognitive load of every transaction being final and irreversible', correct: true },
+                { text: 'Legal risk', correct: false, why: 'In most jurisdictions holding your own bitcoin is fully legal.' },
             ],
         },
     }),
