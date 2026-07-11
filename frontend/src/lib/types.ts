@@ -61,7 +61,7 @@ export const TREES: TreeMeta[] = [
     { key: 'bitcoin',      label: 'Bitcoin',      missions: [6, 7, 8, 18, 19, 40, 48, 49],                 tagline: 'Blocks, mempool, miners, UTXOs, networks, L2s.' },
     { key: 'lightning',    label: 'Lightning',    missions: [21, 22, 79, 80, 23, 24, 25, 38, 81, 82, 39, 83], tagline: 'Channels, HTLCs, liquidity, LSPs, watchtowers, splicing.' },
     { key: 'nostr',        label: 'Nostr',        missions: [13, 14, 15, 16, 17, 26, 27, 28, 29, 30, 35, 36, 37], tagline: 'Identity without a server. Notes, profiles, zaps.' },
-    { key: 'ecash',        label: 'eCash',        missions: [31, 32, 33, 34, 55, 56, 57],                  tagline: 'Bearer money backed by a mint. Cashu, Fedimint, trust.' },
+    { key: 'ecash',        label: 'eCash',        missions: [31, 32, 33, 34, 84, 55, 56, 85, 57, 86],      tagline: 'Bearer money backed by a mint. Cashu, Fedimint, honest failure modes.' },
     { key: 'self-custody', label: 'Self-custody', missions: [3, 4, 11, 12, 20, 41, 43, 44, 45],            tagline: 'Wallets, seeds, addresses, hardware, multisig.' },
     { key: 'privacy',      label: 'Privacy',      missions: [46, 51, 52, 58, 59, 60, 61, 62, 63, 64, 65, 66], tagline: 'Chain analysis, CoinJoin, KYC leaks, threat models.' },
     // Mission 50 ("You made it") stays last — it's the graduation lesson.
@@ -215,7 +215,7 @@ function knowledge(o: KnowledgeOpts): MissionDef {
 }
 
 /**
- * The full BitPilot curriculum: 84 missions (0..=83) across 8 skill trees.
+ * The full BitPilot curriculum: 87 missions (0..=86) across 8 skill trees.
  *
  * Mission ids are stable across tree reshuffles — they don't renumber when
  * a mission moves to a different tree. The catalogue below is ordered by
@@ -238,7 +238,7 @@ export const MISSIONS: MissionDef[] = [
         learn: {
             heading: 'Why this exists',
             body:
-                "Most people learn about Bitcoin by reading. You'll learn by using. Over the next 84 missions you'll generate real cryptographic keys, send (testnet) payments, publish a message to a network nobody owns, and end up understanding more than 99% of people who 'know about crypto'.\n\nNo wallet to install. No money at risk. Every action that touches a real network is clearly labeled — and everything that's just a demonstration is too.\n\nMissions are grouped into eight skill trees — Money, Bitcoin, Lightning, Nostr, eCash, Self-custody, Privacy, Sovereignty. Start anywhere, finish a tree, earn its compass badge.",
+                "Most people learn about Bitcoin by reading. You'll learn by using. Over the next 87 missions you'll generate real cryptographic keys, send (testnet) payments, publish a message to a network nobody owns, and end up understanding more than 99% of people who 'know about crypto'.\n\nNo wallet to install. No money at risk. Every action that touches a real network is clearly labeled — and everything that's just a demonstration is too.\n\nMissions are grouped into eight skill trees — Money, Bitcoin, Lightning, Nostr, eCash, Self-custody, Privacy, Sovereignty. Start anywhere, finish a tree, earn its compass badge.",
             tip: 'You\'ll learn to think in sats — the unit real Bitcoiners use. No money changes hands inside BitPilot.',
         },
         quiz: {
@@ -1438,7 +1438,7 @@ export const MISSIONS: MissionDef[] = [
         learn: {
             heading: 'Curriculum complete. Now build the habit.',
             body:
-                "You generated a real Nostr identity, learned Lightning, sent a signet on-chain transaction, and walked the full 84-mission curriculum across all eight skill trees. You're past the hard part: understanding.\n\nWhat to do from here:\n\n• Pick a wallet. Phoenix (Lightning, semi-self-custodial) is a great starter. Sparrow + a hardware wallet for cold storage.\n• Buy a small amount of bitcoin — not as investment advice, but as 'now I have skin in the game'. Even 5,000 sats teaches more than 5,000 articles.\n• Follow a few people on Nostr who explain things calmly: fiatjaf, jb55, Lyn Alden, Knut Svanholm, Marty Bent.\n• Read 'The Bitcoin Standard' or 'Inventing Bitcoin' if you want depth.\n• Keep using sats. Lightning addresses are everywhere now. Tip your favourite podcaster, your friend, a random stranger on Nostr.\n\nWelcome to Bitcoin. Don't stop.",
+                "You generated a real Nostr identity, learned Lightning, sent a signet on-chain transaction, and walked the full 87-mission curriculum across all eight skill trees. You're past the hard part: understanding.\n\nWhat to do from here:\n\n• Pick a wallet. Phoenix (Lightning, semi-self-custodial) is a great starter. Sparrow + a hardware wallet for cold storage.\n• Buy a small amount of bitcoin — not as investment advice, but as 'now I have skin in the game'. Even 5,000 sats teaches more than 5,000 articles.\n• Follow a few people on Nostr who explain things calmly: fiatjaf, jb55, Lyn Alden, Knut Svanholm, Marty Bent.\n• Read 'The Bitcoin Standard' or 'Inventing Bitcoin' if you want depth.\n• Keep using sats. Lightning addresses are everywhere now. Tip your favourite podcaster, your friend, a random stranger on Nostr.\n\nWelcome to Bitcoin. Don't stop.",
             tip: "The best Bitcoin education is using it. Earnestly, in tiny amounts, until it's boring.",
         },
         quiz: {
@@ -2175,6 +2175,72 @@ export const MISSIONS: MissionDef[] = [
                 { text: 'Paying routing fees', correct: false },
                 { text: 'The close-and-reopen dance every time you want to change channel size', correct: true },
                 { text: 'The 6-block confirmation wait', correct: false, why: 'Splicing still uses the chain — it just avoids doing two transactions.' },
+            ],
+        },
+    }),
+    knowledge({
+        id: 84,
+        emoji: '🎟️',
+        topic: 'eCash',
+        tech: 'ecash',
+        name: 'What a token actually looks like',
+        tagline: 'A Cashu token is a base64 string. Anyone holding it is the owner.',
+        learn: {
+            heading: 'Bearer notes as text',
+            body:
+                "A Cashu eCash token is a compact base64-URL string, prefixed with `cashuA` (or the newer versioned prefix). Decode it and you get JSON: which mint issued it, a list of proofs (id, amount, unblinded signature), and optionally a memo.\n\nWhoever holds the token *is* the owner. Give it to your friend by any channel — email, SMS, a QR code, a scribbled note — and it is theirs. They redeem it against the mint; you can't spend it after that because the mint will refuse the second redemption.\n\nThis is what people mean when they call eCash \"digital cash\". It's a bearer instrument in the strictest sense: possession = ownership. No account, no signature required to send, no reversal. Which is exactly the good and the bad of physical cash, transplanted into a text string.",
+            tip: 'A Cashu token is a slip of paper. Whoever holds the slip has the sats. Do not share by group text.',
+        },
+        quiz: {
+            question: 'What does "bearer instrument" mean for a Cashu token?',
+            options: [
+                { text: 'Only the original recipient can spend it', correct: false, why: 'Anyone who has the string can spend it. That is the whole point.' },
+                { text: 'Whoever currently holds the token controls the sats it represents', correct: true },
+                { text: 'It requires a signature to transfer', correct: false, why: 'Nope — hand over the text and the transfer is done.' },
+            ],
+        },
+    }),
+    knowledge({
+        id: 85,
+        emoji: '🗂️',
+        topic: 'eCash',
+        tech: 'ecash',
+        name: 'Multi-mint wallets',
+        tagline: 'One wallet, several mints — because no single mint deserves your whole balance',
+        learn: {
+            heading: 'Diversify your custodial risk on purpose',
+            body:
+                "Every eCash mint is custodial. If your balance sits on one mint and that mint disappears, all of it is gone. Multi-mint wallets (Minibits, Cashu.me, Nutstash, Boardwalk) let you hold tokens from several mints in the same app, and pick which to spend from.\n\nThe practical strategy:\n\n• Small balance per mint — enough to spend, not enough to hurt if lost.\n• Spread across mints run by different operators. Community mint, another community mint, one large operator, one experimental one.\n• When one mint starts feeling flaky (slow redemptions, silent maintenance windows), sweep the balance out before it degrades further.\n• Match the mint to the use case — a mint your local coffee shop's owner runs is fine for coffee-shop sats, not for your emergency fund.\n\nThis is the eCash version of \"don't keep your savings on one exchange\". Same logic, ten times faster to execute because moving eCash is a text-message-sized transfer.",
+            tip: 'A multi-mint wallet turns eCash from "trust one stranger" into "trust several strangers a little each". That is a real improvement.',
+        },
+        quiz: {
+            question: 'What is the point of a multi-mint eCash wallet?',
+            options: [
+                { text: 'Faster payments', correct: false },
+                { text: 'Spread custody risk so no single mint failure wipes you out', correct: true },
+                { text: 'Cheaper fees', correct: false, why: 'Fees are set per mint. Multi-mint does not change them.' },
+            ],
+        },
+    }),
+    knowledge({
+        id: 86,
+        emoji: '⚰️',
+        topic: 'eCash',
+        tech: 'ecash',
+        name: 'When mints fail',
+        tagline: 'The honest history. Then how to plan for it.',
+        learn: {
+            heading: 'Mints have gone dark before, and will again',
+            body:
+                "eCash mints have failed in every way an operator can fail: quiet disappearance, seized servers, operator burned out and shut down, operator lost their Lightning node keys, insolvency from botched liquidity management. When it happens, holders of tokens from that mint lose everything.\n\nDocumented cases: cashu.me's operator changed hands more than once and communicated poorly through transitions; several community mints have gone offline without warning; at least one experimental mint had a bug that let it double-issue against Lightning-inbound sats. Fedimint federations have had guardian dropouts serious enough to threaten fund recovery.\n\nHow to plan:\n\n• Assume every mint you use will eventually fail. Design your balance to make that survivable.\n• Read the mint operator's public activity. If they are quiet for a month, sweep out.\n• Prefer mints where the operator has skin in the game and posts real updates.\n• Never hold more on a single mint than you would carry in cash. Ever.\n• Practise sweeping — actually move tokens off a mint and redeem elsewhere — so the mechanics are muscle memory when you need it.\n\neCash is a great tool that quietly assumes failure and is designed around surviving it. Live inside that design.",
+            tip: 'The mint will fail. Plan your balance so that is annoying, not devastating.',
+        },
+        quiz: {
+            question: 'What is the honest, long-term expectation for any given eCash mint?',
+            options: [
+                { text: 'Cashu mints are audited and cannot fail', correct: false, why: 'They can fail and have. There are no audits.' },
+                { text: 'Assume it will fail at some point, and size your balance accordingly', correct: true },
+                { text: 'Fedimint federations cannot fail', correct: false, why: 'Federations have had guardian dropouts that threatened recovery.' },
             ],
         },
     }),

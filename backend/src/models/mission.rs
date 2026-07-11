@@ -48,7 +48,7 @@ impl Tree {
             Tree::Bitcoin     => &[6, 7, 8, 18, 19, 40, 48, 49],
             Tree::Lightning   => &[21, 22, 79, 80, 23, 24, 25, 38, 81, 82, 39, 83],
             Tree::Nostr       => &[13, 14, 15, 16, 17, 26, 27, 28, 29, 30, 35, 36, 37],
-            Tree::Ecash       => &[31, 32, 33, 34, 55, 56, 57],
+            Tree::Ecash       => &[31, 32, 33, 34, 84, 55, 56, 85, 57, 86],
             Tree::SelfCustody => &[3, 4, 11, 12, 20, 41, 43, 44, 45],
             Tree::Privacy     => &[46, 51, 52, 58, 59, 60, 61, 62, 63, 64, 65, 66],
             // 50 ("You made it") stays last — it's the graduation lesson.
@@ -152,6 +152,9 @@ const CATALOGUE: &[Row] = &[
     Row { number: 32, title: "Mints — small, replaceable",    simulated: false, description: "Why eCash mints are not banks." },
     Row { number: 33, title: "Claim an eCash token",          simulated: true,  description: "Get a token issued, see what one looks like." },
     Row { number: 34, title: "Spend an eCash token",          simulated: true,  description: "Hand the bearer note to the mint to redeem." },
+    Row { number: 84, title: "What a token actually looks like", simulated: false, description: "A Cashu token is base64 you can text to a friend." },
+    Row { number: 85, title: "Multi-mint wallets",            simulated: false, description: "Spread custody risk across mints, on purpose." },
+    Row { number: 86, title: "When mints fail",               simulated: false, description: "The honest history, and how to size balances around it." },
 
     // ── Self-custody ───────────────────────────────────────────────────
     Row { number: 3,  title: "What a wallet actually is",     simulated: false, description: "It doesn't hold coins. It holds the keys that authorize moving entries." },
@@ -227,7 +230,7 @@ impl Mission {
     pub const FIRST: u8 = 0;
 
     /// Last valid mission id (inclusive).
-    pub const LAST: u8 = 83;
+    pub const LAST: u8 = 86;
 
     /// Which `DoKind` does this mission use? Used by `verify_proof` to know
     /// which ledger to check. Kept in lock-step with the frontend's
@@ -247,6 +250,7 @@ impl Mission {
             67 | 68 | 69 | 70 | 71 | 72 | 73 | 74 | 75 | 76 => DoKind::Knowledge,
             77 | 78 => DoKind::Knowledge,
             79 | 80 | 81 | 82 | 83 => DoKind::Knowledge,
+            84 | 85 | 86 => DoKind::Knowledge,
 
             // Action missions:
             11 => DoKind::SeedWords,
