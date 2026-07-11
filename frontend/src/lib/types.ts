@@ -63,7 +63,7 @@ export const TREES: TreeMeta[] = [
     { key: 'nostr',        label: 'Nostr',        missions: [13, 14, 15, 16, 17, 26, 27, 28, 29, 30, 35, 36, 37], tagline: 'Identity without a server. Notes, profiles, zaps.' },
     { key: 'ecash',        label: 'eCash',        missions: [31, 32, 33, 34, 55, 56, 57],                  tagline: 'Bearer money backed by a mint. Cashu, Fedimint, trust.' },
     { key: 'self-custody', label: 'Self-custody', missions: [3, 4, 11, 12, 20, 41, 43, 44, 45],            tagline: 'Wallets, seeds, addresses, hardware, multisig.' },
-    { key: 'privacy',      label: 'Privacy',      missions: [46, 51, 52],                                  tagline: 'The chain is public. Address reuse and chain analysis.' },
+    { key: 'privacy',      label: 'Privacy',      missions: [46, 51, 52, 58, 59, 60, 61, 62, 63, 64, 65, 66], tagline: 'Chain analysis, CoinJoin, KYC leaks, threat models.' },
     // Mission 50 ("You made it") stays last — it's the graduation lesson.
     { key: 'sovereignty',  label: 'Sovereignty',  missions: [42, 47, 53, 54, 50],                          tagline: 'Signet on-chain, your own node, the long game.' },
 ]
@@ -215,7 +215,7 @@ function knowledge(o: KnowledgeOpts): MissionDef {
 }
 
 /**
- * The full BitPilot curriculum: 58 missions (0..=57) across 8 skill trees.
+ * The full BitPilot curriculum: 67 missions (0..=66) across 8 skill trees.
  *
  * Mission ids are stable across tree reshuffles — they don't renumber when
  * a mission moves to a different tree. The catalogue below is ordered by
@@ -238,7 +238,7 @@ export const MISSIONS: MissionDef[] = [
         learn: {
             heading: 'Why this exists',
             body:
-                "Most people learn about Bitcoin by reading. You'll learn by using. Over the next 58 missions you'll generate real cryptographic keys, send (testnet) payments, publish a message to a network nobody owns, and end up understanding more than 99% of people who 'know about crypto'.\n\nNo wallet to install. No money at risk. Every action that touches a real network is clearly labeled — and everything that's just a demonstration is too.\n\nMissions are grouped into eight skill trees — Money, Bitcoin, Lightning, Nostr, eCash, Self-custody, Privacy, Sovereignty. Start anywhere, finish a tree, earn its compass badge.",
+                "Most people learn about Bitcoin by reading. You'll learn by using. Over the next 67 missions you'll generate real cryptographic keys, send (testnet) payments, publish a message to a network nobody owns, and end up understanding more than 99% of people who 'know about crypto'.\n\nNo wallet to install. No money at risk. Every action that touches a real network is clearly labeled — and everything that's just a demonstration is too.\n\nMissions are grouped into eight skill trees — Money, Bitcoin, Lightning, Nostr, eCash, Self-custody, Privacy, Sovereignty. Start anywhere, finish a tree, earn its compass badge.",
             tip: 'You\'ll learn to think in sats — the unit real Bitcoiners use. No money changes hands inside BitPilot.',
         },
         quiz: {
@@ -1438,7 +1438,7 @@ export const MISSIONS: MissionDef[] = [
         learn: {
             heading: 'Curriculum complete. Now build the habit.',
             body:
-                "You generated a real Nostr identity, learned Lightning, sent a signet on-chain transaction, and walked the full 58-mission curriculum across all eight skill trees. You're past the hard part: understanding.\n\nWhat to do from here:\n\n• Pick a wallet. Phoenix (Lightning, semi-self-custodial) is a great starter. Sparrow + a hardware wallet for cold storage.\n• Buy a small amount of bitcoin — not as investment advice, but as 'now I have skin in the game'. Even 5,000 sats teaches more than 5,000 articles.\n• Follow a few people on Nostr who explain things calmly: fiatjaf, jb55, Lyn Alden, Knut Svanholm, Marty Bent.\n• Read 'The Bitcoin Standard' or 'Inventing Bitcoin' if you want depth.\n• Keep using sats. Lightning addresses are everywhere now. Tip your favourite podcaster, your friend, a random stranger on Nostr.\n\nWelcome to Bitcoin. Don't stop.",
+                "You generated a real Nostr identity, learned Lightning, sent a signet on-chain transaction, and walked the full 67-mission curriculum across all eight skill trees. You're past the hard part: understanding.\n\nWhat to do from here:\n\n• Pick a wallet. Phoenix (Lightning, semi-self-custodial) is a great starter. Sparrow + a hardware wallet for cold storage.\n• Buy a small amount of bitcoin — not as investment advice, but as 'now I have skin in the game'. Even 5,000 sats teaches more than 5,000 articles.\n• Follow a few people on Nostr who explain things calmly: fiatjaf, jb55, Lyn Alden, Knut Svanholm, Marty Bent.\n• Read 'The Bitcoin Standard' or 'Inventing Bitcoin' if you want depth.\n• Keep using sats. Lightning addresses are everywhere now. Tip your favourite podcaster, your friend, a random stranger on Nostr.\n\nWelcome to Bitcoin. Don't stop.",
             tip: "The best Bitcoin education is using it. Earnestly, in tiny amounts, until it's boring.",
         },
         quiz: {
@@ -1603,6 +1603,204 @@ export const MISSIONS: MissionDef[] = [
                 { text: 'They\'re trustless like Bitcoin', correct: false, why: 'They are explicitly custodial; that is the trade for privacy.' },
                 { text: 'They\'re custodial — the choice is how many people you trust, and for how much', correct: true },
                 { text: 'They\'re only useful on Lightning', correct: false },
+            ],
+        },
+    }),
+    knowledge({
+        id: 58,
+        emoji: '🌀',
+        topic: 'Privacy',
+        tech: 'bitcoin',
+        name: 'CoinJoin, plainly',
+        tagline: 'The one trick that breaks the biggest chain-analysis heuristic',
+        learn: {
+            heading: 'A shared transaction with equal outputs',
+            body:
+                "Chain analysis leans on \"all inputs to a transaction come from one wallet.\" CoinJoin exists to break exactly that.\n\nTen users each put 0.01 BTC into one transaction. The transaction pays out ten 0.01 BTC outputs to fresh addresses controlled by each user. From the outside, nobody can tell which input paid which output — the common-input heuristic just points at ten unrelated wallets that never met.\n\nModern implementations (Wabisabi, Whirlpool) coordinate the mixing without a central operator seeing who owns what. The trade-offs are real: coordinator fees, a slower confirmation, and post-CoinJoin coins are sometimes flagged by exchanges. It is the strongest on-chain privacy tool available, not a free lunch.",
+            tip: 'CoinJoin does not "hide" your bitcoin — it deliberately makes chain analysts guess wrong about who owns what.',
+        },
+        quiz: {
+            question: 'Which heuristic is CoinJoin specifically designed to defeat?',
+            options: [
+                { text: 'The 10-minute block target', correct: false },
+                { text: '"All inputs to a transaction belong to the same wallet"', correct: true },
+                { text: 'The 21 million supply cap', correct: false },
+            ],
+        },
+    }),
+    knowledge({
+        id: 59,
+        emoji: '🎭',
+        topic: 'Privacy',
+        tech: 'bitcoin',
+        name: 'PayJoin: an invisible mix',
+        tagline: 'Every payment can be a small CoinJoin — no one has to know',
+        learn: {
+            heading: 'Sender and receiver both contribute inputs',
+            body:
+                "In a normal payment, the receiver just watches an output land. In a PayJoin, the receiver *also* adds an input from their own wallet to the transaction. To the chain, the result looks like an ordinary send — just with an extra input.\n\nThat single extra input breaks the common-input heuristic: analysts now cannot assume every input came from the sender. It also breaks the change-detection heuristic: neither output is obviously \"the change,\" because the receiver contributed too.\n\nBest of all, PayJoin transactions look identical to normal ones on the chain. Every merchant that supports PayJoin makes the entire ecosystem's chain-analysis job harder — not just for their own customers.",
+            tip: 'PayJoin is the rare privacy tool where doing it makes everyone else more private too.',
+        },
+        quiz: {
+            question: 'What makes a PayJoin different from a normal Bitcoin payment on the chain?',
+            options: [
+                { text: 'It uses a special script type visible to analysts', correct: false, why: 'PayJoins deliberately look like ordinary payments.' },
+                { text: 'The receiver adds an input, breaking the "all inputs from one wallet" assumption', correct: true },
+                { text: 'It happens off-chain', correct: false },
+            ],
+        },
+    }),
+    knowledge({
+        id: 60,
+        emoji: '⚡',
+        topic: 'Privacy',
+        tech: 'lightning',
+        name: 'Lightning privacy, honestly',
+        tagline: 'Better than on-chain, but the LSP still learns a lot',
+        learn: {
+            heading: 'Onion routing helps — until an endpoint sees the plaintext',
+            body:
+                "Lightning payments hop through channels wrapped in onion encryption: each hop only sees the previous and next hop, not the whole route. That is genuinely private *for intermediate hops*.\n\nThe endpoints are a different story. The sender's node knows the whole path they chose. The recipient's node sees the incoming payment. And if you use a custodial or LSP-backed wallet (Phoenix, Wallet of Satoshi, Muun) that node sees *both* endpoints because it *is* one of the endpoints, plus your invoices, plus your balances.\n\nTrampoline routing and BOLT-12 offers improve this. Self-hosted nodes with private channels improve it further. The point: Lightning privacy is real, but \"my LSP knows nothing\" is not accurate.",
+            tip: 'The intermediate hops on Lightning are blind. The wallet you use is not.',
+        },
+        quiz: {
+            question: 'Who on the Lightning network learns the least about a payment in transit?',
+            options: [
+                { text: 'The intermediate routing nodes', correct: true, why: 'They see the previous and next hop only — that is the point of onion routing.' },
+                { text: 'The sender', correct: false, why: 'The sender chose the whole route.' },
+                { text: 'The recipient\'s LSP', correct: false, why: 'The LSP is an endpoint and sees the incoming payment.' },
+            ],
+        },
+    }),
+    knowledge({
+        id: 61,
+        emoji: '📇',
+        topic: 'Privacy',
+        tech: 'bitcoin',
+        name: 'KYC is the biggest leak',
+        tagline: 'Where your privacy usually breaks first: at the on-ramp',
+        learn: {
+            heading: 'The chain is not what deanonymises you — the exchange is',
+            body:
+                "You can run your own node, use CoinJoin, route Lightning through Tor, and still be fully identified — because you bought your first sats on an exchange that photographed your face, scanned your ID, and recorded the address you withdrew to.\n\nOnce that address exists in the exchange's database tied to your legal identity, every downstream transaction is a candidate for reidentification the moment it touches an address they can cluster back.\n\nMitigations, in rough order of accessibility:\n\n• Buy small amounts peer-to-peer (Robosats, HodlHodl, LN-based exchanges, meetups)\n• Use different addresses/wallets for KYC-sourced sats vs. non-KYC sats — don't cross the streams\n• Earn sats directly for work — a Lightning address from a client bypasses the KYC ramp entirely\n\nNone of this is illegal in most places. It is just refusing to pre-attach an ID to every future satoshi.",
+            tip: 'KYC sats and non-KYC sats should never share a wallet.',
+        },
+        quiz: {
+            question: 'Where does most real-world Bitcoin deanonymisation come from?',
+            options: [
+                { text: 'Weaknesses in the chain itself', correct: false },
+                { text: 'The KYC data exchanges collect at the on-ramp, plus off-chain leaks', correct: true },
+                { text: 'Miners looking at transactions before they confirm', correct: false, why: 'Miners see transactions but do not know who broadcast them.' },
+            ],
+        },
+    }),
+    knowledge({
+        id: 62,
+        emoji: '📡',
+        topic: 'Privacy',
+        tech: 'bitcoin',
+        name: 'Your node closes the IP leak',
+        tagline: 'Third-party wallets tell strangers your balance in real time',
+        learn: {
+            heading: 'Every balance check is a data point',
+            body:
+                "When your wallet asks a server \"what is the balance of these 400 addresses?\", that server learns two things: your entire address set, and the IP address doing the asking. Correlated over months, that IP becomes as identifying as a legal name.\n\nRun your own node, point your wallet at it, and both leaks close. Your machine knows your addresses (it always did), and it queries the network for blocks in a way that reveals nothing about which addresses you care about.\n\nBonus round: run your node behind Tor. Now the network sees a node syncing the chain; nobody sees which IP it came from.\n\nThe payoff is asymmetric — cheap upgrade, permanent gain, no ongoing effort after the initial sync.",
+            tip: 'A wallet that talks to your own node cannot leak your addresses to a stranger, because you *are* the stranger.',
+        },
+        quiz: {
+            question: 'What does running your own node primarily do for your privacy?',
+            options: [
+                { text: 'Speeds up Lightning payments', correct: false },
+                { text: 'Stops your wallet from telling third-party servers your address set + IP', correct: true },
+                { text: 'Reduces on-chain fees', correct: false },
+            ],
+        },
+    }),
+    knowledge({
+        id: 63,
+        emoji: '🖨️',
+        topic: 'Privacy',
+        tech: 'bitcoin',
+        name: 'Wallet fingerprinting',
+        tagline: 'Your wallet has an accent — analysts can hear it',
+        learn: {
+            heading: 'Small habits leak which software you use',
+            body:
+                "Two payments can be identical in amount and time, but if one comes from Sparrow and the other from Blue Wallet, subtle differences give it away:\n\n• Script type consistency — a wallet usually uses P2WPKH *or* P2TR, not both\n• Input/output ordering — some wallets sort BIP69, some randomise, some don't\n• RBF signalling — most enable it by default, some don't\n• Fee estimation quirks — round-number fee rates vs. odd ones\n• nLockTime — some wallets set it to the current block height, most leave it at 0\n\nOn its own, fingerprinting doesn't reveal *who* you are — but it groups your transactions together (\"all Sparrow, all sent Tuesday afternoons\"), which gives clustering algorithms a head start.\n\nDefence is boring: use popular wallets with sensible defaults, don't hand-tune fees to unusual values, and don't mix outputs from very different software in the same wallet.",
+            tip: 'Being fingerprintable does not identify you. It groups your transactions — which makes identifying you easier later.',
+        },
+        quiz: {
+            question: 'Why is wallet fingerprinting a privacy concern even without KYC data?',
+            options: [
+                { text: 'It reveals your seed phrase to the network', correct: false, why: 'Absolutely not — the seed never touches the network.' },
+                { text: 'It groups your transactions together, giving clustering a head start', correct: true },
+                { text: 'It slows down confirmations', correct: false },
+            ],
+        },
+    }),
+    knowledge({
+        id: 64,
+        emoji: '🎭',
+        topic: 'Privacy',
+        tech: 'nostr',
+        name: 'Nostr identities aren\'t private',
+        tagline: 'An npub is public forever — plan accordingly',
+        learn: {
+            heading: 'Nostr gives you pseudonymity, not anonymity',
+            body:
+                "Your npub is a public key. Every note, follow, reaction, and zap you sign with it is visible to every relay you touch — permanently.\n\nThat means:\n\n• If you connect your Nostr identity to your legal name once (a selfie, a bio, a linked LinkedIn), it is now permanently connected. There is no delete.\n• Multiple npubs are a feature, not paranoia: a \"main\" npub for public stuff, a work npub, a private-thoughts npub. Different keys, different personas.\n• Zaps leak your Lightning address, which usually leaks who runs your node (Wallet of Satoshi, your own domain, etc.). Zap thoughtfully.\n• Relay choice matters: if you only post to one boutique relay, your posts have a metadata signature (\"probably reads Nostr in Europe\") that a bigger fan-out would hide.\n\nNostr's public-by-default design is the source of its resilience and censorship-resistance. It is also the reason it will not deanonymise itself for you.",
+            tip: 'One npub per persona. Never mix a doxxed key with a private one — the follow graph will out you.',
+        },
+        quiz: {
+            question: 'What is the safest way to keep parts of your Nostr life separate?',
+            options: [
+                { text: 'Delete old notes regularly', correct: false, why: 'Relays cache and rebroadcast — deletion is at best a request.' },
+                { text: 'Use different npubs for different personas; never cross-link them', correct: true },
+                { text: 'Post only from Tor', correct: false, why: 'Helps hide your IP, but does nothing about the public content you signed.' },
+            ],
+        },
+    }),
+    knowledge({
+        id: 65,
+        emoji: '💵',
+        topic: 'Privacy',
+        tech: 'ecash',
+        name: 'eCash privacy: where it shines, where it doesn\'t',
+        tagline: 'Bearer tokens the mint never sees — with an asterisk',
+        learn: {
+            heading: 'The mint is blind; the ramps aren\'t',
+            body:
+                "eCash mints issue blind-signed tokens: when you spend one, the mint verifies it is valid without recognising which token it originally issued. That is the strongest privacy in the Bitcoin stack, full stop.\n\nBut the privacy has boundaries you should not fool yourself about:\n\n• The Lightning invoice that *funded* the mint is visible to the payer's LSP. Coming in privately requires care.\n• The Lightning invoice that *withdraws* from the mint is visible to whoever pays it. Cashing out identifies who received.\n• The mint operator sees deposits, withdrawals, and the total float. They cannot link a specific token to a specific user — but they see the aggregate.\n• Metadata around usage (times, amounts, patterns) still leaks whether you use eCash a little or a lot.\n\nUsed for *spending*, eCash is the closest thing to digital cash we have. Used as savings, you have simply given a stranger your bitcoin.",
+            tip: 'eCash is optimal when the sats come in privately, spend quickly, and leave without a trace.',
+        },
+        quiz: {
+            question: 'What is the honest privacy claim for eCash?',
+            options: [
+                { text: 'The mint cannot link a spent token to who it was originally issued to', correct: true },
+                { text: 'No one can ever see any transaction related to your eCash', correct: false, why: 'The Lightning invoices that fund and drain the mint are visible.' },
+                { text: 'It runs on a hidden blockchain', correct: false },
+            ],
+        },
+    }),
+    knowledge({
+        id: 66,
+        emoji: '🎯',
+        topic: 'Privacy',
+        tech: 'bitcoin',
+        name: 'Threat model 101',
+        tagline: 'Who are you actually hiding from? Answer first, then choose tools',
+        learn: {
+            heading: 'Nation-state, corporation, or nosy neighbour?',
+            body:
+                "Bitcoin privacy is not a single dial. It is a set of trade-offs, and the right settings depend on *whom* you are trying not to be transparent to.\n\n• **Nosy family, employer, roommate:** default wallet with non-reused addresses, avoid posting your address on social media. Done. Overkill anything more.\n\n• **Data-mining corporations, chain analysts, KYC exchange snooping:** run your own node, avoid address reuse religiously, use PayJoin/CoinJoin when moving meaningful amounts, keep KYC and non-KYC sats in separate wallets.\n\n• **A state actor with subpoena power:** you cannot fully defend against this alone. Non-KYC sourcing, Tor, mixing, careful operational security — and even then, one metadata slip can unravel it.\n\nThe common mistake is to pick tools without answering the who-question first. Running an air-gapped signer to protect against a jealous partner is theatre. Buying on a KYC exchange when trying to evade a state is a rounding-error defence.\n\nWrite down your threat model. Actually. Then choose tools proportional to it.",
+            tip: 'Privacy without a threat model is cargo-culting. Name the adversary first.',
+        },
+        quiz: {
+            question: 'What should come *before* picking Bitcoin privacy tools?',
+            options: [
+                { text: 'Buying the fanciest hardware wallet', correct: false },
+                { text: 'Naming the specific adversary you are trying to hide from', correct: true },
+                { text: 'Running a full node', correct: false, why: 'It is a good move — but useless if your threat model doesn\'t require it and you haven\'t addressed bigger leaks.' },
             ],
         },
     }),

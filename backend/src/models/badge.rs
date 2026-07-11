@@ -100,17 +100,24 @@ mod tests {
     }
 
     #[test]
-    fn privacy_tree_unlocks_after_all_three_completions() {
-        // Privacy spans 46, 51, 52 — earned only once all three are done.
+    fn privacy_tree_unlocks_after_all_missions_completed() {
+        // Privacy is earned only once every mission in the tree is done.
         let mut badges = Badge::all_for(&[(46u8, 42)]);
         let privacy = badges.iter().find(|b| b.tree == Tree::Privacy).unwrap();
-        assert!(!privacy.earned, "1/3 missions is not enough");
+        assert!(!privacy.earned, "1 mission is not enough");
         assert_eq!(privacy.completed, 1);
 
-        badges = Badge::all_for(&[(46u8, 42), (51u8, 100), (52u8, 150)]);
+        let all: Vec<(u8, i64)> = Tree::Privacy
+            .missions()
+            .iter()
+            .enumerate()
+            .map(|(i, &m)| (m, 100 + i as i64))
+            .collect();
+        let expected_last = all.last().unwrap().1;
+        badges = Badge::all_for(&all);
         let privacy = badges.iter().find(|b| b.tree == Tree::Privacy).unwrap();
         assert!(privacy.earned);
-        assert_eq!(privacy.completed, 3);
-        assert_eq!(privacy.earned_at, Some(150));
+        assert_eq!(privacy.completed as usize, Tree::Privacy.missions().len());
+        assert_eq!(privacy.earned_at, Some(expected_last));
     }
 }
