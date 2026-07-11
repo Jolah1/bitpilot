@@ -45,7 +45,7 @@ impl Tree {
     pub fn missions(self) -> &'static [u8] {
         match self {
             Tree::Money       => &[0, 1, 77, 78, 2, 5, 9, 10],
-            Tree::Bitcoin     => &[6, 7, 8, 18, 19, 40, 48, 49],
+            Tree::Bitcoin     => &[6, 7, 8, 87, 88, 18, 19, 89, 40, 90, 48, 49],
             Tree::Lightning   => &[21, 22, 79, 80, 23, 24, 25, 38, 81, 82, 39, 83],
             Tree::Nostr       => &[13, 14, 15, 16, 17, 26, 27, 28, 29, 30, 35, 36, 37],
             Tree::Ecash       => &[31, 32, 33, 34, 84, 55, 56, 85, 57, 86],
@@ -112,9 +112,13 @@ const CATALOGUE: &[Row] = &[
     Row { number: 6,  title: "Blocks and confirmations",      simulated: false, description: "Why people say '1 confirmation' or '6'." },
     Row { number: 7,  title: "Fees and the mempool",          simulated: false, description: "Why some payments are free and others cost real money." },
     Row { number: 8,  title: "What miners actually do",       simulated: false, description: "Not 'creating bitcoin from thin air'." },
+    Row { number: 87, title: "Difficulty adjustment",         simulated: false, description: "How Bitcoin keeps blocks arriving every ten minutes, forever." },
+    Row { number: 88, title: "Script — Bitcoin's tiny language", simulated: false, description: "Every UTXO is locked by a mini-program. On purpose." },
     Row { number: 18, title: "Mainnet vs testnet vs signet",  simulated: false, description: "The Bitcoin networks you can break without losing anything." },
     Row { number: 19, title: "UTXOs — Bitcoin accounting",    simulated: false, description: "Why Bitcoin isn't 'balances', it's 'unspent outputs'." },
+    Row { number: 89, title: "Taproot, briefly",              simulated: false, description: "The 2021 upgrade you've been using without noticing." },
     Row { number: 40, title: "L2s, sidechains, and rollups",  simulated: false, description: "Lightning is one of many — there are others." },
+    Row { number: 90, title: "Mining pools",                  simulated: false, description: "Why solo mining is basically extinct — and why that matters." },
     Row { number: 48, title: "How rules actually change",     simulated: false, description: "Soft forks, hard forks, and why Bitcoin barely changes." },
     Row { number: 49, title: "Why Bitcoin matters globally",  simulated: false, description: "It's not really about being rich." },
 
@@ -230,7 +234,7 @@ impl Mission {
     pub const FIRST: u8 = 0;
 
     /// Last valid mission id (inclusive).
-    pub const LAST: u8 = 86;
+    pub const LAST: u8 = 90;
 
     /// Which `DoKind` does this mission use? Used by `verify_proof` to know
     /// which ledger to check. Kept in lock-step with the frontend's
@@ -251,6 +255,7 @@ impl Mission {
             77 | 78 => DoKind::Knowledge,
             79 | 80 | 81 | 82 | 83 => DoKind::Knowledge,
             84 | 85 | 86 => DoKind::Knowledge,
+            87 | 88 | 89 | 90 => DoKind::Knowledge,
 
             // Action missions:
             11 => DoKind::SeedWords,
