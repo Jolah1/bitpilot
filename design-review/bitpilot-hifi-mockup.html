@@ -1,0 +1,327 @@
+<style>
+  :root {
+    --bitcoin: #F7931A; --bitcoin-strong: #FFA940; --gold: #FFD27A; --gold-strong: #FFE7C2;
+    --sat-green: #10C57E; --nostr-purple: #A78BFA; --ecash-cyan: #5EEAD4;
+    --bg: #0B1220; --bg-elevated: #121A30; --surface: #16203A; --surface2: #1C2945;
+    --border: #2A3656; --border-strong: #3A4A75;
+    --text: #F4F2EE; --text-soft: #CFCCC6; --muted: #9A968F;
+    --danger: #F87171; --success: #10C57E; --warning: #FBBF24;
+    --grad-bitcoin: linear-gradient(135deg, #F7931A 0%, #FFB74D 100%);
+    --grad-hero: linear-gradient(135deg, #F7931A 0%, #FFD27A 100%);
+    --shadow-2: 0 6px 24px rgba(0,0,0,0.35);
+    --font-sans: 'Inter Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --font-mono: 'JetBrains Mono Variable', ui-monospace, 'SF Mono', 'Cascadia Mono', monospace;
+    --edge: linear-gradient(180deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0) 6px);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: var(--font-sans);
+    background: #0e1524;
+    background-image: radial-gradient(circle at 50% -5%, rgba(247,147,26,0.10), rgba(14,21,36,0) 45%);
+    color: var(--text);
+    padding: 40px 28px 56px;
+    -webkit-font-smoothing: antialiased;
+  }
+  .page-head { text-align: center; max-width: 900px; margin: 0 auto 8px; }
+  .page-head h1 { font-size: 24px; font-weight: 800; letter-spacing: -0.025em; }
+  .page-head h1 .g { background: var(--grad-hero); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+  .page-head p { color: var(--muted); font-size: 14px; margin-top: 8px; line-height: 1.5; }
+
+  .principles { max-width: 900px; margin: 22px auto 40px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .principles .pr { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; font-size: 12.5px; color: var(--text-soft); line-height: 1.4; }
+  .principles .pr b { color: var(--bitcoin); }
+
+  .row { display: flex; gap: 40px; justify-content: center; flex-wrap: wrap; align-items: flex-start; }
+  .col { width: 375px; }
+
+  .screen-label { background: #1a1a1a; color: #ffffff; font-size: 13px; border-radius: 6px; padding: 6px 10px; margin-bottom: 14px; line-height: 1.45; }
+  .screen-label b { color: var(--gold); }
+
+  /* iPhone frame 375 x 812 */
+  .phone {
+    width: 375px; height: 812px;
+    background: var(--bg); border-radius: 46px;
+    border: 11px solid #05070d;
+    box-shadow: var(--shadow-2), 0 0 0 1px #232f4a inset;
+    position: relative; overflow: hidden;
+  }
+  .statusbar { height: 46px; display: flex; align-items: flex-end; justify-content: space-between; padding: 0 26px 6px; font-size: 14px; font-weight: 600; color: var(--text); position: relative; }
+  .notch { position: absolute; top: 9px; left: 50%; transform: translateX(-50%); width: 124px; height: 30px; background: #05070d; border-radius: 0 0 18px 18px; }
+  .sb-icons { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+
+  .appbar { display: flex; align-items: center; justify-content: space-between; padding: 8px 18px; border-bottom: 1px solid var(--border); background: var(--bg-elevated); }
+  .brand { display: flex; align-items: center; gap: 8px; }
+  .brand .name { font-size: 16px; font-weight: 800; letter-spacing: -0.025em; }
+  .appbar .right { display: flex; gap: 8px; align-items: center; color: var(--muted); font-size: 15px; }
+  .icobtn { width: 30px; height: 30px; border: 1px solid var(--border); border-radius: 8px; display: flex; align-items: center; justify-content: center; }
+
+  .content { padding: 18px 18px 22px; display: flex; flex-direction: column; gap: 14px; height: calc(812px - 46px - 47px); overflow: hidden; }
+
+  .mission-top { display: flex; align-items: center; justify-content: space-between; }
+  .m-crumb { font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+  .chip { font-size: 11px; font-weight: 700; padding: 4px 11px; border-radius: 999px; display: inline-flex; align-items: center; gap: 5px; }
+  .chip.real { background: rgba(16,197,126,0.12); color: var(--success); border: 1px solid rgba(16,197,126,0.35); }
+  .chip.practice { background: rgba(247,147,26,0.12); color: var(--bitcoin); border: 1px solid rgba(247,147,26,0.32); }
+  .chip.nostr { background: rgba(167,139,250,0.12); color: var(--nostr-purple); border: 1px solid rgba(167,139,250,0.32); }
+
+  .steps { display: flex; gap: 6px; }
+  .steps .s { flex: 1; height: 5px; border-radius: 3px; background: var(--surface2); }
+  .steps .s.done { background: var(--sat-green); }
+  .steps .s.active { background: var(--grad-bitcoin); }
+
+  h2.title { font-size: 22px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.15; }
+  .helper { font-size: 14px; color: var(--text-soft); line-height: 1.55; }
+
+  .card { background: var(--surface); background-image: var(--edge); border: 1px solid var(--border); border-radius: 14px; padding: 14px; }
+  .card.protect { border: 1.5px solid rgba(247,147,26,0.55); background-image: var(--edge), linear-gradient(180deg, rgba(247,147,26,0.06), rgba(247,147,26,0)); }
+  .card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .card-head .lbl { font-size: 12px; font-weight: 700; letter-spacing: 0.02em; display: flex; align-items: center; gap: 7px; }
+  .card-head .lbl.protect { color: var(--gold); }
+  .card-head .lbl.calm { color: var(--muted); }
+
+  .seedgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .seed { display: flex; align-items: baseline; gap: 7px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 8px 9px; }
+  .seed .n { font-family: var(--font-mono); font-size: 10px; color: var(--muted); width: 12px; text-align: right; }
+  .seed .w { font-family: var(--font-mono); font-size: 13px; color: var(--text); font-weight: 500; }
+
+  .keyline { font-family: var(--font-mono); font-size: 12.5px; color: var(--text); word-break: break-all; line-height: 1.5; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 9px 10px; }
+  .secret-hidden { font-family: var(--font-mono); font-size: 15px; letter-spacing: 3px; color: #445; padding: 11px 10px; text-align: center; background: var(--bg); border: 1px dashed var(--border-strong); border-radius: 8px; }
+
+  .btn { border: none; border-radius: 10px; font-family: var(--font-sans); font-weight: 700; font-size: 15px; padding: 14px; width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; }
+  .btn.primary { background: var(--grad-bitcoin); color: #0A0A0B; box-shadow: 0 2px 12px rgba(247,147,26,0.25); }
+  .btn.primary.disabled { background: #3a2e17; color: #7a6c4b; box-shadow: none; }
+  .btn.ghost { background: transparent; color: var(--text); border: 1.5px solid var(--border-strong); font-weight: 600; font-size: 14px; }
+  .btn.reveal { background: transparent; color: var(--gold); border: 1.5px solid rgba(247,147,26,0.5); font-size: 13.5px; padding: 11px; }
+  .btn.small { padding: 9px 12px; font-size: 12.5px; width: auto; }
+
+  .note { font-size: 12.5px; color: var(--text-soft); line-height: 1.5; }
+  .note b { color: var(--text); }
+  .note .warnword { color: var(--bitcoin); font-weight: 700; }
+
+  .confirm-check { display: flex; align-items: flex-start; gap: 10px; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 10px; padding: 11px 12px; }
+  .box { width: 20px; height: 20px; border-radius: 5px; border: 2px solid var(--bitcoin); flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+  .box.checked { background: var(--bitcoin); }
+  .box.checked::after { content: '✓'; color: #0A0A0B; font-size: 13px; font-weight: 900; }
+  .confirm-check .t { font-size: 13px; color: var(--text); line-height: 1.35; font-weight: 500; }
+
+  .warn-card { background: linear-gradient(180deg, rgba(247,147,26,0.10), rgba(247,147,26,0.03)); border: 1.5px solid rgba(247,147,26,0.45); border-radius: 14px; padding: 14px; display: flex; flex-direction: column; gap: 7px; }
+  .warn-card .h { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 800; color: var(--gold-strong); }
+  .warn-card .b { font-size: 13px; color: var(--text-soft); line-height: 1.55; }
+
+  .notepreview { background: var(--bg); border: 1px solid var(--border); border-radius: 12px; padding: 13px; }
+  .notepreview .who { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .avatar { width: 30px; height: 30px; border-radius: 50%; background: linear-gradient(135deg, var(--nostr-purple), var(--ecash-cyan)); }
+  .notepreview .who .nm { font-size: 13px; font-weight: 700; }
+  .notepreview .who .hd { font-size: 11px; color: var(--muted); font-family: var(--font-mono); }
+  .notepreview .body { font-size: 14.5px; color: var(--text); line-height: 1.45; }
+
+  .hint { font-size: 12px; color: var(--muted); text-align: center; }
+
+  .spacer { flex: 1; }
+
+  /* summary table */
+  .summary { max-width: 900px; margin: 46px auto 0; }
+  .summary h3 { font-size: 16px; font-weight: 800; margin-bottom: 12px; letter-spacing: -0.02em; }
+  table { width: 100%; border-collapse: separate; border-spacing: 0; background: #1a1a1a; color: #ffffff; border-radius: 12px; overflow: hidden; font-size: 13px; }
+  th, td { text-align: left; padding: 11px 14px; vertical-align: top; line-height: 1.45; }
+  thead th { background: #232323; font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; color: #cbb98f; }
+  tbody tr { border-top: 1px solid #2b2b2b; }
+  td b { color: var(--gold); }
+  td .pnum { color: var(--bitcoin); font-weight: 700; font-family: var(--font-mono); }
+</style>
+
+<div class="page-head">
+  <h1>BitPilot <span class="g">high-fidelity mockup</span></h1>
+  <p>Stage 3. The Stage 1 findings rendered in BitPilot's own visual language: night-sky navy surfaces, Bitcoin amber for action, sat-green for anything real, JetBrains Mono for keys and words, and layered cards with a soft top-edge highlight.</p>
+</div>
+
+<div class="principles">
+  <div class="pr"><b>Colour carries meaning.</b> Amber means action, green means real, a warm amber border means "protect this." Nothing is coloured for decoration.</div>
+  <div class="pr"><b>One dominant element per screen.</b> The secret, or the confirmation, is the loudest thing. The Next button never competes with it.</div>
+  <div class="pr"><b>Secrets and safe values look different.</b> Public keys sit on calm surfaces; secrets sit on protected amber surfaces and stay hidden until tapped.</div>
+  <div class="pr"><b>Friction only where it protects.</b> A confirmation gate appears at exactly the three irreversible moments and nowhere else.</div>
+</div>
+
+<div class="row">
+
+  <!-- ========== SCREEN 1: SEED PHRASE ========== -->
+  <div class="col">
+    <div class="screen-label"><b>Screen 1 — Seed phrase Do step (mission 11).</b> The words move onto a protected surface, the server hash is gone, and Next is gated behind a written-it-down confirmation.</div>
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="statusbar"><span>9:41</span><div class="sb-icons"><span>&#9679;&#9679;&#9679;</span><span>&#128246;</span><span>&#128267;</span></div></div>
+      <div class="appbar">
+        <div class="brand">
+          <svg width="24" height="24" viewBox="0 0 100 100"><circle cx="50" cy="50" r="46" fill="#0B1220" stroke="#F7931A" stroke-width="4"/><g fill="#F7931A"><polygon points="50,14 56,44 50,50 44,44"/><polygon points="86,50 56,56 50,50 56,44"/><polygon points="50,86 44,56 50,50 56,56"/><polygon points="14,50 44,44 50,50 44,56"/></g><text x="50" y="60" text-anchor="middle" font-size="26" font-weight="900" fill="#FFE7C2" font-family="system-ui">&#8383;</text></svg>
+          <span class="name">BitPilot</span>
+        </div>
+        <div class="right"><span class="icobtn">&#9790;</span><span class="icobtn">&#9776;</span></div>
+      </div>
+      <div class="content">
+        <div class="mission-top">
+          <span class="m-crumb">Mission 11 &middot; Self-custody</span>
+          <span class="chip practice">&#9679; Practice</span>
+        </div>
+        <div class="steps"><div class="s done"></div><div class="s done"></div><div class="s active"></div></div>
+        <h2 class="title">Back up your seed phrase</h2>
+        <div class="helper">These 12 words are the master key to your bitcoin. Copy them to paper, in order. Never type them into a website or photo them.</div>
+
+        <div class="card protect">
+          <div class="card-head">
+            <span class="lbl protect">&#128274; Your 12 words</span>
+            <span style="font-size:11px;color:var(--muted);font-family:var(--font-mono)">write on paper</span>
+          </div>
+          <div class="seedgrid">
+            <div class="seed"><span class="n">1</span><span class="w">ridge</span></div>
+            <div class="seed"><span class="n">2</span><span class="w">pilot</span></div>
+            <div class="seed"><span class="n">3</span><span class="w">salmon</span></div>
+            <div class="seed"><span class="n">4</span><span class="w">gospel</span></div>
+            <div class="seed"><span class="n">5</span><span class="w">canyon</span></div>
+            <div class="seed"><span class="n">6</span><span class="w">lunar</span></div>
+            <div class="seed"><span class="n">7</span><span class="w">velvet</span></div>
+            <div class="seed"><span class="n">8</span><span class="w">orbit</span></div>
+            <div class="seed"><span class="n">9</span><span class="w">timber</span></div>
+            <div class="seed"><span class="n">10</span><span class="w">ember</span></div>
+            <div class="seed"><span class="n">11</span><span class="w">shadow</span></div>
+            <div class="seed"><span class="n">12</span><span class="w">anchor</span></div>
+          </div>
+        </div>
+
+        <div class="note"><b>This is the only way to recover your bitcoin.</b> If you lose these words, no one can help you get it back.</div>
+
+        <div class="confirm-check">
+          <span class="box"></span>
+          <span class="t">I have written down all 12 words on paper</span>
+        </div>
+
+        <button class="btn primary disabled">Next mission &rarr;</button>
+        <div class="hint">Confirm you saved your words to continue</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== SCREEN 2: NOSTR IDENTITY ========== -->
+  <div class="col">
+    <div class="screen-label"><b>Screen 2 — Nostr identity Do step (mission 14).</b> Public and secret keys live on different surfaces; the secret is hidden until a deliberate tap; Next waits for a save.</div>
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="statusbar"><span>9:41</span><div class="sb-icons"><span>&#9679;&#9679;&#9679;</span><span>&#128246;</span><span>&#128267;</span></div></div>
+      <div class="appbar">
+        <div class="brand">
+          <svg width="24" height="24" viewBox="0 0 100 100"><circle cx="50" cy="50" r="46" fill="#0B1220" stroke="#F7931A" stroke-width="4"/><g fill="#F7931A"><polygon points="50,14 56,44 50,50 44,44"/><polygon points="86,50 56,56 50,50 56,44"/><polygon points="50,86 44,56 50,50 56,56"/><polygon points="14,50 44,44 50,50 44,56"/></g><text x="50" y="60" text-anchor="middle" font-size="26" font-weight="900" fill="#FFE7C2" font-family="system-ui">&#8383;</text></svg>
+          <span class="name">BitPilot</span>
+        </div>
+        <div class="right"><span class="icobtn">&#9790;</span><span class="icobtn">&#9776;</span></div>
+      </div>
+      <div class="content">
+        <div class="mission-top">
+          <span class="m-crumb">Mission 14 &middot; Nostr</span>
+          <span class="chip real">&#9679; Real</span>
+        </div>
+        <div class="steps"><div class="s done"></div><div class="s done"></div><div class="s active"></div></div>
+        <h2 class="title">Create your Nostr identity</h2>
+        <div class="helper">This is a real key pair, made on your phone. Your public key is your name. Your secret key is the only way to prove you own it.</div>
+
+        <div class="card">
+          <div class="card-head">
+            <span class="lbl calm">&#128100; npub &middot; public key</span>
+            <span class="chip nostr" style="font-size:10px;padding:2px 8px">safe to share</span>
+          </div>
+          <div class="keyline">npub1q9x8f2k5r7t3v0m4c6yhs2wp8djaz</div>
+          <button class="btn ghost small" style="margin-top:10px">Copy public key</button>
+        </div>
+
+        <div class="card protect">
+          <div class="card-head">
+            <span class="lbl protect">&#128274; nsec &middot; secret key</span>
+            <span style="font-size:11px;color:var(--gold);font-weight:700">keep private</span>
+          </div>
+          <div class="secret-hidden">&bull;&bull;&bull;&bull; &bull;&bull;&bull;&bull; &bull;&bull;&bull;&bull; &bull;&bull;&bull;&bull;</div>
+          <button class="btn reveal" style="margin-top:10px">&#128065; Reveal secret key</button>
+        </div>
+
+        <div class="note"><span class="warnword">Save your nsec</span> in a password manager now. If you lose it, this identity is gone for good.</div>
+
+        <div class="confirm-check">
+          <span class="box checked"></span>
+          <span class="t">I have saved my secret key somewhere safe</span>
+        </div>
+
+        <button class="btn primary">Next mission &rarr;</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== SCREEN 3: PUBLISH CONFIRM ========== -->
+  <div class="col">
+    <div class="screen-label"><b>Screen 3 — Confirm before publishing (new step).</b> One calm gate before a real, permanent, public Nostr note, with an easy way back to edit.</div>
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="statusbar"><span>9:41</span><div class="sb-icons"><span>&#9679;&#9679;&#9679;</span><span>&#128246;</span><span>&#128267;</span></div></div>
+      <div class="appbar">
+        <div class="brand">
+          <svg width="24" height="24" viewBox="0 0 100 100"><circle cx="50" cy="50" r="46" fill="#0B1220" stroke="#F7931A" stroke-width="4"/><g fill="#F7931A"><polygon points="50,14 56,44 50,50 44,44"/><polygon points="86,50 56,56 50,50 56,44"/><polygon points="50,86 44,56 50,50 56,56"/><polygon points="14,50 44,44 50,50 44,56"/></g><text x="50" y="60" text-anchor="middle" font-size="26" font-weight="900" fill="#FFE7C2" font-family="system-ui">&#8383;</text></svg>
+          <span class="name">BitPilot</span>
+        </div>
+        <div class="right"><span class="icobtn">&#9790;</span><span class="icobtn">&#9776;</span></div>
+      </div>
+      <div class="content">
+        <div class="mission-top">
+          <span class="m-crumb">Mission 16 &middot; Nostr</span>
+          <span class="chip real">&#9679; Real</span>
+        </div>
+        <div class="steps"><div class="s done"></div><div class="s done"></div><div class="s active"></div></div>
+        <h2 class="title">Publish your first note?</h2>
+
+        <div class="notepreview">
+          <div class="who">
+            <span class="avatar"></span>
+            <div>
+              <div class="nm">Amaka</div>
+              <div class="hd">npub1q9x8f&hellip;djaz</div>
+            </div>
+          </div>
+          <div class="body">Just sent my first Lightning payment and made a Nostr key on BitPilot. Learning by doing actually works.</div>
+        </div>
+
+        <div class="warn-card">
+          <div class="h">&#9888; This is public and permanent</div>
+          <div class="b">Anyone can read this note, anywhere, including in your own country. Once it is sent to the relays, you cannot fully delete it.</div>
+        </div>
+
+        <div class="spacer"></div>
+
+        <button class="btn primary">Publish to Nostr</button>
+        <button class="btn ghost">Go back and edit</button>
+        <div class="hint">You choose what to publish. Nothing is sent without this step.</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="summary">
+  <h3>Which findings each screen addresses</h3>
+  <table>
+    <thead>
+      <tr><th style="width:26%">Screen</th><th style="width:22%">Principles</th><th>Findings addressed</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><b>1. Seed phrase Do step</b><br>Mission 11</td>
+        <td><span class="pnum">1</span> permanence, <span class="pnum">4</span> jargon, <span class="pnum">10</span> password protection</td>
+        <td>Words shown as a numbered grid on a protected surface. The "commitment (sent to server)" hash is removed from the learner view, so nothing safe-to-send sits beside the secret. Next is locked until the learner confirms they wrote the words down. "Simulated" reframed to "Practice" so the habit still forms.</td>
+      </tr>
+      <tr>
+        <td><b>2. Nostr identity Do step</b><br>Mission 14</td>
+        <td><span class="pnum">1</span> permanence, <span class="pnum">7</span> visible state, <span class="pnum">10</span> password protection</td>
+        <td>Public key and secret key sit on visibly different surfaces so they cannot be confused. The nsec is hidden by default and revealed only on a deliberate tap, cutting shoulder-surfing and screenshot risk in a workshop. Next waits until the save is acknowledged.</td>
+      </tr>
+      <tr>
+        <td><b>3. Confirm before publishing</b><br>New step</td>
+        <td><span class="pnum">1</span> permanence, <span class="pnum">2</span> trust, <span class="pnum">8</span> friction that protects</td>
+        <td>A single calm confirmation before a real, irreversible, public broadcast. Permanence and public reach are named in plain words, with a privacy note for high-risk users. An easy "go back and edit" path keeps the friction protective, not punishing. Reusable for any real, permanent action.</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
