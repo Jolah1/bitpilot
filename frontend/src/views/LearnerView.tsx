@@ -68,8 +68,11 @@ type Phase = 'learn' | 'quiz' | 'do'
 
 interface DoOutcome {
     summary: string
-    /** Optional structured details printed in a mono block. */
-    details?: { label: string; value: string }[]
+    /** Optional structured details printed in a mono block. `secret` rows
+     *  hold a value the user must never share (a seed phrase, an nsec). They
+     *  stay hidden behind a deliberate reveal tap, and their presence gates
+     *  the Next button behind a "I saved this" confirmation. */
+    details?: { label: string; value: string; secret?: boolean }[]
     /** Display "Simulated" badge in the result block? */
     simulated: boolean
 }
@@ -323,11 +326,17 @@ export default function LearnerView({ participantId }: { participantId: string }
                     const mnemonic = generateBip39Mnemonic()
                     setSeedPhrase(mnemonic)
                     proof = await sha256Hex(mnemonic)
+                    // Only the seed phrase is shown to the learner. The
+                    // SHA-256 commitment is still sent to the backend via
+                    // `proof` below, but it is deliberately kept out of the
+                    // learner view: a hash sitting next to the phrase reads
+                    // as equally important and blurs the one thing that
+                    // matters, which is that these 12 words must never leave
+                    // the user's hands.
                     outcome = {
                         summary: 'Your 12 words — write these down on paper.',
                         details: [
-                            { label: 'seed phrase', value: mnemonic },
-                            { label: 'commitment (sent to server)', value: proof },
+                            { label: 'seed phrase', value: mnemonic, secret: true },
                         ],
                         simulated: true,
                     }
@@ -345,12 +354,8 @@ export default function LearnerView({ participantId }: { participantId: string }
                     outcome = {
                         summary: 'Your real Nostr keypair is ready.',
                         details: [
-                            { label: 'npub (share freely)', value: keys.npub },
-                            { label: 'nsec (NEVER share)', value: keys.nsec },
-                            {
-                                label: 'next step',
-                                value: 'Copy your nsec into a password manager before continuing.',
-                            },
+                            { label: 'npub (safe to share)', value: keys.npub },
+                            { label: 'nsec (keep private)', value: keys.nsec, secret: true },
                         ],
                         simulated: false,
                     }
@@ -1750,6 +1755,16 @@ function DoPanel({
     // the user understands what they're typing.
     const ui = useMemo(() => uiForKind(mission.do.kind), [mission.do.kind])
 
+    // When the result hands back a secret the learner must keep (a seed
+    // phrase, an nsec), we hold the Next button until they confirm they
+    // saved it. In Bitcoin a lost secret is lost forever, so this gate
+    // earns its place: it turns a glance-and-click into a deliberate act.
+    const hasSecret = !!outcome?.details?.some((d) => d.secret)
+    const [savedConfirmed, setSavedConfirmed] = useState(false)
+    // Reset the confirmation whenever we move to a different mission, so a
+    // prior "I saved it" can never carry over to a new secret.
+    useEffect(() => setSavedConfirmed(false), [mission.id])
+
     // Review mode: this mission was completed in a past session (or
     // earlier in this one) and the learner navigated back to re-read it.
     // The action button is replaced with a "completed" badge so they
@@ -1862,13 +1877,49 @@ function DoPanel({
             )}
 
             {outcome ? (
-                <button
-                    className="bp-press"
-                    style={{ ...primaryButton(), width: '100%' }}
-                    onClick={onNext}
-                >
-                    {isLast ? '🎉 Finish BitPilot' : `Next: ${nextMissionName} →`}
-                </button>
+                <>
+                    {hasSecret && (
+                        <label
+                            style={{
+                                display: 'flex',
+                                alignItems: 'flex-start',
+                                gap: 10,
+                                padding: '11px 12px',
+                                background: 'var(--bg-elevated)',
+                                border: '1px solid var(--border)',
+                                borderRadius: 'var(--radius-2)',
+                                cursor: 'pointer',
+                                fontSize: 13.5,
+                                lineHeight: 1.4,
+                                color: 'var(--text)',
+                            }}
+                        >
+                            <input
+                                type="checkbox"
+                                checked={savedConfirmed}
+                                onChange={(e) => setSavedConfirmed(e.target.checked)}
+                                style={{ width: 18, height: 18, accentColor: 'var(--bitcoin)', flexShrink: 0, marginTop: 1 }}
+                            />
+                            <span>
+                                I have saved this somewhere safe. If I lose it, no one can
+                                recover it for me.
+                            </span>
+                        </label>
+                    )}
+                    <button
+                        className="bp-press"
+                        style={{ ...primaryButton(hasSecret && !savedConfirmed), width: '100%' }}
+                        onClick={onNext}
+                        disabled={hasSecret && !savedConfirmed}
+                    >
+                        {isLast ? '🎉 Finish BitPilot' : `Next: ${nextMissionName} →`}
+                    </button>
+                    {hasSecret && !savedConfirmed && (
+                        <p style={{ fontSize: 12, color: 'var(--muted)', textAlign: 'center', margin: 0 }}>
+                            Confirm you saved it to continue
+                        </p>
+                    )}
+                </>
             ) : (
                 <button
                     className="bp-press"
@@ -1957,6 +2008,21 @@ function ResultBlock({
     resultRef: React.RefObject<HTMLDivElement>
     tone: 'orange' | 'purple' | 'cyan'
 }) {
+    // Secret rows (seed phrase, nsec) stay hidden until the learner taps to
+    // reveal. This keeps a secret off-screen by default, which protects
+    // against shoulder-surfing and screenshots in a busy workshop room.
+    const [revealed, setRevealed] = useState<Record<string, boolean>>({})
+    const revealBtn: CSSProperties = {
+        fontFamily: 'var(--font-sans)',
+        fontSize: 11,
+        fontWeight: 700,
+        color: 'var(--bitcoin)',
+        background: 'transparent',
+        border: '1px solid rgba(247, 147, 26, 0.5)',
+        borderRadius: 'var(--radius-1)',
+        padding: '4px 10px',
+        cursor: 'pointer',
+    }
     const detailStyle: CSSProperties = {
         display: 'grid',
         gridTemplateColumns: 'auto 1fr',
@@ -2001,12 +2067,50 @@ function ResultBlock({
             </div>
             {outcome.details && outcome.details.length > 0 && (
                 <div style={detailStyle}>
-                    {outcome.details.map((d) => (
-                        <Fragment key={d.label}>
-                            <span style={{ color: 'var(--muted)' }}>{d.label}:</span>
-                            <span style={{ color: 'var(--text)' }}>{d.value}</span>
-                        </Fragment>
-                    ))}
+                    {outcome.details.map((d) => {
+                        if (d.secret) {
+                            const show = revealed[d.label]
+                            return (
+                                <Fragment key={d.label}>
+                                    <span style={{ color: 'var(--warning)', fontWeight: 700 }}>
+                                        🔒 {d.label}:
+                                    </span>
+                                    <span>
+                                        {show ? (
+                                            <>
+                                                <span style={{ color: 'var(--text)' }}>{d.value}</span>{' '}
+                                                <button
+                                                    type="button"
+                                                    style={revealBtn}
+                                                    onClick={() =>
+                                                        setRevealed((r) => ({ ...r, [d.label]: false }))
+                                                    }
+                                                >
+                                                    Hide
+                                                </button>
+                                            </>
+                                        ) : (
+                                            <button
+                                                type="button"
+                                                style={revealBtn}
+                                                onClick={() =>
+                                                    setRevealed((r) => ({ ...r, [d.label]: true }))
+                                                }
+                                            >
+                                                👁 Tap to reveal
+                                            </button>
+                                        )}
+                                    </span>
+                                </Fragment>
+                            )
+                        }
+                        return (
+                            <Fragment key={d.label}>
+                                <span style={{ color: 'var(--muted)' }}>{d.label}:</span>
+                                <span style={{ color: 'var(--text)' }}>{d.value}</span>
+                            </Fragment>
+                        )
+                    })}
                 </div>
             )}
             <span style={{ display: 'none' }}>{tone}</span>

@@ -1,0 +1,90 @@
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: ui-rounded, 'SF Pro Rounded', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    background: #0e1524; color: #eaf2ff; padding: 40px 28px 56px;
+    -webkit-font-smoothing: antialiased;
+  }
+  .head { max-width: 780px; margin: 0 auto 26px; text-align: center; }
+  .head h1 { font-size: 24px; font-weight: 800; letter-spacing: -0.02em; }
+  .head h1 .g { background: linear-gradient(135deg,#3E7BFF,#00E0FF); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+  .head p { color: #9fb0c9; font-size: 14px; margin-top: 8px; line-height: 1.55; }
+  .dims { max-width: 780px; margin: 18px auto 34px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .dim { background: #16203A; border: 1px solid #2A3656; border-radius: 10px; padding: 10px 12px; font-size: 12.5px; color: #cfd8e6; line-height: 1.4; }
+  .dim b { color: #3E9BFF; }
+
+  .stage { display: flex; justify-content: center; }
+  .wrap { width: 375px; }
+  .screen-label { background: #1a1a1a; color: #fff; font-size: 13px; border-radius: 6px; padding: 6px 10px; margin-bottom: 14px; line-height: 1.45; }
+  .screen-label b { color: #6fc4ff; }
+
+  .phone { width: 375px; height: 812px; border-radius: 46px; border: 11px solid #05070d; overflow: hidden; position: relative; box-shadow: 0 20px 60px rgba(0,0,0,.5); }
+  .notch { position: absolute; top: 9px; left: 50%; transform: translateX(-50%); width: 124px; height: 30px; background: #05070d; border-radius: 0 0 18px 18px; z-index: 5; }
+
+  /* WoS full-bleed gradient */
+  .wos { position: absolute; inset: 0; background: linear-gradient(160deg, #2E5BFF 0%, #2E8BFF 42%, #00C6F0 100%); display: flex; flex-direction: column; color: #fff; }
+  .wos::before { content:''; position:absolute; inset:0; background: radial-gradient(circle at 78% 12%, rgba(255,255,255,0.22), rgba(255,255,255,0) 45%); }
+  .statusbar { height: 46px; display: flex; align-items: flex-end; justify-content: space-between; padding: 0 26px 6px; font-size: 14px; font-weight: 700; position: relative; z-index: 2; }
+  .sb-icons { display: flex; gap: 6px; font-size: 12px; }
+
+  .wos-body { flex: 1; display: flex; flex-direction: column; padding: 10px 28px 34px; position: relative; z-index: 2; }
+  .kicker { font-size: 13px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; opacity: 0.8; text-align: center; margin-top: 6px; }
+
+  .hero { margin-top: 40px; text-align: center; }
+  .hero .icon { font-size: 46px; }
+  .hero h2 { font-size: 33px; font-weight: 800; letter-spacing: -0.03em; line-height: 1.08; margin-top: 14px; }
+  .hero p { font-size: 16px; line-height: 1.5; opacity: 0.92; margin: 14px auto 0; max-width: 280px; }
+
+  .keycard { margin-top: 30px; background: rgba(255,255,255,0.16); border: 1px solid rgba(255,255,255,0.32); border-radius: 24px; padding: 22px 20px; backdrop-filter: blur(4px); text-align: center; }
+  .keycard .lock { font-size: 30px; }
+  .keycard .tap { margin-top: 10px; font-size: 15px; font-weight: 700; }
+  .keycard .sub { margin-top: 4px; font-size: 12.5px; opacity: 0.8; }
+
+  .spacer { flex: 1; }
+
+  .pill { border: none; border-radius: 999px; width: 100%; padding: 18px; font-family: inherit; font-size: 17px; font-weight: 800; display: flex; align-items: center; justify-content: center; gap: 8px; }
+  .pill.white { background: #fff; color: #1560E0; box-shadow: 0 8px 24px rgba(0,0,0,0.18); }
+  .pill.ghost { background: transparent; color: #fff; font-weight: 700; font-size: 15px; padding: 14px; }
+</style>
+
+<div class="head">
+  <h1>Exploration &mdash; <span class="g">Wallet of Satoshi</span> lens</h1>
+  <p>Stage 4, playground. The Nostr secret-key moment rebuilt with WoS radical simplicity: one job, one giant button, everything technical tucked away. A conversation starter, not a direction.</p>
+</div>
+<div class="dims">
+  <div class="dim"><b>Colour.</b> A single confident blue-to-cyan gradient fills the whole screen. White type. No second accent to divide attention.</div>
+  <div class="dim"><b>Type.</b> Big rounded friendly sans, one dominant line: "This is your secret key."</div>
+  <div class="dim"><b>Surface.</b> No cards, no borders. One frosted-glass panel floats on the gradient.</div>
+  <div class="dim"><b>Space &amp; tone.</b> Radically sparse, effortless, consumer-calm. The scary moment made to feel routine.</div>
+</div>
+
+<div class="stage">
+  <div class="wrap">
+    <div class="screen-label"><b>Nostr identity in a WoS voice.</b> The secret is one frosted tile you tap to reveal; a single white pill confirms you saved it. Everything else disappears.</div>
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="wos">
+        <div class="statusbar"><span>9:41</span><div class="sb-icons"><span>&#9679;&#9679;&#9679;</span><span>&#128246;</span><span>&#128267;</span></div></div>
+        <div class="wos-body">
+          <div class="kicker">Your identity</div>
+          <div class="hero">
+            <div class="icon">&#128273;</div>
+            <h2>This is your<br>secret key</h2>
+            <p>It is the only key to your name on Nostr. Save it once. Keep it forever.</p>
+          </div>
+
+          <div class="keycard">
+            <div class="lock">&#128274;</div>
+            <div class="tap">Tap to reveal</div>
+            <div class="sub">Make sure no one is watching your screen</div>
+          </div>
+
+          <div class="spacer"></div>
+
+          <button class="pill white">I&rsquo;ve saved my key</button>
+          <button class="pill ghost">What is a secret key?</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

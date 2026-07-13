@@ -1,0 +1,127 @@
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Inter Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    background: #0e1524; color: #eaf2ff; padding: 40px 28px 56px;
+    -webkit-font-smoothing: antialiased;
+  }
+  .head { max-width: 780px; margin: 0 auto 26px; text-align: center; }
+  .head h1 { font-size: 24px; font-weight: 800; letter-spacing: -0.02em; }
+  .head h1 .g { background: linear-gradient(135deg,#1B6EF3,#39C0C8); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+  .head p { color: #9fb0c9; font-size: 14px; margin-top: 8px; line-height: 1.55; }
+  .dims { max-width: 780px; margin: 18px auto 34px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .dim { background: #16203A; border: 1px solid #2A3656; border-radius: 10px; padding: 10px 12px; font-size: 12.5px; color: #cfd8e6; line-height: 1.4; }
+  .dim b { color: #4a97ff; }
+
+  .stage { display: flex; justify-content: center; }
+  .wrap { width: 375px; }
+  .screen-label { background: #1a1a1a; color: #fff; font-size: 13px; border-radius: 6px; padding: 6px 10px; margin-bottom: 14px; line-height: 1.45; }
+  .screen-label b { color: #6fb0ff; }
+
+  .phone { width: 375px; height: 812px; border-radius: 46px; border: 11px solid #05070d; overflow: hidden; position: relative; box-shadow: 0 20px 60px rgba(0,0,0,.5); }
+  .notch { position: absolute; top: 9px; left: 50%; transform: translateX(-50%); width: 124px; height: 30px; background: #05070d; border-radius: 0 0 18px 18px; z-index: 5; }
+
+  /* Muun light UI */
+  .muun { position: absolute; inset: 0; background: #F5F7FB; color: #12203A; display: flex; flex-direction: column; }
+  .statusbar { height: 46px; display: flex; align-items: flex-end; justify-content: space-between; padding: 0 26px 6px; font-size: 14px; font-weight: 600; color: #12203A; }
+  .sb-icons { display: flex; gap: 6px; font-size: 12px; }
+
+  .nav { display: flex; align-items: center; gap: 14px; padding: 6px 20px 2px; font-size: 15px; color: #5b6b82; font-weight: 600; }
+  .nav .back { font-size: 20px; color: #1B6EF3; }
+  .nav .step { margin-left: auto; font-size: 12px; font-weight: 600; color: #8a96a8; }
+
+  .mbody { flex: 1; display: flex; flex-direction: column; padding: 8px 22px 30px; }
+
+  .illus { align-self: center; width: 120px; height: 120px; border-radius: 28px; margin-top: 12px; background: linear-gradient(150deg, #E8F0FE 0%, #E4F7F3 100%); border: 1px solid #DCE6F5; display: flex; align-items: center; justify-content: center; font-size: 54px; box-shadow: 0 10px 24px rgba(27,110,243,0.10); }
+
+  h2.title { font-size: 25px; font-weight: 800; letter-spacing: -0.02em; margin-top: 22px; line-height: 1.15; }
+  .lede { font-size: 15px; color: #55637A; line-height: 1.55; margin-top: 10px; }
+
+  .row { margin-top: 14px; background: #fff; border: 1px solid #E6ECF5; border-radius: 16px; padding: 14px; box-shadow: 0 4px 14px rgba(18,32,58,0.05); }
+  .row .top { display: flex; align-items: center; gap: 10px; }
+  .badge { width: 34px; height: 34px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 17px; flex-shrink: 0; }
+  .badge.safe { background: #E3F7EE; }
+  .badge.secret { background: #FDF0E1; }
+  .row .lbl { font-size: 14px; font-weight: 700; }
+  .row .tag { margin-left: auto; font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 999px; }
+  .tag.safe { background: #E3F7EE; color: #12905E; }
+  .tag.secret { background: #FDE7CF; color: #B4611A; }
+  .row .val { margin-top: 10px; font-family: ui-monospace, 'SF Mono', monospace; font-size: 12.5px; color: #2A3852; background: #F5F7FB; border: 1px solid #E6ECF5; border-radius: 10px; padding: 9px 10px; word-break: break-all; }
+  .row .val.hidden { color: #A7B2C4; letter-spacing: 3px; text-align: center; }
+  .row .act { margin-top: 10px; display: flex; gap: 8px; }
+  .linkbtn { font-size: 13px; font-weight: 700; color: #1B6EF3; background: #EAF1FE; border: none; border-radius: 10px; padding: 8px 12px; }
+  .linkbtn.amber { color: #B4611A; background: #FDF0E1; }
+
+  .tip { margin-top: 14px; display: flex; gap: 9px; align-items: flex-start; background: #EEF4FE; border: 1px solid #DBE8FC; border-radius: 14px; padding: 12px; }
+  .tip .i { color: #1B6EF3; font-size: 15px; }
+  .tip .t { font-size: 12.5px; color: #3A4A66; line-height: 1.5; }
+
+  .spacer { flex: 1; }
+
+  .check { margin-top: 12px; display: flex; align-items: center; gap: 10px; }
+  .box { width: 22px; height: 22px; border-radius: 6px; border: 2px solid #1B6EF3; background: #1B6EF3; display: flex; align-items: center; justify-content: center; }
+  .box::after { content:'✓'; color:#fff; font-size:14px; font-weight:900; }
+  .check .t { font-size: 13.5px; color: #2A3852; font-weight: 600; }
+
+  .btn { border: none; border-radius: 14px; width: 100%; padding: 16px; font-family: inherit; font-weight: 700; font-size: 16px; margin-top: 12px; }
+  .btn.primary { background: #1B6EF3; color: #fff; box-shadow: 0 8px 20px rgba(27,110,243,0.28); }
+</style>
+
+<div class="head">
+  <h1>Exploration &mdash; <span class="g">Muun</span> lens</h1>
+  <p>Stage 4, playground. The Nostr secret-key moment rebuilt with Muun's gentle, teacherly onboarding: an "emergency kit" mental model, light airy surfaces, and plain reassuring copy. A conversation starter, not a direction.</p>
+</div>
+<div class="dims">
+  <div class="dim"><b>Colour.</b> Light and airy, one trustworthy blue as primary, with a green "safe" and a warm amber "private" so meaning stays colour-coded.</div>
+  <div class="dim"><b>Type.</b> Clean medium weight, generous line height, plain human sentences over clever ones.</div>
+  <div class="dim"><b>Surface.</b> White rounded cards, soft shadows, a friendly illustration tile up top.</div>
+  <div class="dim"><b>Space &amp; tone.</b> Calm single column, reassuring teacher voice. Security framed as a kit you keep, not a test you might fail.</div>
+</div>
+
+<div class="stage">
+  <div class="wrap">
+    <div class="screen-label"><b>Nostr identity in a Muun voice.</b> Public and secret framed as two parts of a "kit," secret hidden until revealed, gentle inline teaching, one blue confirm.</div>
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="muun">
+        <div class="statusbar"><span>9:41</span><div class="sb-icons"><span>&#9679;&#9679;&#9679;</span><span>&#128246;</span><span>&#128267;</span></div></div>
+        <div class="nav"><span class="back">&#8592;</span><span>Nostr identity</span><span class="step">Step 3 of 3</span></div>
+        <div class="mbody">
+          <div class="illus">&#129520;</div>
+          <h2 class="title">Your identity kit is ready</h2>
+          <div class="lede">You just made a real Nostr identity. It comes in two parts. One you share, one you protect.</div>
+
+          <div class="row">
+            <div class="top">
+              <span class="badge safe">&#128100;</span>
+              <span class="lbl">Public name</span>
+              <span class="tag safe">Share freely</span>
+            </div>
+            <div class="val">npub1q9x8f2k5r7t3v0m4c6yhs2wp8djaz</div>
+            <div class="act"><button class="linkbtn">Copy</button></div>
+          </div>
+
+          <div class="row">
+            <div class="top">
+              <span class="badge secret">&#128274;</span>
+              <span class="lbl">Secret key</span>
+              <span class="tag secret">Keep private</span>
+            </div>
+            <div class="val hidden">&bull;&bull;&bull;&bull; &bull;&bull;&bull;&bull; &bull;&bull;&bull;&bull; &bull;&bull;&bull;&bull;</div>
+            <div class="act"><button class="linkbtn amber">Reveal</button><button class="linkbtn amber">Copy to password manager</button></div>
+          </div>
+
+          <div class="tip">
+            <span class="i">&#9432;</span>
+            <span class="t">Think of the secret key like the only house key with no locksmith. If you lose it, this identity is gone for good.</span>
+          </div>
+
+          <div class="spacer"></div>
+
+          <div class="check"><span class="box"></span><span class="t">I have saved my secret key somewhere safe</span></div>
+          <button class="btn primary">Continue</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
