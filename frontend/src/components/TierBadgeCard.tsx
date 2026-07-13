@@ -133,14 +133,14 @@ const THEMES: Record<Tree, Theme> = {
 }
 
 const RANK_LABEL: Record<Tree, string> = {
-    money: 'MONEY 101',
+    money: 'MONEY BASICS',
     bitcoin: 'BITCOIN',
     lightning: 'LIGHTNING',
     nostr: 'NOSTR',
     ecash: 'ECASH',
     'self-custody': 'SELF-CUSTODY',
     privacy: 'PRIVACY',
-    sovereignty: 'SOVEREIGNTY',
+    sovereignty: 'FULL INDEPENDENCE',
 }
 
 /**
@@ -150,8 +150,21 @@ const RANK_LABEL: Record<Tree, string> = {
  */
 export function badgeIdFor(participantId: string, tree: Tree): string {
     const prefix = tree.replace(/-/g, '').slice(0, 3).toUpperCase()
-    const hex = participantId.replace(/-/g, '').slice(0, 8).toUpperCase()
-    return `BP-${prefix}-${hex || '00000000'}`
+    // Derive the code from an FNV-1a hash of (participant, tree) rather than
+    // exposing a raw slice of the participant id. Two consequences that
+    // matter for the high-risk users this app serves: the code no longer
+    // reveals part of the internal id, and because it is salted per tree,
+    // two badges shared publicly by the same person can't be correlated by a
+    // shared id fragment. Same BP-XXX-8hex shape, so the badge art is
+    // unchanged.
+    let h = 0x811c9dc5
+    const seed = `${participantId}:${tree}`
+    for (let i = 0; i < seed.length; i++) {
+        h ^= seed.charCodeAt(i)
+        h = Math.imul(h, 0x01000193)
+    }
+    const code = (h >>> 0).toString(16).toUpperCase().padStart(8, '0')
+    return `BP-${prefix}-${code}`
 }
 
 /**
