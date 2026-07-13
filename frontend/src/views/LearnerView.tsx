@@ -1761,9 +1761,24 @@ function DoPanel({
     // earns its place: it turns a glance-and-click into a deliberate act.
     const hasSecret = !!outcome?.details?.some((d) => d.secret)
     const [savedConfirmed, setSavedConfirmed] = useState(false)
-    // Reset the confirmation whenever we move to a different mission, so a
-    // prior "I saved it" can never carry over to a new secret.
-    useEffect(() => setSavedConfirmed(false), [mission.id])
+
+    // Some Do actions publish a real, public, permanent event to Nostr
+    // relays. Unlike the simulated rewards, these cannot be undone, so we
+    // slow the user down with one calm confirmation that names the
+    // permanence before the event goes out. See design-review/.
+    const needsPublishConfirm = [
+        'nostr-publish',
+        'nostr-profile',
+        'nostr-follow',
+    ].includes(mission.do.kind)
+    const [confirming, setConfirming] = useState(false)
+
+    // Reset both gates whenever we move to a different mission, so a prior
+    // "I saved it" or a half-open confirmation can never carry over.
+    useEffect(() => {
+        setSavedConfirmed(false)
+        setConfirming(false)
+    }, [mission.id])
 
     // Review mode: this mission was completed in a past session (or
     // earlier in this one) and the learner navigated back to re-read it.
@@ -1920,11 +1935,46 @@ function DoPanel({
                         </p>
                     )}
                 </>
+            ) : needsPublishConfirm && confirming ? (
+                <>
+                    <div style={callout('info')}>
+                        <strong>This is public and permanent.</strong> Anyone can read
+                        this, including in your own country. Once it is sent to the
+                        relays, you cannot fully delete it.
+                    </div>
+                    <button
+                        className="bp-press"
+                        style={{ ...primaryButton(loading), width: '100%' }}
+                        onClick={onSubmit}
+                        disabled={loading}
+                        aria-busy={loading}
+                    >
+                        {loading ? 'Publishing…' : `${mission.emoji}  ${mission.do.actionLabel}`}
+                    </button>
+                    <button
+                        className="bp-press"
+                        style={{ ...ghostButton, width: '100%' }}
+                        onClick={() => setConfirming(false)}
+                        disabled={loading}
+                    >
+                        ← Go back and edit
+                    </button>
+                </>
             ) : (
                 <button
                     className="bp-press"
                     style={{ ...primaryButton(loading), width: '100%' }}
-                    onClick={onSubmit}
+                    onClick={() => {
+                        // For public, permanent Nostr actions, show one calm
+                        // confirmation first, but only once there is something
+                        // to publish. An empty input falls straight through to
+                        // onSubmit so the existing validation error still shows.
+                        if (needsPublishConfirm && doInput.trim()) {
+                            setConfirming(true)
+                        } else {
+                            onSubmit()
+                        }
+                    }}
                     disabled={loading}
                     aria-busy={loading}
                 >
@@ -1986,8 +2036,8 @@ function uiForKind(kind: MissionDef['do']['kind']): DoUi {
         case 'onchain-signet':
             return {
                 primary: {
-                    label: 'Your signet transaction id',
-                    placeholder: '64-character hex',
+                    label: 'Your transaction ID',
+                    placeholder: 'Paste the long ID your test transaction produced',
                     maxLength: 64,
                     mono: true,
                 },
