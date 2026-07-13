@@ -215,7 +215,7 @@ export function ShareBadgeModal({
                         text,
                         title: 'My BitPilot badge',
                     })
-                    setStatus('Opened your share sheet — pick X to post the badge.')
+                    setStatus('Your share sheet is open. Pick X to post the badge.')
                     return
                 } catch (e) {
                     // User dismissed the share sheet. Don't treat that
@@ -235,7 +235,9 @@ export function ShareBadgeModal({
             const u = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`
             window.open(u, '_blank', 'noopener,noreferrer')
             setStatus(
-                'PNG saved to your downloads and X opened — drag the image into the tweet.',
+                'Two steps to finish: 1) we saved the badge image to your ' +
+                    'downloads, 2) we opened X in a new tab. Add the saved image ' +
+                    'to your post, then send it.',
             )
         } catch (e) {
             setError(e instanceof Error ? e.message : 'Share failed.')
