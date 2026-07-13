@@ -60,7 +60,7 @@ const PALETTE = {
 const THEMES: Record<Tree, Theme> = {
     money: {
         ...PALETTE,
-        subtitle: 'Money 101',
+        subtitle: 'Money Basics',
         chipText: 'TREE · MONEY',
         achievement: [
             'Grasped what bitcoin is and',
@@ -123,7 +123,7 @@ const THEMES: Record<Tree, Theme> = {
     },
     sovereignty: {
         ...PALETTE,
-        subtitle: 'Sovereignty',
+        subtitle: 'Full Independence',
         chipText: 'TREE · SOVEREIGNTY',
         achievement: [
             'Signet on-chain, your own node,',
