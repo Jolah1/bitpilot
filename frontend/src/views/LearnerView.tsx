@@ -928,9 +928,10 @@ function TreePicker({
                         lineHeight: 1.5,
                     }}
                 >
-                    Eight skill trees, peers not stages. Start anywhere —
-                    Money 101 if you're new to Bitcoin, Lightning if you're
-                    not. Each tree is short and self-contained.
+                    Eight skill trees, easiest to hardest. New to Bitcoin?
+                    Start with Money Basics and work down. Already comfortable?
+                    Jump to any tree you like. Each one is short and
+                    self-contained.
                 </p>
             </header>
             <ol
@@ -960,6 +961,22 @@ function TreePicker({
                         : next === null
                           ? `${done}/${total} complete`
                           : `${done}/${total} · next: mission ${t.missions.indexOf(next) + 1}`
+                    // Soft prerequisite nudge: if this tree recommends another
+                    // one first and the learner hasn't finished that one, show
+                    // a gentle tip. Never blocks — the card is still tappable.
+                    const recTree = t.recommendedAfter
+                        ? TREES.find((x) => x.key === t.recommendedAfter)
+                        : undefined
+                    const recDone =
+                        !recTree ||
+                        recTree.missions.every((m) => completedMissions.includes(m))
+                    const showNudge = !isDone && done === 0 && recTree && !recDone
+                    const diffColor =
+                        t.difficulty === 'Beginner'
+                            ? 'green'
+                            : t.difficulty === 'Intermediate'
+                              ? 'orange'
+                              : 'purple'
                     return (
                         <li key={t.key}>
                             <button
@@ -1001,15 +1018,19 @@ function TreePicker({
                                     >
                                         {t.label}
                                     </span>
-                                    {isDone && (
+                                    {isDone ? (
                                         <span
                                             aria-label="Tree complete"
-                                            style={{
-                                                ...chip('green'),
-                                                fontSize: 10,
-                                            }}
+                                            style={{ ...chip('green'), fontSize: 10 }}
                                         >
                                             ✓ Done
+                                        </span>
+                                    ) : (
+                                        <span
+                                            aria-label={`Difficulty: ${t.difficulty}`}
+                                            style={{ ...chip(diffColor), fontSize: 10 }}
+                                        >
+                                            {t.difficulty}
                                         </span>
                                     )}
                                 </div>
@@ -1023,6 +1044,18 @@ function TreePicker({
                                 >
                                     {t.tagline}
                                 </p>
+                                {showNudge && (
+                                    <p
+                                        style={{
+                                            margin: 0,
+                                            fontSize: 11.5,
+                                            color: 'var(--bitcoin)',
+                                            lineHeight: 1.4,
+                                        }}
+                                    >
+                                        Tip: finish {recTree!.label} first for an easier ride.
+                                    </p>
+                                )}
                                 <div
                                     style={{
                                         marginTop: 4,

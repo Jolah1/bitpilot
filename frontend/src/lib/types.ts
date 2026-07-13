@@ -43,12 +43,27 @@ export type Tree =
     | 'privacy'
     | 'sovereignty'
 
+/**
+ * Difficulty tier shown on each tree so a newcomer knows where to begin and
+ * a power user knows what they can safely skip to. Trees stay independently
+ * startable — this is guidance, not a lock.
+ */
+export type Difficulty = 'Beginner' | 'Intermediate' | 'Advanced'
+
 export interface TreeMeta {
     key: Tree
     label: string
     /** Mission ids in this tree, in pedagogical order. */
     missions: number[]
     tagline: string
+    /** Rough difficulty tier, surfaced on the tree card. */
+    difficulty: Difficulty
+    /**
+     * A tree we softly suggest finishing first, because its ideas make this
+     * one easier. Rendered as a gentle "Tip: finish X first" nudge, never a
+     * hard gate — a technical user can still jump straight in.
+     */
+    recommendedAfter?: Tree
 }
 
 /**
@@ -57,15 +72,15 @@ export interface TreeMeta {
  * mirror is here so the UI can group/render without a network call.
  */
 export const TREES: TreeMeta[] = [
-    { key: 'money',        label: 'Money 101',    missions: [0, 1, 77, 78, 2, 5, 9, 10],                   tagline: 'What money is, why fiat leaks, why Bitcoin exists.' },
-    { key: 'bitcoin',      label: 'Bitcoin',      missions: [6, 7, 8, 87, 88, 18, 19, 89, 40, 90, 48, 49], tagline: 'Blocks, mempool, miners, UTXOs, Script, Taproot, pools.' },
-    { key: 'lightning',    label: 'Lightning',    missions: [21, 22, 79, 80, 23, 24, 25, 38, 81, 82, 39, 83], tagline: 'Channels, HTLCs, liquidity, LSPs, watchtowers, splicing.' },
-    { key: 'nostr',        label: 'Nostr',        missions: [13, 14, 15, 97, 16, 17, 26, 27, 98, 28, 29, 30, 35, 36, 37, 99], tagline: 'Identity without a server. Notes, signers, DMs, the wider ecosystem.' },
-    { key: 'ecash',        label: 'eCash',        missions: [31, 32, 33, 34, 84, 55, 56, 85, 57, 86],      tagline: 'Bearer money backed by a mint. Cashu, Fedimint, honest failure modes.' },
-    { key: 'self-custody', label: 'Self-custody', missions: [3, 4, 11, 12, 91, 92, 93, 20, 41, 94, 95, 43, 44, 45, 96], tagline: 'Wallets, seeds, passphrases, PSBTs, descriptors, multisig.' },
-    { key: 'privacy',      label: 'Privacy',      missions: [46, 51, 52, 58, 59, 60, 61, 62, 63, 64, 65, 66], tagline: 'Chain analysis, CoinJoin, KYC leaks, threat models.' },
+    { key: 'money',        label: 'Money Basics', missions: [0, 1, 77, 78, 2, 5, 9, 10],                   tagline: 'What money is, why fiat leaks, why Bitcoin exists.', difficulty: 'Beginner' },
+    { key: 'bitcoin',      label: 'Bitcoin',      missions: [6, 7, 8, 87, 88, 18, 19, 89, 40, 90, 48, 49], tagline: 'Blocks, mempool, miners, UTXOs, Script, Taproot, pools.', difficulty: 'Beginner', recommendedAfter: 'money' },
+    { key: 'lightning',    label: 'Lightning',    missions: [21, 22, 79, 80, 23, 24, 25, 38, 81, 82, 39, 83], tagline: 'Channels, HTLCs, liquidity, LSPs, watchtowers, splicing.', difficulty: 'Intermediate', recommendedAfter: 'bitcoin' },
+    { key: 'nostr',        label: 'Nostr',        missions: [13, 14, 15, 97, 16, 17, 26, 27, 98, 28, 29, 30, 35, 36, 37, 99], tagline: 'Identity without a server. Notes, signers, DMs, the wider ecosystem.', difficulty: 'Intermediate' },
+    { key: 'ecash',        label: 'eCash',        missions: [31, 32, 33, 34, 84, 55, 56, 85, 57, 86],      tagline: 'Bearer money backed by a mint. Cashu, Fedimint, honest failure modes.', difficulty: 'Intermediate', recommendedAfter: 'lightning' },
+    { key: 'self-custody', label: 'Self-custody', missions: [3, 4, 11, 12, 91, 92, 93, 20, 41, 94, 95, 43, 44, 45, 96], tagline: 'Wallets, seeds, passphrases, PSBTs, descriptors, multisig.', difficulty: 'Advanced', recommendedAfter: 'bitcoin' },
+    { key: 'privacy',      label: 'Privacy',      missions: [46, 51, 52, 58, 59, 60, 61, 62, 63, 64, 65, 66], tagline: 'Chain analysis, CoinJoin, KYC leaks, threat models.', difficulty: 'Advanced', recommendedAfter: 'bitcoin' },
     // Mission 50 ("You made it") stays last — it's the graduation lesson.
-    { key: 'sovereignty',  label: 'Sovereignty',  missions: [42, 47, 53, 54, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 50], tagline: 'Signet, nodes, exit optionality, and the long game.' },
+    { key: 'sovereignty',  label: 'Full Independence', missions: [42, 47, 53, 54, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 50], tagline: 'Signet, nodes, exit optionality, and the long game.', difficulty: 'Advanced', recommendedAfter: 'self-custody' },
 ]
 
 /** Returns the tree a mission id belongs to. */
