@@ -18,6 +18,9 @@ import { useEffect, useRef, useState } from 'react'
 import type { Badge } from '../lib/types'
 import { useFocusTrap } from '../lib/useFocusTrap'
 import { TierBadgeCard, badgeIdFor } from './TierBadgeCard'
+import { getNsec } from '../lib/auth'
+import { signNostrTextNote } from '../lib/crypto'
+import { api } from '../lib/api'
 
 const PNG_SCALE = 2 // 2x the 600x800 SVG => 1200x1600 PNG
 
@@ -29,8 +32,11 @@ function treeLabelOf(tree: string): string {
         .join('-')
 }
 
-function buildShareText(tree: string, badgeId: string): string {
-    return `I just earned my ${treeLabelOf(tree)} badge on @bitpilot — learning Bitcoin by doing.\n\nBadge ID: ${badgeId}`
+// Public share caption. Deliberately omits the badge id: it used to embed a
+// fragment derivable from the participant, and a public post is the last
+// place that belongs.
+function buildShareText(tree: string): string {
+    return `I just earned my ${treeLabelOf(tree)} badge on BitPilot — learning Bitcoin by doing.`
 }
 
 export function ShareBadgeModal({
@@ -46,10 +52,17 @@ export function ShareBadgeModal({
 }) {
     const svgRef = useRef<SVGSVGElement | null>(null)
     const dialogRef = useRef<HTMLDivElement | null>(null)
-    const [downloading, setDownloading] = useState<'png' | 'svg' | 'share' | null>(null)
+    const [downloading, setDownloading] = useState<'png' | 'svg' | 'share' | 'nostr' | null>(null)
     const [error, setError] = useState<string | null>(null)
     const [status, setStatus] = useState<string | null>(null)
+    // Which public share the learner has asked for and is being asked to
+    // confirm. Public posts are permanent and de-anonymising, so they pass
+    // through a confirmation step; the local PNG/SVG downloads do not.
+    const [pendingShare, setPendingShare] = useState<'x' | 'nostr' | null>(null)
     const badgeId = badgeIdFor(participantId, badge.tree)
+    // Sharing to Nostr needs the key the learner made in the Nostr identity
+    // mission. If they haven't done it yet, we offer the option but explain.
+    const hasNostrKey = getNsec() !== null
     useFocusTrap(dialogRef, true)
 
     // Escape closes the modal so the learner can dismiss without hunting
@@ -182,7 +195,7 @@ export function ShareBadgeModal({
         try {
             const png = await renderPng()
             const filename = `${baseFilename}.png`
-            const text = buildShareText(badge.tree, badgeId)
+            const text = buildShareText(badge.tree)
             const file = new File([png], filename, { type: 'image/png' })
 
             // Web Share API with files: mobile + Safari + recent Edge.
@@ -229,6 +242,44 @@ export function ShareBadgeModal({
         } finally {
             setDownloading(null)
         }
+    }
+
+    /**
+     * Share the badge as a real Nostr note, signed in the browser with the
+     * key the learner made in the Nostr identity mission. More private and
+     * more on-brand than X: it uses the censorship-resistant identity the
+     * app just taught them to own, instead of a centralised platform.
+     */
+    const shareOnNostr = async () => {
+        setError(null)
+        setStatus(null)
+        const key = getNsec()
+        if (!key) {
+            setError('Finish the Nostr identity mission first to share here.')
+            return
+        }
+        setDownloading('nostr')
+        try {
+            const event = signNostrTextNote(key, buildShareText(badge.tree))
+            const res = await api.broadcastNostrEvent(event)
+            setStatus(
+                res.simulated
+                    ? 'Shared to Nostr (simulated in this build).'
+                    : `Published to Nostr on ${res.relays.length} relay${res.relays.length === 1 ? '' : 's'}.`,
+            )
+        } catch (e) {
+            setError(e instanceof Error ? e.message : 'Could not share to Nostr.')
+        } finally {
+            setDownloading(null)
+        }
+    }
+
+    // Run the share the learner just confirmed, then clear the pending state.
+    const runPendingShare = () => {
+        const which = pendingShare
+        setPendingShare(null)
+        if (which === 'x') void shareOnX()
+        else if (which === 'nostr') void shareOnNostr()
     }
 
     return (
@@ -364,47 +415,98 @@ export function ShareBadgeModal({
                             {status}
                         </div>
                     )}
-                    <button
-                        onClick={shareOnX}
-                        disabled={downloading !== null}
-                        style={shareButton('xshare', downloading !== null)}
-                    >
-                        {downloading === 'share' ? 'Preparing share…' : 'Share on X'}
-                    </button>
-                    <div
-                        style={{
-                            display: 'grid',
-                            gridTemplateColumns: '1fr 1fr',
-                            gap: 8,
-                        }}
-                    >
-                        <button
-                            onClick={downloadPng}
-                            disabled={downloading !== null}
-                            style={shareButton('primary', downloading !== null)}
+                    {pendingShare ? (
+                        <div
+                            style={{
+                                background: 'rgba(247, 147, 26, 0.08)',
+                                border: '1px solid rgba(247, 147, 26, 0.30)',
+                                borderRadius: 'var(--radius-2)',
+                                padding: '12px 14px',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: 10,
+                            }}
                         >
-                            {downloading === 'png' ? 'Rendering…' : '⬇ PNG'}
-                        </button>
-                        <button
-                            onClick={downloadSvg}
-                            disabled={downloading !== null}
-                            style={shareButton('secondary', downloading !== null)}
-                        >
-                            {downloading === 'svg' ? '…' : '⬇ SVG'}
-                        </button>
-                    </div>
-                    <div
-                        style={{
-                            fontSize: 11,
-                            color: 'var(--muted)',
-                            textAlign: 'center',
-                            lineHeight: 1.5,
-                        }}
-                    >
-                        On mobile, "Share on X" attaches the badge directly.
-                        On desktop it saves the PNG and opens X — drag the
-                        image into the tweet to post.
-                    </div>
+                            <div style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.5 }}>
+                                <strong>This posts publicly.</strong> Your badge and the
+                                name on it go out on{' '}
+                                {pendingShare === 'x' ? 'X' : 'public Nostr relays'}, where
+                                anyone can see it, including in your own country. A public
+                                post cannot be fully deleted once it spreads.
+                            </div>
+                            <button
+                                onClick={runPendingShare}
+                                disabled={downloading !== null}
+                                style={shareButton('xshare', downloading !== null)}
+                            >
+                                {pendingShare === 'x'
+                                    ? 'Post to X'
+                                    : 'Post to Nostr'}
+                            </button>
+                            <button
+                                onClick={() => setPendingShare(null)}
+                                disabled={downloading !== null}
+                                style={shareButton('secondary', downloading !== null)}
+                            >
+                                Cancel
+                            </button>
+                        </div>
+                    ) : (
+                        <>
+                            <button
+                                onClick={() => setPendingShare('nostr')}
+                                disabled={downloading !== null}
+                                style={shareButton('primary', downloading !== null)}
+                                title={
+                                    hasNostrKey
+                                        ? undefined
+                                        : 'Finish the Nostr identity mission to enable this'
+                                }
+                            >
+                                {downloading === 'nostr' ? 'Sharing…' : '⚡ Share to Nostr'}
+                            </button>
+                            <button
+                                onClick={() => setPendingShare('x')}
+                                disabled={downloading !== null}
+                                style={shareButton('xshare', downloading !== null)}
+                            >
+                                {downloading === 'share' ? 'Preparing share…' : 'Share on X'}
+                            </button>
+                            <div
+                                style={{
+                                    display: 'grid',
+                                    gridTemplateColumns: '1fr 1fr',
+                                    gap: 8,
+                                }}
+                            >
+                                <button
+                                    onClick={downloadPng}
+                                    disabled={downloading !== null}
+                                    style={shareButton('secondary', downloading !== null)}
+                                >
+                                    {downloading === 'png' ? 'Rendering…' : '⬇ PNG'}
+                                </button>
+                                <button
+                                    onClick={downloadSvg}
+                                    disabled={downloading !== null}
+                                    style={shareButton('secondary', downloading !== null)}
+                                >
+                                    {downloading === 'svg' ? '…' : '⬇ SVG'}
+                                </button>
+                            </div>
+                            <div
+                                style={{
+                                    fontSize: 11,
+                                    color: 'var(--muted)',
+                                    textAlign: 'center',
+                                    lineHeight: 1.5,
+                                }}
+                            >
+                                Nostr uses the key you made earlier, so it stays yours.
+                                PNG and SVG just save the image to your device.
+                            </div>
+                        </>
+                    )}
                 </div>
             </div>
         </div>
