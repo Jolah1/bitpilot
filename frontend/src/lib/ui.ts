@@ -4,6 +4,7 @@
 // in one place.
 
 import type { CSSProperties } from 'react'
+import type { Tree } from './types'
 
 // A layered background paints a 1px translucent highlight along the top
 // edge over the surface colour. It's the trick that makes the card read
@@ -167,6 +168,27 @@ export const techTone = (tech: 'bitcoin' | 'lightning' | 'nostr' | 'ecash'): 'or
             return 'cyan'
     }
 }
+
+/**
+ * A distinct colour per skill tree, so a facilitator can read a learner's
+ * progress strip at a glance and map any bar back to the legend. There are
+ * eight trees but only four tech accent colours, so the four extra trees get
+ * their own hues, chosen for maximum separation on the navy background rather
+ * than strict brand fidelity. Warm (money/bitcoin/lightning) sit next to each
+ * other in the fixed strip order, where position also disambiguates them.
+ */
+const TREE_COLORS: Record<Tree, string> = {
+    money: '#FBBF24', // amber
+    bitcoin: '#F7931A', // bitcoin orange
+    lightning: '#FACC15', // electric yellow
+    nostr: '#A78BFA', // nostr purple
+    ecash: '#5EEAD4', // ecash cyan
+    'self-custody': '#34D399', // green
+    privacy: '#60A5FA', // blue
+    sovereignty: '#F472B6', // pink
+}
+
+export const treeColor = (tree: Tree): string => TREE_COLORS[tree] ?? 'var(--bitcoin)'
 
 export const techGradient = (tech: 'bitcoin' | 'lightning' | 'nostr' | 'ecash'): string => {
     switch (tech) {
