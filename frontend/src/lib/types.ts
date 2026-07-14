@@ -13,6 +13,12 @@ export interface Participant {
      */
     current_per_tree: Record<Tree, number | null>
     nostr_pubkey: string | null
+    /**
+     * Unix seconds of the participant's last activity (join, or a mission
+     * completion). The facilitator dashboard reads this to flag learners who
+     * have stalled, so the signal is accurate and survives a reload.
+     */
+    last_active: number
 }
 
 export interface Session {

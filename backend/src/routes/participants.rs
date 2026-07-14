@@ -192,13 +192,14 @@ async fn join_session(
     // the column's default ever drifts in a future migration.
     sqlx::query(
         "INSERT INTO participants \
-         (id, name, session_id, current_mission, nostr_pubkey, auth_token_hash, created_at) \
-         VALUES (?, ?, ?, 0, NULL, ?, ?)",
+         (id, name, session_id, current_mission, nostr_pubkey, auth_token_hash, created_at, last_active) \
+         VALUES (?, ?, ?, 0, NULL, ?, ?, ?)",
     )
     .bind(&id)
     .bind(name)
     .bind(&body.session_id)
     .bind(&auth_hash)
+    .bind(created_at)
     .bind(created_at)
     .execute(&state.db)
     .await?;
@@ -213,6 +214,7 @@ async fn join_session(
             // New row, no completions → every tree points at its first mission.
             current_per_tree: Participant::hydrate_per_tree("{}", &[]),
             nostr_pubkey: None,
+            last_active: created_at as u64,
         },
         auth_token,
     }))
@@ -299,8 +301,8 @@ pub async fn load_participant(
     state: &AppState,
     participant_id: &str,
 ) -> Result<Participant, AppError> {
-    let row: Option<(String, String, String, i64, Option<String>, String)> = sqlx::query_as(
-        "SELECT id, name, session_id, current_mission, nostr_pubkey, current_per_tree \
+    let row: Option<(String, String, String, i64, Option<String>, String, i64)> = sqlx::query_as(
+        "SELECT id, name, session_id, current_mission, nostr_pubkey, current_per_tree, last_active \
          FROM participants WHERE id = ?",
     )
     .bind(participant_id)
@@ -327,6 +329,7 @@ pub async fn load_participant(
         nostr_pubkey: row.4,
         completed_missions,
         current_per_tree,
+        last_active: row.6 as u64,
     })
 }
 
@@ -334,8 +337,8 @@ async fn load_participants_by_session(
     state: &AppState,
     session_id: &str,
 ) -> Result<Vec<Participant>, AppError> {
-    let rows: Vec<(String, String, String, i64, Option<String>, String)> = sqlx::query_as(
-        "SELECT id, name, session_id, current_mission, nostr_pubkey, current_per_tree \
+    let rows: Vec<(String, String, String, i64, Option<String>, String, i64)> = sqlx::query_as(
+        "SELECT id, name, session_id, current_mission, nostr_pubkey, current_per_tree, last_active \
          FROM participants WHERE session_id = ? ORDER BY created_at",
     )
     .bind(session_id)
@@ -365,6 +368,7 @@ async fn load_participants_by_session(
             nostr_pubkey: r.4,
             completed_missions,
             current_per_tree,
+            last_active: r.6 as u64,
         });
     }
     Ok(out)

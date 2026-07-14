@@ -148,11 +148,12 @@ async fn complete_mission(
     let legacy_current = next_in_tree.unwrap_or(body.mission);
     sqlx::query(
         "UPDATE participants \
-         SET current_mission = ?, current_per_tree = ? \
+         SET current_mission = ?, current_per_tree = ?, last_active = ? \
          WHERE id = ?",
     )
     .bind(legacy_current as i64)
     .bind(&per_tree_json)
+    .bind(now() as i64)
     .bind(&authed.participant_id)
     .execute(&mut *tx)
     .await?;

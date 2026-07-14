@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { isSoloSessionName } from '../App'
 import { BrandMark } from '../components/BrandMark'
@@ -8,11 +8,9 @@ import { fetchSessionProgress } from '../lib/api'
 import { card, chip, ghostButton, treeColor } from '../lib/ui'
 
 /**
- * A learner who hasn't advanced past their current mission for this long is
- * flagged as needing a hand. Tracked client-side from the 3s poll (the wire
- * Participant carries no timestamp), so it measures time since this dashboard
- * first saw them on that mission — which is exactly what a facilitator wants:
- * "who has been stuck since I've been watching".
+ * A learner idle (no join and no mission completion) for this long is flagged
+ * as needing a hand. Idle time is derived from the server's `last_active`
+ * timestamp, so the signal is accurate and survives a dashboard reload.
  */
 const STUCK_MS = 4 * 60 * 1000
 const isFinished = (p: Participant) => p.completed_missions.length === MISSION_COUNT
@@ -47,30 +45,14 @@ export default function FacilitatorDashboard({ sessionId }: { sessionId: string 
     const session = progress?.session
     const participants: Participant[] = progress?.participants ?? []
 
-    // Remember when we first saw each learner on their current mission. A ref,
-    // not state, so updating it doesn't rerender; the 1s `tick` above drives the
-    // re-render that recomputes stuck durations.
-    const seenRef = useRef<Map<string, { mission: number; since: number }>>(new Map())
-    useEffect(() => {
-        const now = Date.now()
-        const seen = seenRef.current
-        const live = new Set<string>()
-        for (const p of participants) {
-            live.add(p.id)
-            const prev = seen.get(p.id)
-            if (!prev || prev.mission !== p.current_mission) {
-                seen.set(p.id, { mission: p.current_mission, since: now })
-            }
-        }
-        for (const id of [...seen.keys()]) if (!live.has(id)) seen.delete(id)
-    }, [participants])
-
-    // How long a learner has sat on their current mission (0 if finished or
-    // just-seen). Reads `tick` implicitly: this runs on every 1s rerender.
+    // How long a learner has been idle: server-recorded last activity (join or
+    // a mission completion) to now. Finished learners never count. `last_active`
+    // is unix seconds; `tick` (1s) drives the re-render that keeps this fresh.
+    // Small client/server clock skew is negligible against the minutes-long
+    // threshold.
     const stuckMsFor = (p: Participant) => {
         if (isFinished(p)) return 0
-        const s = seenRef.current.get(p.id)
-        return s ? Date.now() - s.since : 0
+        return Date.now() - p.last_active * 1000
     }
     const needsHand = participants.filter((p) => stuckMsFor(p) >= STUCK_MS).length
 
