@@ -433,6 +433,25 @@ function Setup({
                             autoComplete="given-name"
                         />
 
+                        {/* Joining a session means the name lands on the host's
+                            live dashboard. Say so plainly, and make clear a
+                            nickname is fine — this is the point of entry where a
+                            learner in a sensitive context would want to know. */}
+                        {joining && (
+                            <p
+                                style={{
+                                    marginTop: -8,
+                                    marginBottom: 0,
+                                    fontSize: 12.5,
+                                    color: 'var(--muted)',
+                                    lineHeight: 1.5,
+                                }}
+                            >
+                                This name is shown to the person running your
+                                session, so a nickname is fine.
+                            </p>
+                        )}
+
                         {!joining && (
                             <Field
                                 label="Session name"
