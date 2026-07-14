@@ -20,7 +20,14 @@
  * generation and ./auth.ts for storage.
  */
 
-import { getAuthToken, getFacilitatorToken, setAuthToken, setFacilitatorToken } from './auth'
+import {
+    getAuthToken,
+    getFacilitatorToken,
+    setAuthToken,
+    setFacilitatorToken,
+    setParticipantId,
+    setSessionId,
+} from './auth'
 import type { Badge, Participant, Session } from './types'
 
 const BASE = '/api'
@@ -88,6 +95,20 @@ interface CreateSessionWire {
 /** Backend response from POST /api/participants. UI sees only the Participant. */
 interface JoinSessionWire {
     participant: Participant
+    auth_token: string
+}
+
+/** POST /api/participants/me/pairing-code. */
+export interface PairingCode {
+    code: string
+    /** Unix seconds when the code stops working. */
+    expires_at: number
+}
+
+/** POST /api/participants/pair. */
+interface RedeemPairingWire {
+    participant: Participant
+    session_id: string
     auth_token: string
 }
 
@@ -201,6 +222,34 @@ export const api = {
     /** Authenticated self-fetch. */
     getParticipant: () =>
         request<Participant>('/participants/me', { auth: 'participant' }),
+
+    /**
+     * Device A: mint a one-time code to continue on another device. Redeeming
+     * it on the other device signs this one out (the server rotates the token).
+     */
+    createPairingCode: () =>
+        request<PairingCode>('/participants/me/pairing-code', {
+            method: 'POST',
+            auth: 'participant',
+        }),
+
+    /**
+     * Device B: redeem a pairing code, inheriting the other device's progress.
+     * Persists the fresh credentials so the app boots straight into the
+     * learner's session. Nostr keys are not transferred (they never leave the
+     * origin device); a key-dependent mission will ask the learner to re-enter
+     * their seed.
+     */
+    redeemPairingCode: async (code: string): Promise<Participant> => {
+        const wire = await request<RedeemPairingWire>('/participants/pair', {
+            method: 'POST',
+            body: { code },
+        })
+        setAuthToken(wire.auth_token)
+        setSessionId(wire.session_id)
+        setParticipantId(wire.participant.id)
+        return wire.participant
+    },
 
     /** Skill-tree badges, derived server-side from the completion ledger. */
     getMyBadges: () =>

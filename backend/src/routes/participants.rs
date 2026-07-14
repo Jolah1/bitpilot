@@ -9,7 +9,8 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::auth::{
-    generate_token, hash_token, require_facilitator, require_participant, AuthedParticipant,
+    generate_pairing_code, generate_token, hash_token, normalize_pairing_code,
+    require_facilitator, require_participant, AuthedParticipant,
 };
 use crate::error::AppError;
 use crate::models::{now, Badge, Participant, Session};
@@ -33,11 +34,14 @@ pub fn sessions_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
 /// requires only knowing the session id, which the facilitator shares).
 /// `GET /me` and `GET /me/completions` require the participant's own bearer token.
 pub fn router(state: Arc<AppState>) -> Router<Arc<AppState>> {
-    let public = Router::new().route("/", post(join_session));
+    let public = Router::new()
+        .route("/", post(join_session))
+        .route("/pair", post(redeem_pairing_code));
     let authed = Router::new()
         .route("/me", get(get_self))
         .route("/me/completions", get(list_completions))
         .route("/me/badges", get(list_badges))
+        .route("/me/pairing-code", post(create_pairing_code))
         .layer(from_fn_with_state(state, require_participant));
     public.merge(authed)
 }
@@ -229,6 +233,121 @@ async fn get_self(
 ) -> Result<Json<Participant>, AppError> {
     let p = load_participant(&state, &authed.participant_id).await?;
     Ok(Json(p))
+}
+
+/// How long a pairing code stays valid. Short: it exists only to be typed
+/// into a second device that is already in hand.
+const PAIRING_CODE_TTL_SECS: u64 = 10 * 60;
+
+#[derive(Serialize)]
+struct PairingCodeResponse {
+    code: String,
+    /// Unix seconds after which the code stops working; the UI shows a
+    /// countdown from this.
+    expires_at: u64,
+}
+
+/// `POST /api/participants/me/pairing-code` — device A, authenticated. Issues
+/// a fresh single-use code (replacing any previous one) so the learner can
+/// continue on another device. Redeeming it there signs this device out.
+async fn create_pairing_code(
+    State(state): State<Arc<AppState>>,
+    Extension(authed): Extension<AuthedParticipant>,
+) -> Result<Json<PairingCodeResponse>, AppError> {
+    let now_secs = now();
+    let expires_at = now_secs + PAIRING_CODE_TTL_SECS;
+    let code = generate_pairing_code();
+
+    let mut tx = state.db.begin().await?;
+    // At most one active code per participant — a new request supersedes the old.
+    sqlx::query("DELETE FROM pairing_codes WHERE participant_id = ?")
+        .bind(&authed.participant_id)
+        .execute(&mut *tx)
+        .await?;
+    sqlx::query(
+        "INSERT INTO pairing_codes (code, participant_id, expires_at, created_at) \
+         VALUES (?, ?, ?, ?)",
+    )
+    .bind(&code)
+    .bind(&authed.participant_id)
+    .bind(expires_at as i64)
+    .bind(now_secs as i64)
+    .execute(&mut *tx)
+    .await?;
+    tx.commit().await?;
+
+    Ok(Json(PairingCodeResponse { code, expires_at }))
+}
+
+#[derive(Deserialize)]
+struct RedeemPairingRequest {
+    code: String,
+}
+
+#[derive(Serialize)]
+struct RedeemPairingResponse {
+    participant: Participant,
+    session_id: String,
+    /// A freshly minted token for the redeeming device. The participant's
+    /// previous token is now invalid.
+    auth_token: String,
+}
+
+/// `POST /api/participants/pair` — device B, no auth yet. Redeems a one-time
+/// code: rotates the participant's auth token (so device A is signed out) and
+/// returns a fresh token plus the participant, so device B resumes the same
+/// progress. Rate limiting on the public router guards against code guessing.
+async fn redeem_pairing_code(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<RedeemPairingRequest>,
+) -> Result<Json<RedeemPairingResponse>, AppError> {
+    let code = normalize_pairing_code(&body.code);
+    if code.is_empty() {
+        return Err(AppError::BadRequest("code must not be empty".into()));
+    }
+    let now_secs = now() as i64;
+
+    let mut tx = state.db.begin().await?;
+    // Sweep expired codes so the table can't grow without bound.
+    sqlx::query("DELETE FROM pairing_codes WHERE expires_at < ?")
+        .bind(now_secs)
+        .execute(&mut *tx)
+        .await?;
+
+    let row: Option<(String, i64)> =
+        sqlx::query_as("SELECT participant_id, expires_at FROM pairing_codes WHERE code = ?")
+            .bind(&code)
+            .fetch_optional(&mut *tx)
+            .await?;
+    // One uniform error for unknown and expired, so redeem is not an oracle
+    // for which codes exist.
+    let (participant_id, _) = row
+        .filter(|(_, exp)| *exp >= now_secs)
+        .ok_or_else(|| AppError::BadRequest("that code is invalid or has expired".into()))?;
+
+    // Single-use: consume it.
+    sqlx::query("DELETE FROM pairing_codes WHERE code = ?")
+        .bind(&code)
+        .execute(&mut *tx)
+        .await?;
+
+    // Rotate the token — device A's bearer stops resolving to this participant.
+    let auth_token = generate_token();
+    let auth_hash = hash_token(&auth_token);
+    sqlx::query("UPDATE participants SET auth_token_hash = ? WHERE id = ?")
+        .bind(&auth_hash)
+        .bind(&participant_id)
+        .execute(&mut *tx)
+        .await?;
+    tx.commit().await?;
+
+    let participant = load_participant(&state, &participant_id).await?;
+    let session_id = participant.session_id.clone();
+    Ok(Json(RedeemPairingResponse {
+        participant,
+        session_id,
+        auth_token,
+    }))
 }
 
 /// One completed-mission record returned by the proof-archive endpoint.

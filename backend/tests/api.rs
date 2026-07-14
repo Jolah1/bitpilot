@@ -630,3 +630,98 @@ fn me_badges_starts_empty_then_unlocks_money_after_tree_clear() {
     assert!(privacy["earned_at"].is_null());
 }
 
+
+/// Full "continue on another device" pairing handoff: a logged-in learner
+/// mints a code, a second device redeems it, the second device inherits the
+/// progress with a fresh token, and the first device's token is rotated out.
+#[test]
+fn pairing_code_hands_off_session_to_a_second_device() {
+    let h = Harness::start();
+    let s = create_session(&h.base, "workshop");
+    let a = join_session(&h.base, "alice", &s.id);
+    // Give device A some progress to inherit.
+    assert_eq!(complete(&h.base, &a.auth_token, 0, "acknowledged").status(), 200);
+
+    // Device A mints a pairing code.
+    let mk: Value = client()
+        .post(format!("{}/api/participants/me/pairing-code", h.base))
+        .header("authorization", format!("Bearer {}", a.auth_token))
+        .send()
+        .unwrap()
+        .json()
+        .unwrap();
+    let code = mk["code"].as_str().unwrap().to_string();
+    assert_eq!(code.len(), 8, "code is 8 chars");
+    assert!(mk["expires_at"].as_i64().unwrap() > 0);
+
+    // Device B redeems it (no auth). Accepts a lowercase, dashed form.
+    let dashed = format!("{}-{}", &code[..4].to_lowercase(), &code[4..].to_lowercase());
+    let redeem: Value = client()
+        .post(format!("{}/api/participants/pair", h.base))
+        .json(&json!({ "code": dashed }))
+        .send()
+        .unwrap()
+        .json()
+        .unwrap();
+    let b_token = redeem["auth_token"].as_str().unwrap().to_string();
+    assert_eq!(redeem["session_id"], s.id);
+    assert_eq!(redeem["participant"]["id"], a.participant_id);
+    assert_eq!(redeem["participant"]["completed_missions"][0], 0);
+    assert_ne!(b_token, a.auth_token, "device B gets a fresh token");
+
+    // Device B's token works and sees the inherited progress.
+    let me = client()
+        .get(format!("{}/api/participants/me", h.base))
+        .header("authorization", format!("Bearer {b_token}"))
+        .send()
+        .unwrap();
+    assert_eq!(me.status(), 200);
+    let me: Value = me.json().unwrap();
+    assert_eq!(me["id"], a.participant_id);
+
+    // Device A's old token is now rotated out.
+    let old = client()
+        .get(format!("{}/api/participants/me", h.base))
+        .header("authorization", format!("Bearer {}", a.auth_token))
+        .send()
+        .unwrap();
+    assert_eq!(old.status(), 401, "device A is signed out after handoff");
+
+    // The code is single-use: a second redeem fails.
+    let again = client()
+        .post(format!("{}/api/participants/pair", h.base))
+        .json(&json!({ "code": code }))
+        .send()
+        .unwrap();
+    assert_eq!(again.status(), 400, "code cannot be redeemed twice");
+}
+
+/// A bogus or empty pairing code is rejected with a uniform error.
+#[test]
+fn pairing_redeem_rejects_bad_codes() {
+    let h = Harness::start();
+    let bogus = client()
+        .post(format!("{}/api/participants/pair", h.base))
+        .json(&json!({ "code": "ZZZZZZZZ" }))
+        .send()
+        .unwrap();
+    assert_eq!(bogus.status(), 400);
+
+    let empty = client()
+        .post(format!("{}/api/participants/pair", h.base))
+        .json(&json!({ "code": "  -  " }))
+        .send()
+        .unwrap();
+    assert_eq!(empty.status(), 400);
+}
+
+/// Minting a pairing code requires the participant's bearer token.
+#[test]
+fn pairing_code_requires_auth() {
+    let h = Harness::start();
+    let unauth = client()
+        .post(format!("{}/api/participants/me/pairing-code", h.base))
+        .send()
+        .unwrap();
+    assert_eq!(unauth.status(), 401);
+}
