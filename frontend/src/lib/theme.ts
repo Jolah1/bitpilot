@@ -10,8 +10,8 @@ const TOKENS: Record<Theme, Record<string, string>> = {
         '--bitcoin': '#F7931A',
         '--bitcoin-strong': '#FFA940',
         '--bitcoin-dim': '#6B3D06',
-        '--gold': '#FFD27A',
-        '--gold-strong': '#FFE7C2',
+        '--gold': '#FFAB91',
+        '--gold-strong': '#FFCCBC',
         '--sat-green': '#10C57E',
         '--sat-green-dim': '#0A3D2A',
         '--nostr-purple': '#A78BFA',
@@ -31,13 +31,13 @@ const TOKENS: Record<Theme, Record<string, string>> = {
         '--muted': '#9A968F',
         '--danger': '#F87171',
         '--success': '#10C57E',
-        '--warning': '#FBBF24',
+        '--warning': '#FF5722',
 
         '--gradient-bitcoin': 'linear-gradient(135deg, #F7931A 0%, #FFB74D 100%)',
-        '--gradient-lightning': 'linear-gradient(135deg, #F7931A 0%, #FFD27A 100%)',
+        '--gradient-lightning': 'linear-gradient(135deg, #F7931A 0%, #FFAB91 100%)',
         '--gradient-nostr': 'linear-gradient(135deg, #A78BFA 0%, #5EEAD4 100%)',
         '--gradient-ecash': 'linear-gradient(135deg, #5EEAD4 0%, #10C57E 100%)',
-        '--gradient-hero': 'linear-gradient(135deg, #F7931A 0%, #FFD27A 100%)',
+        '--gradient-hero': 'linear-gradient(135deg, #F7931A 0%, #FFAB91 100%)',
         '--gradient-surface': 'linear-gradient(180deg, rgba(247, 147, 26, 0.05) 0%, rgba(11, 18, 32, 0.0) 100%)',
 
         '--shadow-1': '0 1px 2px rgba(0, 0, 0, 0.4)',
@@ -46,15 +46,15 @@ const TOKENS: Record<Theme, Record<string, string>> = {
     },
     light: {
         // Light-mode tokens. Bitcoin orange is darkened to clear AA contrast on
-        // light surfaces; gold likewise — pale gold would be invisible on
+        // light surfaces; the deep-orange accent likewise — a pale tint would vanish on
         // off-white. The dark mode goes navy; light mode stays warm parchment
         // so the two themes feel like daylight + night sky rather than two
         // mismatched colour systems.
         '--bitcoin': '#B45A06',
         '--bitcoin-strong': '#C76C0F',
         '--bitcoin-dim': '#FDE8CC',
-        '--gold': '#A8761A',
-        '--gold-strong': '#8B6914',
+        '--gold': '#B84A0E',
+        '--gold-strong': '#93380B',
         '--sat-green': '#0F7A4F',
         '--sat-green-dim': '#D0F5E8',
         '--nostr-purple': '#6D28D9',
@@ -74,14 +74,14 @@ const TOKENS: Record<Theme, Record<string, string>> = {
         '--muted': '#6E6760',
         '--danger': '#B91C1C',
         '--success': '#0F7A4F',
-        '--warning': '#A66200',
+        '--warning': '#C2410C',
 
         '--gradient-bitcoin': 'linear-gradient(135deg, #B45A06 0%, #E2872A 100%)',
-        '--gradient-lightning': 'linear-gradient(135deg, #B45A06 0%, #A8761A 100%)',
+        '--gradient-lightning': 'linear-gradient(135deg, #B45A06 0%, #B84A0E 100%)',
         '--gradient-nostr': 'linear-gradient(135deg, #6D28D9 0%, #0F766E 100%)',
         '--gradient-ecash': 'linear-gradient(135deg, #0F766E 0%, #0F7A4F 100%)',
-        '--gradient-hero': 'linear-gradient(135deg, #B45A06 0%, #A8761A 100%)',
-        '--gradient-surface': 'linear-gradient(180deg, rgba(180, 90, 6, 0.05) 0%, rgba(168, 118, 26, 0.02) 100%)',
+        '--gradient-hero': 'linear-gradient(135deg, #B45A06 0%, #B84A0E 100%)',
+        '--gradient-surface': 'linear-gradient(180deg, rgba(180, 90, 6, 0.05) 0%, rgba(184, 74, 14, 0.02) 100%)',
 
         '--shadow-1': '0 1px 2px rgba(0, 0, 0, 0.06)',
         '--shadow-2': '0 8px 28px rgba(0, 0, 0, 0.08)',

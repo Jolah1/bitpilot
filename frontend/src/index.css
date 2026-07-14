@@ -41,15 +41,15 @@
    on `document.documentElement` whenever the theme changes. Both states must
    keep contrast ratios at WCAG AA (4.5:1) for text on backgrounds. */
 :root {
-    /* Dark theme defaults — deep navy + Bitcoin orange + gold.
+    /* Dark theme defaults — deep navy + Bitcoin orange + deep-orange accents.
        The navy field comes from the brand-mark medallion; orange is the
-       canonical Bitcoin colour; gold is the warm accent for tier badges
+       canonical Bitcoin colour; the peach/deep-orange accent is for tier badges
        and CTAs that needs to feel earned, not just clickable. */
     --bitcoin: #F7931A;
     --bitcoin-strong: #FFA940;
     --bitcoin-dim: #6B3D06;
-    --gold: #FFD27A;
-    --gold-strong: #FFE7C2;
+    --gold: #FFAB91;
+    --gold-strong: #FFCCBC;
     --sat-green: #10C57E;
     --sat-green-dim: #0A3D2A;
     --nostr-purple: #A78BFA;
@@ -69,14 +69,14 @@
     --muted: #9A968F;
     --danger: #F87171;
     --success: #10C57E;
-    --warning: #FBBF24;
+    --warning: #FF5722;
 
     /* Gradients — used sparingly, only for accents/CTAs, never for body text. */
     --gradient-bitcoin: linear-gradient(135deg, #F7931A 0%, #FFB74D 100%);
-    --gradient-lightning: linear-gradient(135deg, #F7931A 0%, #FFD27A 100%);
+    --gradient-lightning: linear-gradient(135deg, #F7931A 0%, #FFAB91 100%);
     --gradient-nostr: linear-gradient(135deg, #A78BFA 0%, #5EEAD4 100%);
     --gradient-ecash: linear-gradient(135deg, #5EEAD4 0%, #10C57E 100%);
-    --gradient-hero: linear-gradient(135deg, #F7931A 0%, #FFD27A 100%);
+    --gradient-hero: linear-gradient(135deg, #F7931A 0%, #FFAB91 100%);
     --gradient-surface: linear-gradient(180deg, rgba(247, 147, 26, 0.05) 0%, rgba(11, 18, 32, 0.0) 100%);
 
     /* Spacing scale (8px base) */

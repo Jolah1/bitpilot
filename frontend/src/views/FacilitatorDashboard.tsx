@@ -310,8 +310,8 @@ function Stat({
             style={{
                 ...card,
                 padding: '18px 18px 16px',
-                borderColor: alert ? 'rgba(251, 191, 36, 0.4)' : undefined,
-                background: alert ? 'rgba(251, 191, 36, 0.06)' : undefined,
+                borderColor: alert ? 'rgba(255, 87, 34, 0.4)' : undefined,
+                background: alert ? 'rgba(255, 87, 34, 0.06)' : undefined,
             }}
         >
             <div
@@ -324,7 +324,7 @@ function Stat({
                     WebkitBackgroundClip: accent ? 'text' : undefined,
                     backgroundClip: accent ? 'text' : undefined,
                     WebkitTextFillColor: accent ? 'transparent' : undefined,
-                    color: accent ? 'transparent' : alert ? '#FBBF24' : 'var(--text)',
+                    color: accent ? 'transparent' : alert ? '#FF5722' : 'var(--text)',
                     fontFamily: 'var(--font-sans)',
                     fontVariantNumeric: 'tabular-nums',
                 }}
@@ -569,8 +569,8 @@ function ParticipantRow({ participant, stuckMs }: { participant: Participant; st
                 gap: 12,
                 alignItems: 'center',
                 padding: '12px 14px',
-                borderColor: stuck ? 'rgba(251, 191, 36, 0.45)' : undefined,
-                background: stuck ? 'rgba(251, 191, 36, 0.05)' : undefined,
+                borderColor: stuck ? 'rgba(255, 87, 34, 0.45)' : undefined,
+                background: stuck ? 'rgba(255, 87, 34, 0.05)' : undefined,
             }}
         >
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
@@ -687,9 +687,9 @@ function ParticipantRow({ participant, stuckMs }: { participant: Participant; st
                     <span
                         style={{
                             ...chip('neutral'),
-                            background: 'rgba(251, 191, 36, 0.12)',
-                            color: '#FBBF24',
-                            border: '1px solid rgba(251, 191, 36, 0.35)',
+                            background: 'rgba(255, 87, 34, 0.12)',
+                            color: '#FF5722',
+                            border: '1px solid rgba(255, 87, 34, 0.35)',
                             whiteSpace: 'nowrap',
                         }}
                         title={`On mission ${participant.current_mission} for about ${stuckMins} min without advancing`}

@@ -150,8 +150,8 @@ export function ContinueOnDeviceModal({ open, onClose }: { open: boolean; onClos
                         fontSize: 12.5,
                         color: 'var(--muted)',
                         lineHeight: 1.55,
-                        background: 'rgba(251, 191, 36, 0.06)',
-                        border: '1px solid rgba(251, 191, 36, 0.28)',
+                        background: 'rgba(255, 87, 34, 0.06)',
+                        border: '1px solid rgba(255, 87, 34, 0.28)',
                         borderRadius: 'var(--radius-2)',
                         padding: '10px 12px',
                     }}

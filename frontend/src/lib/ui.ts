@@ -140,7 +140,7 @@ export const chip = (tone: 'orange' | 'purple' | 'cyan' | 'green' | 'red' | 'neu
 export const callout = (tone: 'info' | 'warn' | 'danger' | 'success' = 'info'): CSSProperties => {
     const toneMap: Record<string, { bg: string; border: string; fg: string }> = {
         info: { bg: 'rgba(247, 147, 26, 0.08)', border: 'rgba(247, 147, 26, 0.25)', fg: 'var(--text)' },
-        warn: { bg: 'rgba(251, 191, 36, 0.08)', border: 'rgba(251, 191, 36, 0.3)', fg: 'var(--text)' },
+        warn: { bg: 'rgba(255, 87, 34, 0.08)', border: 'rgba(255, 87, 34, 0.3)', fg: 'var(--text)' },
         danger: { bg: 'rgba(248, 113, 113, 0.08)', border: 'rgba(248, 113, 113, 0.3)', fg: 'var(--danger)' },
         success: { bg: 'rgba(16, 197, 126, 0.08)', border: 'rgba(16, 197, 126, 0.3)', fg: 'var(--text)' },
     }
@@ -178,9 +178,9 @@ export const techTone = (tech: 'bitcoin' | 'lightning' | 'nostr' | 'ecash'): 'or
  * other in the fixed strip order, where position also disambiguates them.
  */
 const TREE_COLORS: Record<Tree, string> = {
-    money: '#FBBF24', // amber
+    money: '#FF5722', // deep orange
     bitcoin: '#F7931A', // bitcoin orange
-    lightning: '#FACC15', // electric yellow
+    lightning: '#FF8A50', // bright coral orange
     nostr: '#A78BFA', // nostr purple
     ecash: '#5EEAD4', // ecash cyan
     'self-custody': '#34D399', // green

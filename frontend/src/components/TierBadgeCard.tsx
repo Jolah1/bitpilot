@@ -44,7 +44,7 @@ interface Theme {
 
 /**
  * One palette across all eight skill trees — navy field, bitcoin orange ring,
- * gold highlights. Trees are peers (not ranked stages), so they share the
+ * deep-orange highlights. Trees are peers (not ranked stages), so they share the
  * same visual family. What distinguishes them on the card is (a) the chip
  * text, (b) the subtitle eyebrow, and (c) the two-line achievement quote.
  */
@@ -52,9 +52,9 @@ const PALETTE = {
     bg1: '#1F2D52',
     bg2: '#0B1220',
     accent: '#F7931A',
-    accentLight: '#FFD27A',
+    accentLight: '#FFAB91',
     accentDim: '#7A4A0E',
-    accent2: '#FFE7C2',
+    accent2: '#FFCCBC',
 }
 
 const THEMES: Record<Tree, Theme> = {
