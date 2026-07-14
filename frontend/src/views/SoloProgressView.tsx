@@ -18,10 +18,17 @@ import {
     type Badge,
     type Participant,
 } from '../lib/types'
-import { card, chip } from '../lib/ui'
+import { card, chip, primaryButton, treeColor } from '../lib/ui'
 import { ShareBadgeModal } from '../components/ShareBadgeModal'
 
-export default function SoloProgressView({ participantId }: { participantId: string }) {
+export default function SoloProgressView({
+    participantId,
+    onResume,
+}: {
+    participantId: string
+    /** Jump back to the mission flow (the learner view) from "Up next". */
+    onResume?: () => void
+}) {
     const [participant, setParticipant] = useState<Participant | null>(null)
     const [badges, setBadges] = useState<Badge[]>([])
     const [loading, setLoading] = useState(true)
@@ -51,6 +58,7 @@ export default function SoloProgressView({ participantId }: { participantId: str
     const earnedBadges = badges.filter((b) => b.earned).length
     const currentMission = participant?.current_mission ?? 0
     const currentTree = treeFor(currentMission)
+    const pctComplete = Math.round((completed.length / MISSION_COUNT) * 100)
     const currentMissionDef = MISSIONS[Math.min(currentMission, MISSION_COUNT - 1)]
 
     return (
@@ -122,7 +130,7 @@ export default function SoloProgressView({ participantId }: { participantId: str
                     value={`${earnedBadges}/${TREES.length}`}
                     accent={earnedBadges > 0}
                 />
-                <Stat label="Current tree" value={currentTree.label} />
+                <Stat label="Complete" value={`${pctComplete}%`} />
             </section>
 
             {/* Tree progress bars */}
@@ -158,22 +166,23 @@ export default function SoloProgressView({ participantId }: { participantId: str
                                     <span
                                         style={{
                                             fontWeight: 700,
-                                            color: isActive
-                                                ? 'var(--bitcoin)'
-                                                : done === total
-                                                  ? 'var(--success)'
-                                                  : 'var(--text)',
+                                            color:
+                                                done === total || isActive
+                                                    ? treeColor(t.key)
+                                                    : 'var(--text)',
                                         }}
                                     >
                                         {t.label}
                                     </span>
                                     <span
                                         style={{
-                                            color: 'var(--muted)',
+                                            color:
+                                                done === total ? 'var(--success)' : 'var(--muted)',
                                             fontFamily: 'var(--font-mono)',
                                             fontSize: 11,
                                         }}
                                     >
+                                        {done === total ? '✓ ' : ''}
                                         {done}/{total}
                                     </span>
                                 </div>
@@ -191,12 +200,8 @@ export default function SoloProgressView({ participantId }: { participantId: str
                                             position: 'absolute',
                                             inset: 0,
                                             width: `${pct}%`,
-                                            background:
-                                                done === total
-                                                    ? 'var(--success)'
-                                                    : isActive
-                                                      ? 'var(--gradient-bitcoin)'
-                                                      : 'var(--border-strong)',
+                                            background: treeColor(t.key),
+                                            opacity: done === total || isActive ? 1 : 0.55,
                                             transition: 'width 0.3s ease',
                                         }}
                                     />
@@ -307,34 +312,60 @@ export default function SoloProgressView({ participantId }: { participantId: str
             </section>
 
             {/* Current mission pointer */}
-            {!loading && (
-                <section style={{ ...card, padding: 16 }}>
-                    <h2
-                        style={{
-                            margin: 0,
-                            fontSize: 13,
-                            fontWeight: 700,
-                            letterSpacing: '0.02em',
-                            marginBottom: 4,
-                        }}
-                    >
-                        Up next
-                    </h2>
-                    <p
-                        style={{
-                            margin: 0,
-                            fontSize: 14,
-                            color: 'var(--text)',
-                            lineHeight: 1.5,
-                        }}
-                    >
-                        Mission #{currentMissionDef.id} · {currentMissionDef.name}
-                    </p>
-                    <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--muted)' }}>
-                        {currentMissionDef.tagline}
-                    </p>
-                </section>
-            )}
+            {!loading &&
+                (completed.length >= MISSION_COUNT ? (
+                    <section style={{ ...card, padding: 16 }}>
+                        <h2
+                            style={{
+                                margin: 0,
+                                fontSize: 13,
+                                fontWeight: 700,
+                                letterSpacing: '0.02em',
+                                marginBottom: 4,
+                            }}
+                        >
+                            All done
+                        </h2>
+                        <p style={{ margin: 0, fontSize: 14, color: 'var(--text)', lineHeight: 1.5 }}>
+                            You have completed every mission on BitPilot. 🎉
+                        </p>
+                    </section>
+                ) : (
+                    <section style={{ ...card, padding: 16 }}>
+                        <h2
+                            style={{
+                                margin: 0,
+                                fontSize: 13,
+                                fontWeight: 700,
+                                letterSpacing: '0.02em',
+                                marginBottom: 4,
+                            }}
+                        >
+                            Up next
+                        </h2>
+                        <p style={{ margin: 0, fontSize: 14, color: 'var(--text)', lineHeight: 1.5 }}>
+                            Mission #{currentMissionDef.id} · {currentMissionDef.name}
+                        </p>
+                        <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--muted)' }}>
+                            {currentMissionDef.tagline}
+                        </p>
+                        {onResume && (
+                            <button
+                                className="bp-press"
+                                onClick={onResume}
+                                style={{
+                                    ...primaryButton(),
+                                    marginTop: 14,
+                                    padding: '10px 18px',
+                                    fontSize: 14,
+                                    minHeight: 44,
+                                }}
+                            >
+                                Continue your missions →
+                            </button>
+                        )}
+                    </section>
+                ))}
 
             {sharing && (
                 <ShareBadgeModal
