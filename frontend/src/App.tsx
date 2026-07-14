@@ -18,6 +18,7 @@ const FacilitatorDashboard = lazy(() => import('./views/FacilitatorDashboard'))
 const SoloProgressView = lazy(() => import('./views/SoloProgressView'))
 import { BrandMark } from './components/BrandMark'
 import { ThemeToggle } from './components/ThemeToggle'
+import { ContinueOnDeviceModal } from './components/ContinueOnDeviceModal'
 import { applyTheme, getSavedTheme, saveTheme, type Theme } from './lib/theme'
 import { api, ApiError } from './lib/api'
 import {
@@ -42,7 +43,7 @@ const queryClient = new QueryClient({
 })
 
 type View = 'learner' | 'facilitator'
-type Screen = 'landing' | 'setup' | 'session-not-found' | 'app'
+type Screen = 'landing' | 'setup' | 'session-not-found' | 'app' | 'pair'
 
 /**
  * Sentinel session name for solo learners.
@@ -131,6 +132,16 @@ export default function App() {
      *  was true at mount; the IDs are still in state from rehydrate(). */
     const continueExisting = () => {
         if (!sessionId || !participantId) return
+        setScreen('app')
+    }
+
+    /** Device B finished redeeming a pairing code: `api.redeemPairingCode`
+     *  already persisted the fresh credentials, so mirror them into state and
+     *  boot straight into the learner view. */
+    const onPaired = (participant: { id: string; session_id: string }) => {
+        setSessionId(participant.session_id)
+        setParticipantId(participant.id)
+        setView('learner')
         setScreen('app')
     }
 
@@ -248,6 +259,7 @@ export default function App() {
                                 setView('facilitator')
                                 setScreen('setup')
                             }}
+                            onPair={() => setScreen('pair')}
                             hasResumable={hasResumable}
                             onContinue={continueExisting}
                         />
@@ -266,6 +278,14 @@ export default function App() {
                         loading={loading}
                         error={error}
                         onStart={start}
+                    />
+                )}
+                {screen === 'pair' && (
+                    <PairDevice
+                        theme={theme}
+                        onToggleTheme={toggleTheme}
+                        onBack={() => setScreen('landing')}
+                        onPaired={onPaired}
                     />
                 )}
                 {screen === 'session-not-found' && (
@@ -494,6 +514,168 @@ function Setup({
                             aria-busy={loading}
                         >
                             {loading ? 'Starting…' : 'Start the first mission →'}
+                        </button>
+                    </div>
+                </div>
+            </main>
+        </div>
+    )
+}
+
+// ─── Continue with a code (device B) ─────────────────────────────────────────
+//
+// The receiving side of "continue on another device". The learner opens
+// BitPilot on a new device, lands here, and types the one-time code shown on
+// their first device. On redeem, `api.redeemPairingCode` persists the fresh
+// credentials and we boot straight into their session — same progress, new
+// device. (The first device is signed out server-side; see the pairing route.)
+function PairDevice({
+    theme,
+    onToggleTheme,
+    onBack,
+    onPaired,
+}: {
+    theme: Theme
+    onToggleTheme: () => void
+    onBack: () => void
+    onPaired: (p: { id: string; session_id: string }) => void
+}) {
+    const [code, setCode] = useState('')
+    const [loading, setLoading] = useState(false)
+    const [error, setError] = useState('')
+
+    const submit = async () => {
+        const c = code.trim()
+        if (!c) return
+        setLoading(true)
+        setError('')
+        try {
+            const p = await api.redeemPairingCode(c)
+            onPaired(p)
+        } catch (e) {
+            setError(
+                e instanceof ApiError
+                    ? e.message
+                    : 'Could not continue. Check the code and try again.',
+            )
+            setLoading(false)
+        }
+    }
+    const onKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter') submit()
+    }
+
+    return (
+        <div
+            style={{
+                minHeight: '100vh',
+                display: 'flex',
+                flexDirection: 'column',
+                background: 'var(--bg)',
+            }}
+        >
+            <div
+                style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '12px 16px',
+                    borderBottom: '1px solid var(--border)',
+                    gap: 8,
+                }}
+            >
+                <button
+                    onClick={onBack}
+                    style={{ ...ghostButton, padding: '8px 14px', minHeight: 40 }}
+                    aria-label="Back to landing page"
+                >
+                    ← Back
+                </button>
+                <ThemeToggle theme={theme} onToggle={onToggleTheme} />
+            </div>
+
+            <main
+                id="main-content"
+                style={{
+                    flex: 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: 'clamp(1rem, 4vw, 1.5rem)',
+                }}
+            >
+                <div style={{ width: '100%', maxWidth: 460 }}>
+                    <div
+                        style={{
+                            ...card,
+                            padding: 'clamp(20px, 5vw, 32px)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 18,
+                        }}
+                    >
+                        <header>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                                <BrandMark size={36} />
+                                <h1
+                                    style={{
+                                        fontSize: 'clamp(20px, 5vw, 24px)',
+                                        fontWeight: 800,
+                                        letterSpacing: '-0.025em',
+                                        margin: 0,
+                                    }}
+                                >
+                                    Continue with a code
+                                </h1>
+                            </div>
+                            <p style={{ fontSize: 13.5, color: 'var(--muted)', lineHeight: 1.55, margin: 0 }}>
+                                On your other device, open BitPilot and choose{' '}
+                                <strong style={{ color: 'var(--text)' }}>Continue on another device</strong> to get a
+                                code. It moves your progress here.
+                            </p>
+                        </header>
+
+                        <Field
+                            label="Your code"
+                            id="pair-code"
+                            value={code}
+                            onChange={setCode}
+                            onKeyDown={onKeyDown}
+                            placeholder="e.g. K7QP-2ML9"
+                            required
+                            autoFocus
+                        />
+
+                        {error && (
+                            <div
+                                role="alert"
+                                style={{
+                                    background: 'rgba(248, 113, 113, 0.08)',
+                                    border: '1px solid rgba(248, 113, 113, 0.3)',
+                                    borderRadius: 'var(--radius-2)',
+                                    padding: '10px 14px',
+                                    fontSize: 13,
+                                    color: 'var(--danger)',
+                                    lineHeight: 1.5,
+                                }}
+                            >
+                                {error}
+                            </div>
+                        )}
+
+                        <button
+                            className="bp-press"
+                            style={{
+                                ...primaryButton(loading || !code.trim()),
+                                width: '100%',
+                                fontSize: 15,
+                                minHeight: 48,
+                            }}
+                            onClick={submit}
+                            disabled={loading || !code.trim()}
+                            aria-busy={loading}
+                        >
+                            {loading ? 'Continuing…' : 'Continue →'}
                         </button>
                     </div>
                 </div>
@@ -740,6 +922,7 @@ function AppShell({
     sessionId: string | null
 }) {
     const [menuOpen, setMenuOpen] = useState(false)
+    const [deviceModalOpen, setDeviceModalOpen] = useState(false)
     const [isWide, setIsWide] = useState<boolean>(() => {
         if (typeof window === 'undefined') return true
         return window.matchMedia('(min-width: 640px)').matches
@@ -857,6 +1040,15 @@ function AppShell({
                                 {v === 'facilitator' ? secondViewLabel : v}
                             </button>
                         ))}
+                        {view === 'learner' && (
+                            <button
+                                onClick={() => setDeviceModalOpen(true)}
+                                style={{ ...ghostButton, padding: '8px 14px', fontSize: 12, minHeight: 36 }}
+                                title="Continue on another device"
+                            >
+                                📲 Another device
+                            </button>
+                        )}
                         <ThemeToggle theme={theme} onToggle={onToggleTheme} />
                         <button
                             onClick={onExit}
@@ -922,6 +1114,22 @@ function AppShell({
                         </button>
                     ))}
                     <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
+                    {view === 'learner' && (
+                        <button
+                            onClick={() => pick(() => setDeviceModalOpen(true))}
+                            style={{
+                                ...ghostButton,
+                                padding: '10px 12px',
+                                fontSize: 13,
+                                width: '100%',
+                                justifyContent: 'flex-start',
+                                minHeight: 40,
+                            }}
+                            role="menuitem"
+                        >
+                            📲 Continue on another device
+                        </button>
+                    )}
                     <button
                         onClick={() => pick(onExit)}
                         style={{
@@ -956,6 +1164,11 @@ function AppShell({
                     </Suspense>
                 )}
             </div>
+
+            <ContinueOnDeviceModal
+                open={deviceModalOpen}
+                onClose={() => setDeviceModalOpen(false)}
+            />
         </>
     )
 }

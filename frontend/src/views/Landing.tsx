@@ -34,6 +34,7 @@ export default function Landing({
     onToggleTheme,
     onStart,
     onFacilitator,
+    onPair,
     hasResumable,
     onContinue,
 }: {
@@ -41,6 +42,7 @@ export default function Landing({
     onToggleTheme: () => void
     onStart: () => void
     onFacilitator: () => void
+    onPair: () => void
     hasResumable: boolean
     onContinue: () => void
 }) {
@@ -62,6 +64,7 @@ export default function Landing({
                     onStart={onStart}
                     onContinue={onContinue}
                     onFacilitator={onFacilitator}
+                    onPair={onPair}
                 />
                 <HowItWorks />
                 <YourJourney />
@@ -87,11 +90,13 @@ function Hero({
     onStart,
     onContinue,
     onFacilitator,
+    onPair,
 }: {
     hasResumable: boolean
     onStart: () => void
     onContinue: () => void
     onFacilitator: () => void
+    onPair: () => void
 }) {
     return (
         <section
@@ -218,6 +223,17 @@ function Hero({
                     onClick={onFacilitator}
                 >
                     🎓 Run a Workshop
+                </button>
+                <button
+                    style={{
+                        ...ghostButton,
+                        padding: '14px 22px',
+                        fontSize: 14,
+                        minHeight: 48,
+                    }}
+                    onClick={onPair}
+                >
+                    📲 Continue with a code
                 </button>
             </div>
 

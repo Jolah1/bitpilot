@@ -152,6 +152,30 @@ pub fn generate_token() -> String {
     hex::encode(bytes)
 }
 
+/// Generate a short, human-typeable one-time pairing code: 8 Crockford
+/// base32 chars (alphabet excludes I, L, O, U to avoid confusion), giving
+/// ~2^40 of entropy. Unguessable in practice given the short expiry, the
+/// single-use redemption, and the per-IP rate limiter, while still easy to
+/// read aloud or type from one device to another. Returned ungrouped; the
+/// UI adds a dash for display and normalizes it back on redeem.
+pub fn generate_pairing_code() -> String {
+    const ALPHABET: &[u8; 32] = b"0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+    let mut bytes = [0u8; 8];
+    rand::rngs::OsRng.fill_bytes(&mut bytes);
+    bytes.iter().map(|b| ALPHABET[(b & 0x1f) as usize] as char).collect()
+}
+
+/// Normalize a pairing code as typed: uppercase, and strip anything that is
+/// not an alphanumeric (spaces, dashes). Lets the UI show `XXXX-XXXX` and
+/// accept sloppy input without affecting the stored value.
+pub fn normalize_pairing_code(input: &str) -> String {
+    input
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric())
+        .map(|c| c.to_ascii_uppercase())
+        .collect()
+}
+
 /// SHA-256 of the token, hex-encoded. Stable across processes and platforms;
 /// safe to store and to index on. Inputs always have 256 bits of CSPRNG
 /// entropy, so no salt is required.
