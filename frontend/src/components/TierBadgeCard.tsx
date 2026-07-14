@@ -63,7 +63,7 @@ const THEMES: Record<Tree, Theme> = {
         subtitle: 'Money Basics',
         chipText: 'TREE · MONEY',
         achievement: [
-            'Grasped what bitcoin is and',
+            'Learned what bitcoin is and',
             'why thinking in sats matters.',
         ],
     },
@@ -72,8 +72,8 @@ const THEMES: Record<Tree, Theme> = {
         subtitle: 'Bitcoin Protocol',
         chipText: 'TREE · BITCOIN',
         achievement: [
-            'Blocks, fees, miners, UTXOs —',
-            'the base-layer mental model.',
+            'Blocks, fees, miners, and how',
+            'bitcoin moves — the base layer.',
         ],
     },
     lightning: {
@@ -108,7 +108,7 @@ const THEMES: Record<Tree, Theme> = {
         subtitle: 'Self-custody',
         chipText: 'TREE · SELF-CUSTODY',
         achievement: [
-            'Keys, seeds, addresses, multisig —',
+            'Keys, seeds, addresses, backups —',
             'your bitcoin, your responsibility.',
         ],
     },
