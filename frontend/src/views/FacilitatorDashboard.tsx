@@ -1,11 +1,21 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { isSoloSessionName } from '../App'
 import { BrandMark } from '../components/BrandMark'
 import { QRSessionCard } from '../components/QRJoinFlow'
 import { MISSION_COUNT, TREES, treeFor, type Participant } from '../lib/types'
 import { fetchSessionProgress } from '../lib/api'
-import { card, chip, ghostButton, techGradient } from '../lib/ui'
+import { card, chip, ghostButton, treeColor } from '../lib/ui'
+
+/**
+ * A learner who hasn't advanced past their current mission for this long is
+ * flagged as needing a hand. Tracked client-side from the 3s poll (the wire
+ * Participant carries no timestamp), so it measures time since this dashboard
+ * first saw them on that mission — which is exactly what a facilitator wants:
+ * "who has been stuck since I've been watching".
+ */
+const STUCK_MS = 4 * 60 * 1000
+const isFinished = (p: Participant) => p.completed_missions.length === MISSION_COUNT
 
 /**
  * Facilitator dashboard. Polls /api/sessions/:id every 3s, shows a per-tree
@@ -18,7 +28,9 @@ import { card, chip, ghostButton, techGradient } from '../lib/ui'
  * mobile.
  */
 export default function FacilitatorDashboard({ sessionId }: { sessionId: string }) {
-    const [showQR, setShowQR] = useState(false)
+    // `null` means "follow the room": show the QR while nobody has joined, hide
+    // it once learners arrive. Toggling locks the facilitator's explicit choice.
+    const [qrOverride, setQrOverride] = useState<boolean | null>(null)
     const [tick, setTick] = useState(0)
 
     useEffect(() => {
@@ -34,6 +46,47 @@ export default function FacilitatorDashboard({ sessionId }: { sessionId: string 
 
     const session = progress?.session
     const participants: Participant[] = progress?.participants ?? []
+
+    // Remember when we first saw each learner on their current mission. A ref,
+    // not state, so updating it doesn't rerender; the 1s `tick` above drives the
+    // re-render that recomputes stuck durations.
+    const seenRef = useRef<Map<string, { mission: number; since: number }>>(new Map())
+    useEffect(() => {
+        const now = Date.now()
+        const seen = seenRef.current
+        const live = new Set<string>()
+        for (const p of participants) {
+            live.add(p.id)
+            const prev = seen.get(p.id)
+            if (!prev || prev.mission !== p.current_mission) {
+                seen.set(p.id, { mission: p.current_mission, since: now })
+            }
+        }
+        for (const id of [...seen.keys()]) if (!live.has(id)) seen.delete(id)
+    }, [participants])
+
+    // How long a learner has sat on their current mission (0 if finished or
+    // just-seen). Reads `tick` implicitly: this runs on every 1s rerender.
+    const stuckMsFor = (p: Participant) => {
+        if (isFinished(p)) return 0
+        const s = seenRef.current.get(p.id)
+        return s ? Date.now() - s.since : 0
+    }
+    const needsHand = participants.filter((p) => stuckMsFor(p) >= STUCK_MS).length
+
+    // Surface the people who need attention: stuck longest first, then whoever
+    // has the least progress, with finished learners settling to the bottom.
+    const ranked = [...participants].sort((a, b) => {
+        const sa = stuckMsFor(a) >= STUCK_MS,
+            sb = stuckMsFor(b) >= STUCK_MS
+        const ta = isFinished(a) ? 2 : sa ? 0 : 1
+        const tb = isFinished(b) ? 2 : sb ? 0 : 1
+        if (ta !== tb) return ta - tb
+        if (ta === 0) return stuckMsFor(b) - stuckMsFor(a) // longer stuck first
+        return a.completed_missions.length - b.completed_missions.length // least done first
+    })
+
+    const showQR = qrOverride ?? participants.length === 0
     // Solo learners create a sentinel-named session under the hood (see
     // `SOLO_SESSION_NAME` in App.tsx). Display them as "Solo run" rather
     // than leaking the raw "__solo__" string into the header or QR card.
@@ -120,7 +173,7 @@ export default function FacilitatorDashboard({ sessionId }: { sessionId: string 
                         LIVE
                     </span>
                     <button
-                        onClick={() => setShowQR((v) => !v)}
+                        onClick={() => setQrOverride(!showQR)}
                         style={{ ...ghostButton, padding: '8px 14px', minHeight: 40 }}
                     >
                         {showQR ? 'Hide QR' : 'Show QR'}
@@ -153,7 +206,7 @@ export default function FacilitatorDashboard({ sessionId }: { sessionId: string 
                 <Stat label="Participants" value={participants.length} />
                 <Stat label="Finished" value={completed} accent />
                 <Stat label="Avg. progress" value={`${avgProgress}%`} />
-                <Stat label="Missions" value={MISSION_COUNT} />
+                <Stat label="Needs a hand" value={needsHand} alert={needsHand > 0} />
             </section>
 
             {/* Tree legend */}
@@ -185,8 +238,7 @@ export default function FacilitatorDashboard({ sessionId }: { sessionId: string 
                                 width: 10,
                                 height: 10,
                                 borderRadius: 2,
-                                background: 'var(--gradient-bitcoin)',
-                                opacity: 0.85,
+                                background: treeColor(t.key),
                             }}
                         />
                         {t.label} ({t.missions.length})
@@ -197,59 +249,65 @@ export default function FacilitatorDashboard({ sessionId }: { sessionId: string 
             {/* Mission distribution — answers "where is everyone right now?" */}
             {participants.length > 0 && <MissionHistogram participants={participants} />}
 
-            {/* Participant rows */}
-            <section
-                aria-label="Participant progress"
-                style={{ ...card, overflow: 'hidden', padding: 0 }}
-            >
-                {participants.length === 0 ? (
-                    <div
+            {/* Leaderboard — who is furthest along. Facilitator-only surface, so
+                it exposes nothing the host cannot already see in the grid below. */}
+            {participants.length > 0 && <Leaderboard participants={participants} />}
+
+            {/* Participant rows — a responsive grid so a facilitator scanning a
+                room sees many learners at once, not one tall single column. */}
+            {participants.length === 0 ? (
+                <section
+                    aria-label="Participant progress"
+                    style={{
+                        ...card,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: 10,
+                        padding: '3.5rem 1rem',
+                        color: 'var(--muted)',
+                        fontSize: 14,
+                        textAlign: 'center',
+                    }}
+                >
+                    <span
+                        aria-hidden="true"
                         style={{
+                            width: 56,
+                            height: 56,
+                            borderRadius: '50%',
+                            background:
+                                'linear-gradient(135deg, rgba(247,147,26,0.18), rgba(167,139,250,0.10))',
                             display: 'flex',
-                            flexDirection: 'column',
                             alignItems: 'center',
-                            gap: 10,
-                            padding: '3.5rem 1rem',
-                            color: 'var(--muted)',
-                            fontSize: 14,
-                            textAlign: 'center',
+                            justifyContent: 'center',
+                            fontSize: 28,
                         }}
                     >
-                        <span
-                            aria-hidden="true"
-                            style={{
-                                width: 56,
-                                height: 56,
-                                borderRadius: '50%',
-                                background:
-                                    'linear-gradient(135deg, rgba(247,147,26,0.18), rgba(167,139,250,0.10))',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                fontSize: 28,
-                            }}
-                        >
-                            👥
-                        </span>
-                        <p
-                            style={{
-                                margin: 0,
-                                fontSize: 15,
-                                fontWeight: 700,
-                                color: 'var(--text)',
-                            }}
-                        >
-                            Nobody here yet
-                        </p>
-                        <p style={{ margin: 0, maxWidth: 320, lineHeight: 1.55 }}>
-                            Share the QR code above. As learners join you'll see them
-                            show up live, one row per learner.
-                        </p>
-                    </div>
-                ) : (
-                    participants.map((p) => <ParticipantRow key={p.id} participant={p} />)
-                )}
-            </section>
+                        👥
+                    </span>
+                    <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>
+                        Nobody here yet
+                    </p>
+                    <p style={{ margin: 0, maxWidth: 320, lineHeight: 1.55 }}>
+                        The QR code above is live. As learners join you'll see them show
+                        up here, one card per learner.
+                    </p>
+                </section>
+            ) : (
+                <section
+                    aria-label="Participant progress"
+                    style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+                        gap: 12,
+                    }}
+                >
+                    {ranked.map((p) => (
+                        <ParticipantRow key={p.id} participant={p} stuckMs={stuckMsFor(p)} />
+                    ))}
+                </section>
+            )}
         </main>
     )
 }
@@ -258,13 +316,22 @@ function Stat({
     label,
     value,
     accent,
+    alert,
 }: {
     label: string
     value: number | string
     accent?: boolean
+    alert?: boolean
 }) {
     return (
-        <div style={{ ...card, padding: '18px 18px 16px' }}>
+        <div
+            style={{
+                ...card,
+                padding: '18px 18px 16px',
+                borderColor: alert ? 'rgba(251, 191, 36, 0.4)' : undefined,
+                background: alert ? 'rgba(251, 191, 36, 0.06)' : undefined,
+            }}
+        >
             <div
                 style={{
                     fontSize: 'clamp(28px, 6vw, 38px)',
@@ -275,7 +342,7 @@ function Stat({
                     WebkitBackgroundClip: accent ? 'text' : undefined,
                     backgroundClip: accent ? 'text' : undefined,
                     WebkitTextFillColor: accent ? 'transparent' : undefined,
-                    color: accent ? 'transparent' : 'var(--text)',
+                    color: accent ? 'transparent' : alert ? '#FBBF24' : 'var(--text)',
                     fontFamily: 'var(--font-sans)',
                     fontVariantNumeric: 'tabular-nums',
                 }}
@@ -381,15 +448,14 @@ function MissionHistogram({ participants }: { participants: Participant[] }) {
                                     title={`Mission ${idx} (${t.label}) — ${c} learner${c === 1 ? '' : 's'}`}
                                     style={{
                                         height: `${heightPct}%`,
-                                        background:
-                                            c === 0
-                                                ? 'var(--border)'
-                                                : c === max
-                                                  ? techGradient('bitcoin')
-                                                  : 'var(--bitcoin)',
+                                        background: c === 0 ? 'var(--border)' : treeColor(t.key),
                                         borderRadius: 2,
                                         minHeight: 2,
                                         opacity: c === 0 ? 0.5 : 1,
+                                        boxShadow:
+                                            c === max && c > 0
+                                                ? `0 0 0 1.5px ${treeColor(t.key)}`
+                                                : undefined,
                                     }}
                                 />
                             )
@@ -419,19 +485,110 @@ function MissionHistogram({ participants }: { participants: Participant[] }) {
     )
 }
 
-function ParticipantRow({ participant }: { participant: Participant }) {
+function Leaderboard({ participants }: { participants: Participant[] }) {
+    const leaders = [...participants]
+        .map((p) => ({ p, done: p.completed_missions.length }))
+        .sort((a, b) => b.done - a.done || a.p.name.localeCompare(b.p.name))
+        .slice(0, 5)
+    // Nothing to rank until at least one learner has cleared a mission.
+    if ((leaders[0]?.done ?? 0) === 0) return null
+    const medal = (i: number) => ['🥇', '🥈', '🥉'][i] ?? `${i + 1}`
+    return (
+        <section aria-label="Leaderboard" style={{ ...card, padding: 12 }}>
+            <h2 style={{ margin: '0 0 10px', fontSize: 13, fontWeight: 700, letterSpacing: '0.02em' }}>
+                Leaderboard
+            </h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {leaders.map(({ p, done }, i) => {
+                    const pct = Math.round((done / MISSION_COUNT) * 100)
+                    return (
+                        <div
+                            key={p.id}
+                            style={{
+                                display: 'grid',
+                                gridTemplateColumns: '1.75rem minmax(0, 1fr) auto',
+                                alignItems: 'center',
+                                gap: 10,
+                            }}
+                        >
+                            <span
+                                aria-hidden="true"
+                                style={{
+                                    fontSize: i < 3 ? 18 : 12,
+                                    fontWeight: 700,
+                                    color: 'var(--muted)',
+                                    fontFamily: 'var(--font-mono)',
+                                    textAlign: 'center',
+                                }}
+                            >
+                                {medal(i)}
+                            </span>
+                            <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                <span
+                                    style={{
+                                        fontSize: 13,
+                                        fontWeight: 600,
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis',
+                                        whiteSpace: 'nowrap',
+                                    }}
+                                >
+                                    {p.name}
+                                </span>
+                                <div
+                                    style={{
+                                        height: 5,
+                                        borderRadius: 'var(--radius-pill)',
+                                        background: 'var(--border)',
+                                        overflow: 'hidden',
+                                    }}
+                                >
+                                    <div
+                                        style={{
+                                            height: '100%',
+                                            width: `${pct}%`,
+                                            background: 'var(--gradient-bitcoin)',
+                                        }}
+                                    />
+                                </div>
+                            </div>
+                            <span
+                                style={{
+                                    fontSize: 12,
+                                    color: 'var(--muted)',
+                                    fontFamily: 'var(--font-mono)',
+                                    fontVariantNumeric: 'tabular-nums',
+                                    whiteSpace: 'nowrap',
+                                }}
+                            >
+                                {done} · {pct}%
+                            </span>
+                        </div>
+                    )
+                })}
+            </div>
+        </section>
+    )
+}
+
+function ParticipantRow({ participant, stuckMs }: { participant: Participant; stuckMs: number }) {
     const doneCount = participant.completed_missions.length
     const pct = Math.round((doneCount / MISSION_COUNT) * 100)
+    const isDone = pct === 100
     const currentTree = treeFor(participant.current_mission)
+    const stuck = stuckMs >= STUCK_MS
+    const stuckMins = Math.floor(stuckMs / 60000)
     return (
         <div
             style={{
+                ...card,
                 display: 'grid',
                 gridTemplateColumns: 'minmax(0, 1fr) auto',
                 gap: 12,
                 alignItems: 'center',
                 padding: '12px 14px',
-                borderBottom: '1px solid var(--border)',
+                borderColor: stuck ? 'rgba(251, 191, 36, 0.45)' : undefined,
+                background: stuck ? 'rgba(251, 191, 36, 0.05)' : undefined,
             }}
         >
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
@@ -506,6 +663,9 @@ function ParticipantRow({ participant }: { participant: Participant }) {
                                     borderRadius: 'var(--radius-pill)',
                                     background: 'var(--border)',
                                     overflow: 'hidden',
+                                    boxShadow: isActive
+                                        ? `0 0 0 1.5px ${treeColor(t.key)}`
+                                        : undefined,
                                 }}
                             >
                                 <div
@@ -513,12 +673,8 @@ function ParticipantRow({ participant }: { participant: Participant }) {
                                         position: 'absolute',
                                         inset: 0,
                                         width: `${pctTree}%`,
-                                        background:
-                                            done === total
-                                                ? techGradient('bitcoin')
-                                                : isActive
-                                                  ? 'var(--bitcoin)'
-                                                  : 'var(--border-strong)',
+                                        background: treeColor(t.key),
+                                        opacity: done === total ? 1 : isActive ? 1 : 0.7,
                                     }}
                                 />
                             </div>
@@ -528,15 +684,37 @@ function ParticipantRow({ participant }: { participant: Participant }) {
             </div>
             <div
                 style={{
-                    textAlign: 'right',
-                    fontSize: 14,
-                    color: pct === 100 ? 'var(--success)' : 'var(--muted)',
-                    fontWeight: pct === 100 ? 700 : 600,
-                    fontFamily: 'var(--font-mono)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'flex-end',
+                    gap: 6,
                     flexShrink: 0,
                 }}
             >
-                {pct}%
+                <span
+                    style={{
+                        fontSize: 14,
+                        color: isDone ? 'var(--success)' : 'var(--muted)',
+                        fontWeight: isDone ? 700 : 600,
+                        fontFamily: 'var(--font-mono)',
+                    }}
+                >
+                    {isDone ? '✓ 100%' : `${pct}%`}
+                </span>
+                {stuck && (
+                    <span
+                        style={{
+                            ...chip('neutral'),
+                            background: 'rgba(251, 191, 36, 0.12)',
+                            color: '#FBBF24',
+                            border: '1px solid rgba(251, 191, 36, 0.35)',
+                            whiteSpace: 'nowrap',
+                        }}
+                        title={`On mission ${participant.current_mission} for about ${stuckMins} min without advancing`}
+                    >
+                        needs a hand{stuckMins > 0 ? ` · ${stuckMins}m` : ''}
+                    </span>
+                )}
             </div>
         </div>
     )
