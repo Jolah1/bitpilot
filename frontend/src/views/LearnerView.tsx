@@ -14,7 +14,6 @@ import {
     MISSION_COUNT,
     TREES,
     missionById,
-    treeFor,
     type Badge,
     type MissionDef,
     type Tree,
@@ -81,7 +80,7 @@ interface DoOutcome {
  * The learner experience. The home screen is a **tree picker**: 8 skill
  * trees presented as peers, the learner picks one and flows linearly
  * through it (Learn → Quiz → Do per mission). Trees advance independently
- * server-side — finishing Money 101 doesn't gate Bitcoin or Lightning.
+ * server-side, finishing Money 101 doesn't gate Bitcoin or Lightning.
  *
  * Mobile-first: padding shrinks on small viewports, primary action button
  * stays visible (no fixed widths that overflow), ProgressRail is tree-based
@@ -95,7 +94,7 @@ export default function LearnerView({ participantId }: { participantId: string }
     // missions are non-contiguous numbers (e.g. Money = 0,1,2,5,9,10).
     const [activeTreeKey, setActiveTreeKey] = useState<Tree | null>(null)
     const [treeIdx, setTreeIdx] = useState(0)
-    // Per-tree pointer from the server — `next incomplete mission id` per
+    // Per-tree pointer from the server, `next incomplete mission id` per
     // tree (`null` once the tree is fully done). Used to gate the "Next"
     // review button (can't review-jump past the tree's current frontier)
     // and to pick the starting `treeIdx` when entering a tree.
@@ -119,7 +118,7 @@ export default function LearnerView({ participantId }: { participantId: string }
     // shown a celebration for. `null` once dismissed. Persists across
     // the (missionIdx, phase) state churn that resets per-mission UI.
     const [justEarnedBadge, setJustEarnedBadge] = useState<Badge | null>(null)
-    // Participant display name — used on the shareable badge image. We
+    // Participant display name, used on the shareable badge image. We
     // capture it on hydrate so the share modal doesn't need to re-fetch.
     const [participantName, setParticipantName] = useState<string>('')
     // The badge currently displayed in the share/download modal, if any.
@@ -172,7 +171,7 @@ export default function LearnerView({ participantId }: { participantId: string }
     // the source of truth: `completed_missions` and `current_per_tree`
     // are stored in SQLite and come back via /api/participants/me.
     // We always land on the tree picker (`activeTreeKey === null`), not
-    // mid-tree — picking is a deliberate action, not a default.
+    // mid-tree, picking is a deliberate action, not a default.
     useEffect(() => {
         let cancelled = false
         ;(async () => {
@@ -214,7 +213,7 @@ export default function LearnerView({ participantId }: { participantId: string }
         if (!activeTree || !mission) return
         setCompletedMissions((prev) => [...new Set([...prev, mission.id])])
         // Walk to the next mission *within the active tree*. If we just
-        // finished the tree's last lesson, stay put — the DoPanel's
+        // finished the tree's last lesson, stay put, the DoPanel's
         // celebratory block shows and the learner can hit "Back to trees".
         if (treeIdx < activeTree.missions.length - 1) {
             setTreeIdx(treeIdx + 1)
@@ -242,7 +241,7 @@ export default function LearnerView({ participantId }: { participantId: string }
                     return next
                 })
             } catch {
-                // Badge refresh failing isn't blocking — the completion
+                // Badge refresh failing isn't blocking, the completion
                 // already succeeded server-side; badges will repopulate on
                 // the next mount.
             }
@@ -252,7 +251,7 @@ export default function LearnerView({ participantId }: { participantId: string }
     /**
      * Step navigation, scoped to the active tree. `Previous` walks back
      * through any completed mission in the tree. `Next` only advances if
-     * the learner is currently reviewing — never past the tree's
+     * the learner is currently reviewing, never past the tree's
      * frontier. The actual completion flow uses `goNextMission`.
      */
     const goPrev = () => {
@@ -300,7 +299,7 @@ export default function LearnerView({ participantId }: { participantId: string }
 
     /**
      * Action dispatch. Every branch must produce a `proof` string that the
-     * backend's `verify_proof()` will accept — see backend/src/routes/
+     * backend's `verify_proof()` will accept, see backend/src/routes/
      * missions.rs. For knowledge missions, proof = "acknowledged".
      */
     const handleDo = async () => {
@@ -334,7 +333,7 @@ export default function LearnerView({ participantId }: { participantId: string }
                     // matters, which is that these 12 words must never leave
                     // the user's hands.
                     outcome = {
-                        summary: 'Your 12 words — write these down on paper.',
+                        summary: 'Your 12 words, write these down on paper.',
                         details: [
                             { label: 'seed phrase', value: mnemonic, secret: true },
                         ],
@@ -396,7 +395,7 @@ export default function LearnerView({ participantId }: { participantId: string }
                     const r = await api.mintEcash(50)
                     proof = r.token
                     outcome = {
-                        summary: `Token minted — ${r.amount_sats} sats inside.`,
+                        summary: `Token minted, ${r.amount_sats} sats inside.`,
                         details: [{ label: 'eCash token', value: r.token }],
                         simulated: r.simulated,
                     }
@@ -495,7 +494,7 @@ export default function LearnerView({ participantId }: { participantId: string }
                     const r = await api.broadcastNostrEvent(event)
                     proof = r.event_id
                     outcome = {
-                        summary: `Your follow list is signed in your browser — now following ${chosen}.`,
+                        summary: `Your follow list is signed in your browser, now following ${chosen}.`,
                         details: [
                             { label: 'now following', value: target },
                             { label: 'event ID', value: r.event_id },
@@ -509,7 +508,7 @@ export default function LearnerView({ participantId }: { participantId: string }
                     const r = await api.simulateNostrZap()
                     proof = r.event_id
                     outcome = {
-                        summary: `Zap receipt generated — ${r.amount_sats} sats.`,
+                        summary: `Zap receipt generated, ${r.amount_sats} sats.`,
                         details: [{ label: 'event ID', value: r.event_id }],
                         simulated: r.simulated,
                     }
@@ -544,7 +543,7 @@ export default function LearnerView({ participantId }: { participantId: string }
                     }
                     proof = doInput.trim().toLowerCase()
                     outcome = {
-                        summary: 'Your signet transaction is real — confirmed via mempool.space.',
+                        summary: 'Your signet transaction is real, confirmed via mempool.space.',
                         details: [
                             { label: 'transaction ID', value: proof },
                             {
@@ -557,7 +556,7 @@ export default function LearnerView({ participantId }: { participantId: string }
                     break
                 }
 
-                // Generic "paste this thing" — currently unused but reserved
+                // Generic "paste this thing", currently unused but reserved
                 // for future missions (e.g. "paste your npub here").
                 case 'paste-value': {
                     if (!doInput.trim()) {
@@ -594,7 +593,7 @@ export default function LearnerView({ participantId }: { participantId: string }
     }
 
     // Modals rendered outside the screen ternary so the Sovereignty-tree
-    // celebration still fires on top of the FinishedScreen — earlier
+    // celebration still fires on top of the FinishedScreen, earlier
     // versions returned FinishedScreen before the modal could render,
     // and the final celebration was silently swallowed.
     const modals = (
@@ -640,7 +639,7 @@ export default function LearnerView({ participantId }: { participantId: string }
                     maxWidth: 960,
                     margin: '0 auto',
                 }}
-                aria-label="Skill trees"
+                aria-label="Chapters"
             >
                 <BadgesStrip badges={badges} onShareBadge={setSharingBadge} />
                 {modals}
@@ -657,28 +656,22 @@ export default function LearnerView({ participantId }: { participantId: string }
         <main
             id="learner-main"
             // Mobile: shrink padding aggressively so content uses the viewport.
-            // Desktop: 960-px column so progress strip + mission card breathe.
-            // Lesson prose still pinches to a reading column inside LearnPanel.
+            // Desktop: a 760-px column, the mission screen shows exactly one
+            // task, so a tight reading column beats a wide dashboard-ish one.
             style={{
                 padding: 'clamp(0.75rem, 3vw, 1.5rem) clamp(0.5rem, 3vw, 1rem) 5rem',
-                maxWidth: 960,
+                maxWidth: 760,
                 margin: '0 auto',
             }}
             aria-label={`Mission ${mission.id} of ${MISSION_COUNT - 1}: ${mission.name}`}
         >
-            <ProgressRail
-                activeTreeKey={activeTree.key}
-                completed={completedMissions}
-            />
-
-            <BadgesStrip badges={badges} onShareBadge={setSharingBadge} />
-
             {modals}
 
             <MissionNav
                 tree={activeTree}
                 treeIdx={treeIdx}
                 treeIdxFrontier={treeIdxFrontier}
+                completed={completedMissions}
                 onPrev={goPrev}
                 onNext={goNextReview}
                 onExit={exitToTreePicker}
@@ -760,7 +753,7 @@ export default function LearnerView({ participantId }: { participantId: string }
 
 // ── Per-tree pointer helpers ─────────────────────────────────────────────
 
-/** Initial per-tree map — every tree's pointer is its first mission. */
+/** Initial per-tree map, every tree's pointer is its first mission. */
 function emptyPerTreeMap(): Record<Tree, number | null> {
     const out: Record<string, number | null> = {}
     for (const t of TREES) {
@@ -771,7 +764,7 @@ function emptyPerTreeMap(): Record<Tree, number | null> {
 
 /**
  * Merge a server-supplied per-tree map with the default. Missing keys
- * fall back to the tree's first mission — defensive against the backend
+ * fall back to the tree's first mission, defensive against the backend
  * temporarily omitting a tree (shouldn't happen, but cheap insurance).
  */
 function mergePerTreeMap(
@@ -791,17 +784,26 @@ function mergePerTreeMap(
 /**
  * Step navigation row above the mission card, scoped to the active tree.
  *
- *   ← Trees · ← Prev · Mission n / m in <tree> · Next →
+ *   ← Chapters · ← Prev · Mission n / m in <tree> · Next →
  *
  * - **Trees** returns to the tree picker (home).
  * - **Previous** walks back through any completed mission *in this tree*.
- * - **Next** is enabled only while reviewing within the tree — never past
+ * - **Next** is enabled only while reviewing within the tree, never past
  *   the tree's frontier (next-incomplete mission).
+ */
+/**
+ * The single slim strip of context above the mission card. The mission
+ * screen deliberately shows *one task at a time*, everything that used to
+ * stack above the card (all-trees progress rail, badge medallions, chunky
+ * nav buttons) lives on the tree-picker home instead. Here a learner gets
+ * exactly: a way out, where they are in this tree, prev/next, and one thin
+ * progress bar for the tree they're inside.
  */
 function MissionNav({
     tree,
     treeIdx,
     treeIdxFrontier,
+    completed,
     onPrev,
     onNext,
     onExit,
@@ -809,76 +811,108 @@ function MissionNav({
     tree: TreeMeta
     treeIdx: number
     treeIdxFrontier: number
+    completed: number[]
     onPrev: () => void
     onNext: () => void
     onExit: () => void
 }) {
     const canPrev = treeIdx > 0
     const canNext = treeIdx < treeIdxFrontier
+    const total = tree.missions.length
+    const doneInTree = tree.missions.filter((m) => completed.includes(m)).length
     return (
         <nav
             aria-label="Mission navigation"
-            style={{
-                marginTop: 14,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: 8,
-                flexWrap: 'wrap',
-            }}
+            style={{ display: 'flex', flexDirection: 'column', gap: 8 }}
         >
-            <div style={{ display: 'flex', gap: 8 }}>
+            <div
+                style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 8,
+                }}
+            >
                 <button
                     type="button"
                     onClick={onExit}
-                    aria-label="Back to skill trees"
+                    aria-label="Back to chapters"
                     style={navButtonStyle(true)}
                 >
-                    ← Trees
+                    ← Chapters
                 </button>
-                <button
-                    type="button"
-                    onClick={onPrev}
-                    disabled={!canPrev}
-                    aria-label="Previous mission in this tree"
-                    style={navButtonStyle(canPrev)}
+                <span
+                    style={{
+                        fontSize: 11,
+                        color: 'var(--muted)',
+                        letterSpacing: '0.06em',
+                        textTransform: 'uppercase',
+                        fontFamily: 'var(--font-mono)',
+                        fontWeight: 700,
+                        whiteSpace: 'nowrap',
+                        flexShrink: 1,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                    }}
+                    title={
+                        treeIdx < treeIdxFrontier
+                            ? `Reviewing, current is mission ${treeIdxFrontier + 1} of ${total}`
+                            : `Mission ${treeIdx + 1} of ${total} in ${tree.label}`
+                    }
                 >
-                    ← Prev
-                </button>
+                    {tree.label} · {treeIdx + 1}/{total}
+                </span>
+                <div style={{ display: 'flex', gap: 8 }}>
+                    <button
+                        type="button"
+                        onClick={onPrev}
+                        disabled={!canPrev}
+                        aria-label="Previous mission in this chapter"
+                        style={navButtonStyle(canPrev)}
+                    >
+                        ←
+                    </button>
+                    <button
+                        type="button"
+                        onClick={onNext}
+                        disabled={!canNext}
+                        aria-label="Next mission in this chapter"
+                        style={navButtonStyle(canNext)}
+                        title={
+                            canNext
+                                ? 'Next mission'
+                                : 'Finish this mission to unlock the next one'
+                        }
+                    >
+                        →
+                    </button>
+                </div>
             </div>
-            <span
+            <div
+                role="progressbar"
+                aria-valuemin={0}
+                aria-valuemax={total}
+                aria-valuenow={doneInTree}
+                aria-label={`${tree.label}: ${doneInTree} of ${total} missions complete`}
+                title={`${tree.label}: ${doneInTree}/${total}`}
                 style={{
-                    fontSize: 11,
-                    color: 'var(--muted)',
-                    letterSpacing: '0.06em',
-                    textTransform: 'uppercase',
-                    fontFamily: 'var(--font-mono)',
-                    fontWeight: 700,
-                    whiteSpace: 'nowrap',
-                    flexShrink: 0,
+                    position: 'relative',
+                    height: 5,
+                    borderRadius: 'var(--radius-pill)',
+                    background: 'var(--border)',
+                    overflow: 'hidden',
                 }}
-                title={
-                    treeIdx < treeIdxFrontier
-                        ? `Reviewing — current is mission ${treeIdxFrontier + 1} of ${tree.missions.length}`
-                        : `Mission ${treeIdx + 1} of ${tree.missions.length} in ${tree.label}`
-                }
             >
-                {tree.label} · {treeIdx + 1}/{tree.missions.length}
-            </span>
-            <button
-                type="button"
-                onClick={onNext}
-                disabled={!canNext}
-                aria-label="Next mission in this tree"
-                style={navButtonStyle(canNext)}
-                title={
-                    canNext
-                        ? 'Next mission'
-                        : 'Finish this mission to unlock the next one'
-                }
-            >
-                Next →
-            </button>
+                <div
+                    style={{
+                        position: 'absolute',
+                        inset: 0,
+                        width: `${total === 0 ? 0 : Math.max((doneInTree / total) * 100, 3)}%`,
+                        background: 'var(--gradient-bitcoin)',
+                        transition: 'width 0.3s ease',
+                    }}
+                />
+            </div>
         </nav>
     )
 }
@@ -901,7 +935,7 @@ function TreePicker({
 }) {
     return (
         <section
-            aria-label="Pick a skill tree to learn"
+            aria-label="Pick a chapter to learn"
             style={{
                 marginTop: 18,
                 display: 'flex',
@@ -918,7 +952,7 @@ function TreePicker({
                         margin: 0,
                     }}
                 >
-                    <span className="gradient-text">Pick a tree to learn</span>
+                    <span className="gradient-text">Pick a chapter</span>
                 </h1>
                 <p
                     style={{
@@ -928,9 +962,9 @@ function TreePicker({
                         lineHeight: 1.5,
                     }}
                 >
-                    Eight skill trees, easiest to hardest. New to Bitcoin?
+                    Eight chapters, easiest to hardest. New to Bitcoin?
                     Start with Money Basics and work down. Already comfortable?
-                    Jump to any tree you like. Each one is short and
+                    Jump to any chapter you like. Each one is short and
                     self-contained.
                 </p>
             </header>
@@ -952,18 +986,18 @@ function TreePicker({
                     const isDone = done === total
                     const next = currentPerTree[t.key]
                     const cta = isDone
-                        ? 'Review tree →'
+                        ? 'Review chapter'
                         : done === 0
-                          ? 'Start →'
-                          : 'Continue →'
+                          ? 'Start'
+                          : 'Continue'
                     const subline = isDone
-                        ? 'Tree complete'
+                        ? 'Chapter complete'
                         : next === null
                           ? `${done}/${total} complete`
                           : `${done}/${total} · next: mission ${t.missions.indexOf(next) + 1}`
                     // Soft prerequisite nudge: if this tree recommends another
                     // one first and the learner hasn't finished that one, show
-                    // a gentle tip. Never blocks — the card is still tappable.
+                    // a gentle tip. Never blocks, the card is still tappable.
                     const recTree = t.recommendedAfter
                         ? TREES.find((x) => x.key === t.recommendedAfter)
                         : undefined
@@ -1020,7 +1054,7 @@ function TreePicker({
                                     </span>
                                     {isDone ? (
                                         <span
-                                            aria-label="Tree complete"
+                                            aria-label="Chapter complete"
                                             style={{ ...chip('green'), fontSize: 10 }}
                                         >
                                             ✓ Done
@@ -1110,116 +1144,6 @@ function navButtonStyle(enabled: boolean): CSSProperties {
 }
 
 /**
- * Tree-grouped progress rail. Shows 8 stacked bars (one per skill tree),
- * with a sub-line showing which tree the current mission belongs to.
- *
- * Why not 100 per-mission ticks? At 100 missions, each one would be 3-4px
- * wide on mobile — invisible, useless. Tree rails communicate progress
- * in a way you can read at a glance.
- *
- * Trees aren't contiguous mission ranges, so progress per tree is
- * computed by membership: `t.missions` contains the ids that belong.
- */
-function ProgressRail({
-    activeTreeKey,
-    completed,
-}: {
-    activeTreeKey: Tree
-    completed: number[]
-}) {
-    const currentTree = TREES.find((t) => t.key === activeTreeKey) ?? TREES[0]
-    return (
-        <nav aria-label="Mission progress" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <ol
-                style={{
-                    listStyle: 'none',
-                    margin: 0,
-                    padding: 0,
-                    display: 'grid',
-                    gridTemplateColumns: `repeat(${TREES.length}, 1fr)`,
-                    gap: 4,
-                }}
-            >
-                {TREES.map((t) => {
-                    const total = t.missions.length
-                    const doneInTree = completed.filter((m) => t.missions.includes(m)).length
-                    const isActive = t.key === currentTree.key
-                    const pct = total === 0
-                        ? 0
-                        : doneInTree === total
-                          ? 100
-                          : isActive
-                            ? Math.max((doneInTree / total) * 100, 8)
-                            : (doneInTree / total) * 100
-                    return (
-                        <li key={t.key}>
-                            <div
-                                style={{
-                                    position: 'relative',
-                                    height: 8,
-                                    borderRadius: 'var(--radius-pill)',
-                                    background: 'var(--border)',
-                                    overflow: 'hidden',
-                                }}
-                                title={`${t.label}: ${doneInTree}/${total}`}
-                            >
-                                <div
-                                    style={{
-                                        position: 'absolute',
-                                        inset: 0,
-                                        width: `${pct}%`,
-                                        background: isActive
-                                            ? 'var(--gradient-bitcoin)'
-                                            : doneInTree === total
-                                              ? 'var(--success)'
-                                              : 'var(--border-strong)',
-                                        transition: 'width 0.3s ease',
-                                    }}
-                                />
-                            </div>
-                            <div
-                                style={{
-                                    marginTop: 4,
-                                    fontSize: 10,
-                                    textAlign: 'center',
-                                    color: isActive ? 'var(--bitcoin)' : 'var(--muted)',
-                                    fontWeight: isActive ? 700 : 500,
-                                    letterSpacing: '0.04em',
-                                    textTransform: 'uppercase',
-                                    whiteSpace: 'nowrap',
-                                    overflow: 'hidden',
-                                    textOverflow: 'ellipsis',
-                                }}
-                            >
-                                {t.label}
-                            </div>
-                        </li>
-                    )
-                })}
-            </ol>
-            <div
-                style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    fontSize: 12,
-                    color: 'var(--muted)',
-                    fontFamily: 'var(--font-mono)',
-                    flexWrap: 'wrap',
-                }}
-            >
-                <span style={{ color: 'var(--text)' }}>{currentTree.label} tree</span>
-                <span aria-hidden="true">·</span>
-                <span>
-                    {completed.filter((m) => currentTree.missions.includes(m)).length}/
-                    {currentTree.missions.length}
-                </span>
-            </div>
-        </nav>
-    )
-}
-
-/**
  * Eight tree-badge medallions, one per skill tree. Filled = earned (the
  * learner finished every mission in the tree); outlined = locked, with a
  * "n/m" counter showing progress toward the unlock.
@@ -1237,7 +1161,7 @@ function BadgesStrip({
     if (badges.length === 0) return null
     return (
         <section
-            aria-label="Tree badges"
+            aria-label="Chapter badges"
             style={{
                 display: 'grid',
                 gridTemplateColumns: `repeat(${badges.length}, 1fr)`,
@@ -1334,7 +1258,6 @@ function MissionHeader({ mission }: { mission: MissionDef }) {
                   : mission.do.kind === 'onchain-signet'
                     ? { label: 'Signet', tone: 'green' as const }
                     : null
-    const tree = treeFor(mission.id)
 
     return (
         <header
@@ -1365,29 +1288,20 @@ function MissionHeader({ mission }: { mission: MissionDef }) {
                 <span style={{ filter: 'drop-shadow(0 1px 1px rgba(0,0,0,0.2))' }}>{mission.emoji}</span>
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
-                <div
-                    style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 6,
-                        flexWrap: 'wrap',
-                        marginBottom: 4,
-                    }}
-                >
-                    <span style={{ ...labelStyle, fontSize: 10 }}>
-                        #{mission.id} · {tree.label}
-                    </span>
-                    <span style={{ ...chip(techTone(mission.tech)), fontSize: 10 }}>
-                        {mission.topic}
-                    </span>
-                    {statusChip && (
+                {/* One chip max: whether the Do step touches something real.
+                    The tree name and position already live in the nav strip,
+                    and the topic tag was decoration, the mission screen
+                    shows one task, so the header carries only what a learner
+                    needs before doing it. */}
+                {statusChip && (
+                    <div style={{ marginBottom: 4 }}>
                         <span
                             style={{ ...chip(statusChip.tone), fontSize: 10 }}
                             title={
                                 statusChip.label === 'Simulated'
-                                    ? "Action is simulated — no real value moves."
+                                    ? "Action is simulated, no real value moves."
                                     : statusChip.label === 'Testnet'
-                                      ? 'Real Lightning, signet network — no mainnet sats.'
+                                      ? 'Real Lightning, signet network, no mainnet sats.'
                                       : statusChip.label === 'Testmint'
                                         ? 'Real Cashu protocol against a public testmint.'
                                         : statusChip.label === 'Signet'
@@ -1397,8 +1311,8 @@ function MissionHeader({ mission }: { mission: MissionDef }) {
                         >
                             {statusChip.label}
                         </span>
-                    )}
-                </div>
+                    </div>
+                )}
                 <h2
                     style={{
                         fontSize: 'clamp(17px, 4.5vw, 21px)',
@@ -1570,7 +1484,7 @@ function LearnPanel({ mission, onAdvance }: { mission: MissionDef; onAdvance: ()
                 aria-live="polite"
             >
                 {ready
-                    ? 'Got it — take the quiz →'
+                    ? 'Got it, take the quiz'
                     : `Read the lesson… ${remaining}s`}
             </button>
         </>
@@ -1584,7 +1498,7 @@ function LearnPanel({ mission, onAdvance }: { mission: MissionDef; onAdvance: ()
  * the right answer.
  *
  * Constants are the standard Park-Miller-ish LCG; quality is irrelevant
- * — we just need a stable shuffle, not crypto.
+ *, we just need a stable shuffle, not crypto.
  */
 function shuffleSeeded(n: number, seed: number): number[] {
     const order = Array.from({ length: n }, (_, i) => i)
@@ -1613,7 +1527,7 @@ function QuizPanel({
     onRetry: () => void
 }) {
     // Stable per-mission option permutation. Mission authors tend to put
-    // the correct answer in position B more than chance — and learners
+    // the correct answer in position B more than chance, and learners
     // clock the pattern within a few missions and stop reading. The
     // shuffle is keyed on mission.id so it's the same order across
     // re-renders (no jarring reshuffle if the learner switches tabs and
@@ -1816,7 +1730,7 @@ function DoPanel({
     // Review mode: this mission was completed in a past session (or
     // earlier in this one) and the learner navigated back to re-read it.
     // The action button is replaced with a "completed" badge so they
-    // can't accidentally re-submit — the backend would reject it, but
+    // can't accidentally re-submit, the backend would reject it, but
     // the UI shouldn't even offer.
     if (isReviewing) {
         return (
@@ -1834,7 +1748,7 @@ function DoPanel({
                     style={{ ...primaryButton(), width: '100%' }}
                     onClick={onReviewNext}
                 >
-                    {nextMissionName ? `Next: ${nextMissionName} →` : 'Forward →'}
+                    {nextMissionName ? `Next: ${nextMissionName}` : 'Forward'}
                 </button>
             </>
         )
@@ -1960,7 +1874,7 @@ function DoPanel({
                         onClick={onNext}
                         disabled={hasSecret && !savedConfirmed}
                     >
-                        {isLast ? '🎉 Finish BitPilot' : `Next: ${nextMissionName} →`}
+                        {isLast ? '🎉 Finish BitPilot' : `Next: ${nextMissionName}`}
                     </button>
                     {hasSecret && !savedConfirmed && (
                         <p style={{ fontSize: 12, color: 'var(--muted)', textAlign: 'center', margin: 0 }}>
@@ -2049,7 +1963,7 @@ function uiForKind(kind: MissionDef['do']['kind']): DoUi {
                 primary: {
                     label: 'Your Nostr note',
                     type: 'textarea',
-                    placeholder: 'GM Nostr — I just finished BitPilot ⚡',
+                    placeholder: 'GM Nostr, I just finished BitPilot ⚡',
                     maxLength: 280,
                 },
             }
@@ -2252,7 +2166,7 @@ function FinishedScreen() {
                     maxWidth: 480,
                 }}
             >
-                100 missions across eight skill trees. You used Bitcoin, Lightning, Nostr, and eCash for real, and you actually understand
+                100 missions across eight chapters. You used Bitcoin, Lightning, Nostr, and eCash for real, and you actually understand
                 what each one does. That puts you ahead of about 99% of people on earth.
             </p>
             <ul
@@ -2293,7 +2207,7 @@ function FinishedScreen() {
                 ))}
             </ul>
             <p style={{ fontSize: 13, color: 'var(--muted)', margin: 0 }}>
-                Your Nostr identity and notes are real — open any Nostr client and search your npub.
+                Your Nostr identity and notes are real, open any Nostr client and search your npub.
             </p>
         </main>
     )

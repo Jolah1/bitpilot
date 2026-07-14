@@ -30,7 +30,7 @@ try {
     await sleep(1800)
 
     report.assert(
-        (await page.getByText(/Tree complete/i).count()) > 0 &&
+        (await page.getByText(/Chapter complete/i).count()) > 0 &&
             (await page.getByText(/You earned the .*badge/i).count()) > 0,
         'badge celebration appears on tree completion',
     )

@@ -1,8 +1,8 @@
 // localStorage wrappers for the credentials, identity material, and IDs the
 // app needs to rehydrate after a page refresh. Originally sessionStorage so
 // closing a tab wiped credentials (kiosk threat model), but that made the
-// common case — a single learner on their own laptop accidentally refreshing
-// — awful.
+// common case, a single learner on their own laptop accidentally refreshing
+//, awful.
 //
 // localStorage persists. To wipe everything deliberately (e.g. share the
 // laptop with someone else), call `clearAllTokens()` from a "Start fresh"
@@ -13,7 +13,7 @@
 // threat model as the auth_token: anything in localStorage is readable by
 // JavaScript running on this origin. We don't ship third-party scripts, but
 // it is what it is. For a real Nostr/Bitcoin identity, the user would copy
-// the nsec / seed phrase OUT of BitPilot into a password manager — both the
+// the nsec / seed phrase OUT of BitPilot into a password manager, both the
 // curriculum and the UI explicitly tell them so. localStorage is just so
 // progressing missions doesn't force them to re-enter the secret each time.
 
@@ -23,9 +23,9 @@ const SESSION_KEY = 'bitpilot.session_id'
 const PARTICIPANT_KEY = 'bitpilot.participant_id'
 // Identity material generated in the browser. None of these are sent to
 // the backend except where a mission explicitly requires it (see api.ts).
-const NSEC_KEY = 'bitpilot.nsec'           // mission 14 — Nostr private key (bech32)
-const NPUB_KEY = 'bitpilot.npub'           // mission 14 — Nostr public key  (bech32)
-const SEED_KEY = 'bitpilot.seed_phrase'    // mission 11 — BIP39 mnemonic (space-separated)
+const NSEC_KEY = 'bitpilot.nsec'           // mission 14, Nostr private key (bech32)
+const NPUB_KEY = 'bitpilot.npub'           // mission 14, Nostr public key  (bech32)
+const SEED_KEY = 'bitpilot.seed_phrase'    // mission 11, BIP39 mnemonic (space-separated)
 
 function safeGet(key: string): string | null {
     try { return localStorage.getItem(key) } catch { return null }

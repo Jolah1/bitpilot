@@ -2,7 +2,7 @@
  * Mini compass-medallion mark for tree-badge strips and grids.
  *
  * Trees are peers (not ranked stages), so every tree renders the same
- * 4-point compass medallion — distinguishing information comes from the
+ * 4-point compass medallion, distinguishing information comes from the
  * label and the completion chip next to it, not the glyph. Earned vs
  * locked is conveyed by colour saturation: full bitcoin-orange + cream
  * ₿ when earned, dimmed when still in progress.
@@ -14,7 +14,7 @@ export function TierProgressionMark({
     earned,
     size,
 }: {
-    /** Tree key — accepted for API symmetry but not currently rendered;
+    /** Tree key, accepted for API symmetry but not currently rendered;
      *  every tree shares the same medallion shape. */
     tier?: string
     earned: boolean
@@ -35,7 +35,7 @@ export function TierProgressionMark({
                     stroke={earned ? '#F7931A' : 'rgba(247, 147, 26, 0.35)'}
                     strokeWidth="2"
                 />
-                {/* 4-point cardinal compass — shared across all 8 trees. */}
+                {/* 4-point cardinal compass, shared across all 8 trees. */}
                 <g transform="translate(32 32)" fill={starColor}>
                     <polygon points="0,-25 5,-8 0,-6 -5,-8" />
                     <polygon points="25,0 8,5 6,0 8,-5" />

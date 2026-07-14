@@ -1,18 +1,18 @@
 /**
  * Shareable tier-completion badge rendered as inline SVG.
  *
- * Self-contained: no external fonts, no CSS variables — every fill/stroke
+ * Self-contained: no external fonts, no CSS variables, every fill/stroke
  * is a literal hex so the same DOM can be serialized to .svg OR rasterized
  * through canvas to .png. See ShareBadgeModal for the export plumbing.
  *
  * Sized 600x800 portrait. Visual stack (top → bottom):
  *
- *   1. Aurora gradient field — three overlapping radial glows in the tier
+ *   1. Aurora gradient field, three overlapping radial glows in the tier
  *      palette, on a deep ink base.
- *   2. Dot-grid + holographic shine — a subtle 12-unit dot grid for texture
+ *   2. Dot-grid + holographic shine, a subtle 12-unit dot grid for texture
  *      and a low-opacity conic sweep that reads as foil under light.
- *   3. Top metadata strip — left chip (TIER N + roman) + right serial.
- *   4. Glass medallion — outer aura, brushed metal ring with serial text,
+ *   3. Top metadata strip, left chip (TIER N + roman) + right serial.
+ *   4. Glass medallion, outer aura, brushed metal ring with serial text,
  *      and a frosted glass disc with a custom tier-specific SVG glyph.
  *   5. Rank name (huge bold sans) + subtitle in small caps.
  *   6. Participant name + earned-on date on an accent rule.
@@ -26,24 +26,24 @@ interface Theme {
     /** Vertical gradient on the card background. */
     bg1: string
     bg2: string
-    /** Accent — borders, glyph disc, headings. */
+    /** Accent, borders, glyph disc, headings. */
     accent: string
     /** Brighter accent for highlights (light side of metallic shimmer). */
     accentLight: string
-    /** Dimmed accent — subtle highlights / 35% alpha equivalent. */
+    /** Dimmed accent, subtle highlights / 35% alpha equivalent. */
     accentDim: string
-    /** Secondary accent used for the aurora field — adds depth. */
+    /** Secondary accent used for the aurora field, adds depth. */
     accent2: string
     /** Subtitle eyebrow above the medallion (small caps). */
     subtitle: string
-    /** Short label printed on the chip — e.g. "TREE · LIGHTNING". */
+    /** Short label printed on the chip, e.g. "CHAPTER · LIGHTNING". */
     chipText: string
     /** Two-line achievement description; pre-wrapped to fit. */
     achievement: [string, string]
 }
 
 /**
- * One palette across all eight skill trees — navy field, bitcoin orange ring,
+ * One palette across all eight skill trees, navy field, bitcoin orange ring,
  * deep-orange highlights. Trees are peers (not ranked stages), so they share the
  * same visual family. What distinguishes them on the card is (a) the chip
  * text, (b) the subtitle eyebrow, and (c) the two-line achievement quote.
@@ -61,7 +61,7 @@ const THEMES: Record<Tree, Theme> = {
     money: {
         ...PALETTE,
         subtitle: 'Money Basics',
-        chipText: 'TREE · MONEY',
+        chipText: 'CHAPTER · MONEY',
         achievement: [
             'Learned what bitcoin is and',
             'why thinking in sats matters.',
@@ -70,16 +70,16 @@ const THEMES: Record<Tree, Theme> = {
     bitcoin: {
         ...PALETTE,
         subtitle: 'Bitcoin Protocol',
-        chipText: 'TREE · BITCOIN',
+        chipText: 'CHAPTER · BITCOIN',
         achievement: [
             'Blocks, fees, miners, and how',
-            'bitcoin moves — the base layer.',
+            'bitcoin moves, the base layer.',
         ],
     },
     lightning: {
         ...PALETTE,
         subtitle: 'Lightning Network',
-        chipText: 'TREE · LIGHTNING',
+        chipText: 'CHAPTER · LIGHTNING',
         achievement: [
             'Opened the door to fast,',
             'cheap, routable bitcoin payments.',
@@ -88,7 +88,7 @@ const THEMES: Record<Tree, Theme> = {
     nostr: {
         ...PALETTE,
         subtitle: 'Nostr & Zaps',
-        chipText: 'TREE · NOSTR',
+        chipText: 'CHAPTER · NOSTR',
         achievement: [
             'Real cryptographic identity,',
             'notes signed against no one.',
@@ -97,7 +97,7 @@ const THEMES: Record<Tree, Theme> = {
     ecash: {
         ...PALETTE,
         subtitle: 'eCash & Mints',
-        chipText: 'TREE · eCASH',
+        chipText: 'CHAPTER · eCASH',
         achievement: [
             'Bearer money in your pocket,',
             'redeemable to Lightning.',
@@ -106,16 +106,16 @@ const THEMES: Record<Tree, Theme> = {
     'self-custody': {
         ...PALETTE,
         subtitle: 'Self-custody',
-        chipText: 'TREE · SELF-CUSTODY',
+        chipText: 'CHAPTER · SELF-CUSTODY',
         achievement: [
-            'Keys, seeds, addresses, backups —',
+            'Keys, seeds, addresses, backups:',
             'your bitcoin, your responsibility.',
         ],
     },
     privacy: {
         ...PALETTE,
         subtitle: 'Privacy',
-        chipText: 'TREE · PRIVACY',
+        chipText: 'CHAPTER · PRIVACY',
         achievement: [
             'The chain is public.',
             'Now you know how to behave.',
@@ -124,7 +124,7 @@ const THEMES: Record<Tree, Theme> = {
     sovereignty: {
         ...PALETTE,
         subtitle: 'Full Independence',
-        chipText: 'TREE · SOVEREIGNTY',
+        chipText: 'CHAPTER · SOVEREIGNTY',
         achievement: [
             'Signet on-chain, your own node,',
             'the long game.',
@@ -146,7 +146,7 @@ const RANK_LABEL: Record<Tree, string> = {
 /**
  * Stable, short badge ID derived from participantId + tree. Looks like
  * `BP-LIG-A3F4B2C1`. Deterministic so re-downloads always show the same id.
- * Self-custody collapses to "SEL" — slugs with hyphens drop them first.
+ * Self-custody collapses to "SEL", slugs with hyphens drop them first.
  */
 export function badgeIdFor(participantId: string, tree: Tree): string {
     const prefix = tree.replace(/-/g, '').slice(0, 3).toUpperCase()
@@ -168,11 +168,11 @@ export function badgeIdFor(participantId: string, tree: Tree): string {
 }
 
 /**
- * Format a unix-seconds timestamp as a short English date — "MAY 18 · 2025".
+ * Format a unix-seconds timestamp as a short English date, "MAY 18 · 2025".
  * Keeps the badge readable across locales without pulling Intl polyfills.
  */
 export function formatBadgeDate(unixSeconds: number | null | undefined): string {
-    if (!unixSeconds) return '—'
+    if (!unixSeconds) return '·'
     const d = new Date(unixSeconds * 1000)
     const months = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC']
     return `${months[d.getUTCMonth()]} ${d.getUTCDate()} · ${d.getUTCFullYear()}`
@@ -196,7 +196,7 @@ const MEDAL_R_RING = 128
 const MEDAL_R_DISC = 100
 
 /**
- * Compass medallion glyph — the same 4-point cardinal compass + ₿ for
+ * Compass medallion glyph, the same 4-point cardinal compass + ₿ for
  * every tree. Trees are peers, not ranked stages, so they share one
  * emblem; the chip text and subtitle do the per-tree work.
  *
@@ -257,8 +257,8 @@ export const TierBadgeCard = forwardRef<SVGSVGElement, TierBadgeCardProps>(
                 role="img"
                 aria-label={
                     earnedAt
-                        ? `${label} skill-tree badge for ${safeName}, earned ${dateStr}. Badge ID ${badgeId}.`
-                        : `${label} skill-tree badge for ${safeName}. Badge ID ${badgeId}.`
+                        ? `${label} chapter badge for ${safeName}, earned ${dateStr}. Badge ID ${badgeId}.`
+                        : `${label} chapter badge for ${safeName}. Badge ID ${badgeId}.`
                 }
             >
                 <defs>
@@ -341,7 +341,7 @@ export const TierBadgeCard = forwardRef<SVGSVGElement, TierBadgeCardProps>(
                 />
 
                 {/* ── Layer 3: top metadata strip ─────────────────────────── */}
-                {/* Tree chip — left. Width auto-sized to fit longer tree
+                {/* Tree chip, left. Width auto-sized to fit longer tree
                     names like "SELF-CUSTODY" without truncation. */}
                 <g transform={`translate(48 56)`}>
                     <rect
@@ -368,7 +368,7 @@ export const TierBadgeCard = forwardRef<SVGSVGElement, TierBadgeCardProps>(
                         {theme.chipText}
                     </text>
                 </g>
-                {/* Badge ID — right */}
+                {/* Badge ID, right */}
                 <g transform={`translate(${W - 48} 56)`}>
                     <text
                         x="0"
@@ -401,7 +401,7 @@ export const TierBadgeCard = forwardRef<SVGSVGElement, TierBadgeCardProps>(
 
                 {/* ── Layer 5: medallion ──────────────────────────────────── */}
 
-                {/* Outer aura halo — two concentric soft rings */}
+                {/* Outer aura halo, two concentric soft rings */}
                 <circle
                     cx={CX}
                     cy={MEDAL_CY}
@@ -421,7 +421,7 @@ export const TierBadgeCard = forwardRef<SVGSVGElement, TierBadgeCardProps>(
                     strokeWidth="1"
                 />
 
-                {/* Tick marks around the outer aura — 60 small dashes */}
+                {/* Tick marks around the outer aura, 60 small dashes */}
                 {Array.from({ length: 60 }, (_, i) => {
                     const a = (i / 60) * 2 * Math.PI - Math.PI / 2
                     const rIn = MEDAL_R_OUTER + 6
@@ -507,7 +507,7 @@ export const TierBadgeCard = forwardRef<SVGSVGElement, TierBadgeCardProps>(
                     r={MEDAL_R_DISC}
                     fill={`url(#disc-${tree})`}
                 />
-                {/* Disc highlight crescent — top-left arc that gives the glass life */}
+                {/* Disc highlight crescent, top-left arc that gives the glass life */}
                 <path
                     d={`M ${CX - MEDAL_R_DISC * 0.78} ${MEDAL_CY - MEDAL_R_DISC * 0.35} ` +
                         `A ${MEDAL_R_DISC * 0.9} ${MEDAL_R_DISC * 0.9} 0 0 1 ` +
@@ -517,7 +517,7 @@ export const TierBadgeCard = forwardRef<SVGSVGElement, TierBadgeCardProps>(
                     strokeWidth="1.5"
                     strokeLinecap="round"
                 />
-                {/* Disc inner shadow at bottom — sells the depth */}
+                {/* Disc inner shadow at bottom, sells the depth */}
                 <circle
                     cx={CX}
                     cy={MEDAL_CY}

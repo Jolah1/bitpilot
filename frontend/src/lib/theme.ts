@@ -46,7 +46,7 @@ const TOKENS: Record<Theme, Record<string, string>> = {
     },
     light: {
         // Light-mode tokens. Bitcoin orange is darkened to clear AA contrast on
-        // light surfaces; the deep-orange accent likewise — a pale tint would vanish on
+        // light surfaces; the deep-orange accent likewise, a pale tint would vanish on
         // off-white. The dark mode goes navy; light mode stays warm parchment
         // so the two themes feel like daylight + night sky rather than two
         // mismatched colour systems.

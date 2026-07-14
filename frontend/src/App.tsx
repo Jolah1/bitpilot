@@ -57,7 +57,7 @@ type Screen = 'landing' | 'setup' | 'session-not-found' | 'app' | 'pair'
  * render one knows to display "Solo run" instead.
  *
  * Keep the prefix `__` so it can't collide with anything a human would
- * legitimately type — the backend only rejects empty names, not unusual
+ * legitimately type, the backend only rejects empty names, not unusual
  * ones.
  */
 export const SOLO_SESSION_NAME = '__solo__'
@@ -68,7 +68,7 @@ export function isSoloSessionName(name: string | null | undefined): boolean {
 /**
  * On first mount we try to:
  *   1. Restore a previous run from localStorage (full credentials present).
- *   2. Read `?session=<id>` from the URL — facilitators share a QR with this
+ *   2. Read `?session=<id>` from the URL, facilitators share a QR with this
  *      param, so the participant lands directly on the setup screen with
  *      the session id pre-filled. Note: only `session=` is honored; no auth
  *      tokens come from the URL. The participant must still enter a name.
@@ -88,13 +88,13 @@ function rehydrate(): {
     try {
         const url = new URL(window.location.href)
         const candidate = url.searchParams.get('session')
-        // UUID-shaped only — reject anything else so the URL bar can't
+        // UUID-shaped only, reject anything else so the URL bar can't
         // be used to inject arbitrary strings into our session_id field.
         if (candidate && /^[0-9a-f-]{36}$/i.test(candidate)) {
             deepLinkSessionId = candidate
         }
     } catch {
-        // SSR or weird URL — ignore.
+        // SSR or weird URL, ignore.
     }
 
     if (token && pid && sid) {
@@ -185,7 +185,7 @@ export default function App() {
             persistSessionId(sid)
             persistParticipantId(participant.id)
             setScreen('app')
-            // Clean up the URL — no need to keep ?session= hanging around.
+            // Clean up the URL, no need to keep ?session= hanging around.
             try {
                 const url = new URL(window.location.href)
                 url.searchParams.delete('session')
@@ -210,7 +210,7 @@ export default function App() {
         setLoading(false)
     }
 
-    /** "Exit" button — drop back to landing AND wipe credentials. */
+    /** "Exit" button, drop back to landing AND wipe credentials. */
     const onExitToLanding = () => {
         clearAllTokens()
         setSessionId(null)
@@ -222,7 +222,7 @@ export default function App() {
     }
 
     /**
-     * Soft "home" — go back to the landing page WITHOUT wiping credentials.
+     * Soft "home", go back to the landing page WITHOUT wiping credentials.
      * Triggered by clicking the BitPilot logo in the app shell. The user
      * lands on the marketing page and the "Continue your missions" pill
      * is visible because `sessionId` and `participantId` are still set.
@@ -455,7 +455,7 @@ function Setup({
 
                         {/* Joining a session means the name lands on the host's
                             live dashboard. Say so plainly, and make clear a
-                            nickname is fine — this is the point of entry where a
+                            nickname is fine, this is the point of entry where a
                             learner in a sensitive context would want to know. */}
                         {joining && (
                             <p
@@ -513,7 +513,7 @@ function Setup({
                             disabled={loading || !participantName.trim()}
                             aria-busy={loading}
                         >
-                            {loading ? 'Starting…' : 'Start the first mission →'}
+                            {loading ? 'Starting…' : 'Start the first mission'}
                         </button>
                     </div>
                 </div>
@@ -527,7 +527,7 @@ function Setup({
 // The receiving side of "continue on another device". The learner opens
 // BitPilot on a new device, lands here, and types the one-time code shown on
 // their first device. On redeem, `api.redeemPairingCode` persists the fresh
-// credentials and we boot straight into their session — same progress, new
+// credentials and we boot straight into their session, same progress, new
 // device. (The first device is signed out server-side; see the pairing route.)
 function PairDevice({
     theme,
@@ -675,7 +675,7 @@ function PairDevice({
                             disabled={loading || !code.trim()}
                             aria-busy={loading}
                         >
-                            {loading ? 'Continuing…' : 'Continue →'}
+                            {loading ? 'Continuing…' : 'Continue'}
                         </button>
                     </div>
                 </div>
@@ -695,7 +695,7 @@ function PairDevice({
 // Why a dedicated screen instead of an inline form error: the form copy
 // reads "Pick a name and you're in" which is a lie when the session is
 // gone. A separate splash sets expectations honestly and offers the only
-// useful action — start a fresh solo run.
+// useful action, start a fresh solo run.
 function SessionNotFound({
     theme,
     onToggleTheme,
@@ -783,7 +783,7 @@ function SessionNotFound({
                             }}
                         >
                             The link you opened points to a session that no
-                            longer exists — it may have ended, or the code is
+                            longer exists, it may have ended, or the code is
                             slightly off. No worries: you can still earn every
                             badge on your own.
                         </p>
@@ -797,7 +797,7 @@ function SessionNotFound({
                             }}
                             onClick={onStartFresh}
                         >
-                            Start a fresh solo run →
+                            Start a fresh solo run
                         </button>
                     </div>
                 </div>
@@ -989,7 +989,7 @@ function AppShell({
                     gap: 8,
                 }}
             >
-                {/* Clickable logo — soft "home". Goes back to the landing
+                {/* Clickable logo, soft "home". Goes back to the landing
                     page without clearing credentials, so the user can hit
                     "Continue your missions" to come right back. Styled as
                     a bare button so it inherits the same visual treatment
@@ -1080,7 +1080,7 @@ function AppShell({
                 )}
             </header>
 
-            {/* Mobile menu — slides in below the header */}
+            {/* Mobile menu, slides in below the header */}
             {!isWide && menuOpen && (
                 <div
                     id="app-shell-menu"

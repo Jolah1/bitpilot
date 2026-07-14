@@ -1,5 +1,5 @@
 // Shared inline-style helpers. The whole codebase styles components with
-// inline style objects pointing at CSS variables (`var(--bg)` etc.) — keeping
+// inline style objects pointing at CSS variables (`var(--bg)` etc.), keeping
 // the styles centralized here means a typo or token rename only needs fixing
 // in one place.
 
@@ -8,7 +8,7 @@ import type { Tree } from './types'
 
 // A layered background paints a 1px translucent highlight along the top
 // edge over the surface colour. It's the trick that makes the card read
-// as a screen bezel rather than a flat rectangle — CSS pseudo-elements
+// as a screen bezel rather than a flat rectangle, CSS pseudo-elements
 // don't work in inline styles, but a gradient layer does.
 const TOP_EDGE_HIGHLIGHT =
     'linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0px, transparent 1.5px)'
@@ -64,7 +64,7 @@ export const primaryButton = (disabled = false): CSSProperties => ({
     opacity: disabled ? 0.5 : 1,
     // The top inset highlight is what makes the button look like a
     // physical chip rather than a coloured rectangle. Hover/active
-    // transforms live in .bp-press in index.css — pair this style with
+    // transforms live in .bp-press in index.css, pair this style with
     // className="bp-press" to get the lift on hover.
     boxShadow:
         '0 1px 0 rgba(0,0,0,0.1), 0 4px 16px rgba(247, 147, 26, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.18)',

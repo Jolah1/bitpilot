@@ -11,20 +11,20 @@ import { card, chip, ghostButton, primaryButton } from '../lib/ui'
 // Landing is intentionally outcome-driven, not curriculum-driven. The job of
 // each section, top to bottom:
 //
-//   1. Hero            — promise the transformation in two sentences.
-//   2. How It Works    — show the 4-step loop so the offer feels concrete.
-//   3. Your Journey    — eight skill trees in plain language (no NIP-05, no jargon).
-//   4. Why this works  — emotional section: name the failure mode of video-
+//   1. Hero           , promise the transformation in two sentences.
+//   2. How It Works   , show the 4-step loop so the offer feels concrete.
+//   3. Your Journey   , eight skill trees in plain language (no NIP-05, no jargon).
+//   4. Why this works , emotional section: name the failure mode of video-
 //                        based learning and contrast it.
-//   5. Safe by design  — checklist that defuses the "is this real money?"
+//   5. Safe by design , checklist that defuses the "is this real money?"
 //                        fear before the user has to ask.
-//   6. Who it's for    — let the visitor self-identify.
-//   7. Footer CTA      — one last invitation, then the slim footer.
+//   6. Who it's for   , let the visitor self-identify.
+//   7. Footer CTA     , one last invitation, then the slim footer.
 //
 // Copy guideline: never name a protocol the visitor hasn't met yet.
 // "NIP-05", "secp256k1", "BIP39" all belong inside missions, not on the door.
 //
-// This whole module is lazy-loaded from App.tsx — a returning user resuming
+// This whole module is lazy-loaded from App.tsx, a returning user resuming
 // via deep link or a PWA launch never pays for the ~1100 lines of marketing
 // JSX below. Keep the section components co-located here so the chunk stays
 // self-contained; if you split them across files, Vite will still bundle
@@ -111,7 +111,7 @@ function Hero({
             }}
         >
             {/* Background glow pool. Sits behind the medallion and bleeds
-                into the section background — a soft navy-to-bg radial that
+                into the section background, a soft navy-to-bg radial that
                 gives the medallion something to "float" against without
                 hard edges. Pointer-events:none so it doesn't intercept
                 clicks on the CTAs above the fold. */}
@@ -160,7 +160,7 @@ function Hero({
 
             {/* Two short sentences. First names the failure mode; second
                 states the cure. Anything longer here turns the hero into
-                a paragraph — exactly the documentation-shaped page we're
+                a paragraph, exactly the documentation-shaped page we're
                 trying to escape. */}
             <p
                 style={{
@@ -175,7 +175,7 @@ function Hero({
                 Most people watch videos about Bitcoin and stay confused.
                 BitPilot teaches you by making you{' '}
                 <strong style={{ color: 'var(--text)' }}>actually do it</strong>{' '}
-                — wallets, Lightning, Nostr, the whole stack — in short, hands-on missions.
+               , wallets, Lightning, Nostr, the whole stack, in short, hands-on missions.
             </p>
 
             <div
@@ -317,13 +317,13 @@ function HeroMedallion() {
                     </radialGradient>
                 </defs>
 
-                {/* Outer glow disc — pulses softly. */}
+                {/* Outer glow disc, pulses softly. */}
                 <circle cx="200" cy="200" r="190" fill="url(#bp-hero-glow)" className="bp-hero-glow" style={{ transformOrigin: '200px 200px' }} />
 
                 {/* Navy backplate. */}
                 <circle cx="200" cy="200" r="160" fill="url(#bp-hero-bg)" stroke="rgba(255, 171, 145, 0.18)" strokeWidth="1" />
 
-                {/* Tick ring — 24 small marks evenly spaced. Rotates slowly
+                {/* Tick ring, 24 small marks evenly spaced. Rotates slowly
                     to give a sense of an instrument in motion. */}
                 <g className="bp-hero-halo" style={{ transformOrigin: '200px 200px' }}>
                     {Array.from({ length: 24 }).map((_, i) => {
@@ -345,7 +345,7 @@ function HeroMedallion() {
                     <circle cx="200" cy="200" r="146" fill="none" stroke="rgba(255, 171, 145, 0.35)" strokeWidth="1" />
                 </g>
 
-                {/* Compass star — same geometry as favicon, scaled. */}
+                {/* Compass star, same geometry as favicon, scaled. */}
                 <g transform="translate(200 200)">
                     {/* Diagonals (back layer, dimmer). */}
                     <g transform="rotate(45)" fill="url(#bp-hero-star)" opacity="0.55">
@@ -377,7 +377,7 @@ function HeroMedallion() {
                     </text>
                 </g>
 
-                {/* Scattered sparkle dots — light atmosphere, brand
+                {/* Scattered sparkle dots, light atmosphere, brand
                     consistency with star gradient. */}
                 <g fill="#FFAB91">
                     <circle cx="80" cy="120" r="1.8" opacity="0.7" />
@@ -415,7 +415,7 @@ function HowItWorks() {
         {
             n: '4',
             title: 'Level Up',
-            body: 'Finish a skill tree, earn the medallion, pick the next one.',
+            body: 'Finish a chapter, earn the medallion, pick the next one.',
         },
     ]
     return (
@@ -515,14 +515,14 @@ const TREE_PITCH: Record<string, TreePitch> = {
     nostr:          { icon: '🪪', outcome: 'Identity and notes nobody owns but you.' },
     ecash:          { icon: '🎟️', outcome: 'Private bearer money, redeemable to Lightning.' },
     'self-custody': { icon: '🔑', outcome: 'Wallets, seeds, hardware, multisig.' },
-    privacy:        { icon: '🕵️', outcome: 'The chain is public — act accordingly.' },
+    privacy:        { icon: '🕵️', outcome: 'The chain is public, act accordingly.' },
     sovereignty:    { icon: '🚀', outcome: 'Signet on-chain, your own node, the long game.' },
 }
 
 /**
  * Horizontally scroll-snapped slider. CSS scroll-snap + overflow-x: auto
  * gives us touch swiping on mobile and mouse-wheel/drag on desktop with
- * no JS library. The arrow buttons on desktop are pure ergonomics — the
+ * no JS library. The arrow buttons on desktop are pure ergonomics, the
  * slider works without them.
  */
 function YourJourney() {
@@ -549,7 +549,7 @@ function YourJourney() {
             <SectionHeading
                 id="journey-headline"
                 eyebrow="Your journey"
-                title="Eight skill trees, take them in any order."
+                title="Eight chapters, take them in any order."
             />
 
             <div style={{ position: 'relative' }}>
@@ -597,7 +597,7 @@ function YourJourney() {
                     marginTop: 12,
                 }}
             >
-                Eight trees · short missions · pick any starting point
+                Eight chapters · short missions · pick any starting point
             </p>
         </section>
     )
@@ -627,7 +627,7 @@ function TierSlide({
                 gap: 12,
                 minHeight: 200,
             }}
-            aria-label={`Skill tree ${index} of ${total}: ${t.label}`}
+            aria-label={`Chapter ${index} of ${total}: ${t.label}`}
         >
             <div
                 aria-hidden="true"
@@ -656,7 +656,7 @@ function TierSlide({
                     fontFamily: 'var(--font-mono)',
                 }}
             >
-                Tree {index} / {total}
+                Chapter {index} / {total}
             </div>
             <h3
                 style={{
@@ -708,10 +708,10 @@ function SliderArrows({ onLeft, onRight }: { onLeft: () => void; onRight: () => 
                 marginTop: 4,
             }}
         >
-            <button type="button" onClick={onLeft} style={btn} aria-label="Scroll trees left">
+            <button type="button" onClick={onLeft} style={btn} aria-label="Scroll chapters left">
                 ←
             </button>
-            <button type="button" onClick={onRight} style={btn} aria-label="Scroll trees right">
+            <button type="button" onClick={onRight} style={btn} aria-label="Scroll chapters right">
                 →
             </button>
         </div>
@@ -750,7 +750,7 @@ function WhyThisWorks() {
                 >
                     Most Bitcoin education fails.
                 </h2>
-                {/* One line. The contrast does the work — anything longer
+                {/* One line. The contrast does the work, anything longer
                     reads as a lecture, which is exactly what we're
                     accusing the alternative of. */}
                 <p
@@ -800,7 +800,7 @@ function SafeByDesign() {
     const anySimulated = !lnReal || !ecashReal
 
     const tiles: Array<{ icon: string; label: string; sub: string }> = [
-        { icon: '🛡️', label: 'No real money', sub: 'Testnet only — mainnet is never touched.' },
+        { icon: '🛡️', label: 'No real money', sub: 'Testnet only, mainnet is never touched.' },
         { icon: '🔒', label: 'Your keys, your browser', sub: 'Keys are generated locally and stay with you.' },
         { icon: '🌍', label: 'Open source', sub: 'Every line of code is on GitHub.' },
         { icon: '🎁', label: 'Free forever', sub: 'No accounts, no upsells, nothing to buy.' },
@@ -1139,7 +1139,7 @@ function SiteFooter() {
                     alignItems: 'start',
                 }}
             >
-                {/* Column 1 — brand + one-liner */}
+                {/* Column 1, brand + one-liner */}
                 <div>
                     <div
                         style={{
@@ -1167,7 +1167,7 @@ function SiteFooter() {
                     </p>
                 </div>
 
-                {/* Column 2 — links */}
+                {/* Column 2, links */}
                 <div>
                     <h3
                         style={{
@@ -1308,7 +1308,7 @@ function TopNav({
                     }}
                     onClick={onCta}
                 >
-                    Start →
+                    Start
                 </button>
             </div>
         </nav>
