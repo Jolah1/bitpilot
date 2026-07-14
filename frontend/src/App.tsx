@@ -1157,7 +1157,10 @@ function AppShell({
                 ) : (
                     <Suspense fallback={<ViewLoading />}>
                         {isSolo ? (
-                            <SoloProgressView participantId={participantId!} />
+                            <SoloProgressView
+                                participantId={participantId!}
+                                onResume={() => setView('learner')}
+                            />
                         ) : (
                             <FacilitatorDashboard sessionId={sessionId!} />
                         )}
