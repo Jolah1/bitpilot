@@ -27,6 +27,10 @@ pub struct Participant {
     /// is done; `Some(n)` is the next mission to take.
     pub current_per_tree: BTreeMap<Tree, Option<u8>>,
     pub nostr_pubkey: Option<String>,
+    /// Unix seconds of the participant's last activity (join, or a mission
+    /// completion). The facilitator dashboard uses it to flag learners who
+    /// have stalled. Set on join, bumped on every mission completion.
+    pub last_active: u64,
 }
 
 impl Participant {
