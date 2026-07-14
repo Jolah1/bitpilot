@@ -49,7 +49,7 @@ export function TierProgressionMark({
                     fontFamily="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif"
                     fontWeight={900}
                     fontSize={20}
-                    fill={earned ? '#FFE7C2' : 'rgba(255, 231, 194, 0.6)'}
+                    fill={earned ? '#FFCCBC' : 'rgba(255, 204, 188, 0.6)'}
                 >
                     ₿
                 </text>

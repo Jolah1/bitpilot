@@ -16,7 +16,7 @@ import { useFocusTrap } from '../lib/useFocusTrap'
 import { TierBadgeCard, badgeIdFor } from './TierBadgeCard'
 import { ShareBadgeModal } from './ShareBadgeModal'
 
-const CONFETTI_COLORS = ['#F7931A', '#FFD27A', '#FFE7C2', '#FFFFFF']
+const CONFETTI_COLORS = ['#F7931A', '#FFAB91', '#FFCCBC', '#FFFFFF']
 const CONFETTI_COUNT = 36
 
 /**
@@ -176,7 +176,7 @@ export function BadgeCelebrationModal({
                         fontSize: 12,
                         fontWeight: 800,
                         letterSpacing: '0.32em',
-                        color: '#FFD27A',
+                        color: '#FFAB91',
                         textTransform: 'uppercase',
                     }}
                 >

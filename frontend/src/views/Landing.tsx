@@ -306,7 +306,7 @@ function HeroMedallion() {
                         <stop offset="100%" stopColor="#0B1220" />
                     </radialGradient>
                     <linearGradient id="bp-hero-star" x1="0%" y1="0%" x2="100%" y2="100%">
-                        <stop offset="0%" stopColor="#FFE7C2" />
+                        <stop offset="0%" stopColor="#FFCCBC" />
                         <stop offset="50%" stopColor="#F7931A" />
                         <stop offset="100%" stopColor="#E07A0A" />
                     </linearGradient>
@@ -321,7 +321,7 @@ function HeroMedallion() {
                 <circle cx="200" cy="200" r="190" fill="url(#bp-hero-glow)" className="bp-hero-glow" style={{ transformOrigin: '200px 200px' }} />
 
                 {/* Navy backplate. */}
-                <circle cx="200" cy="200" r="160" fill="url(#bp-hero-bg)" stroke="rgba(255, 210, 122, 0.18)" strokeWidth="1" />
+                <circle cx="200" cy="200" r="160" fill="url(#bp-hero-bg)" stroke="rgba(255, 171, 145, 0.18)" strokeWidth="1" />
 
                 {/* Tick ring — 24 small marks evenly spaced. Rotates slowly
                     to give a sense of an instrument in motion. */}
@@ -336,13 +336,13 @@ function HeroMedallion() {
                                 y={isCardinal ? 50 : 54}
                                 width="2"
                                 height={isCardinal ? 14 : 8}
-                                fill={isCardinal ? '#FFD27A' : 'rgba(255, 210, 122, 0.4)'}
+                                fill={isCardinal ? '#FFAB91' : 'rgba(255, 171, 145, 0.4)'}
                                 transform={`rotate(${angle} 200 200)`}
                             />
                         )
                     })}
-                    {/* Hairline gold ring just inside the ticks. */}
-                    <circle cx="200" cy="200" r="146" fill="none" stroke="rgba(255, 210, 122, 0.35)" strokeWidth="1" />
+                    {/* Hairline accent ring just inside the ticks. */}
+                    <circle cx="200" cy="200" r="146" fill="none" stroke="rgba(255, 171, 145, 0.35)" strokeWidth="1" />
                 </g>
 
                 {/* Compass star — same geometry as favicon, scaled. */}
@@ -363,7 +363,7 @@ function HeroMedallion() {
                     </g>
                     {/* Central medallion. */}
                     <circle cx="0" cy="0" r="56" fill="#0B1220" stroke="#F7931A" strokeWidth="4" />
-                    <circle cx="0" cy="0" r="48" fill="none" stroke="rgba(255, 210, 122, 0.4)" strokeWidth="1" />
+                    <circle cx="0" cy="0" r="48" fill="none" stroke="rgba(255, 171, 145, 0.4)" strokeWidth="1" />
                     <text
                         x="0"
                         y="22"
@@ -371,7 +371,7 @@ function HeroMedallion() {
                         fontFamily="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif"
                         fontWeight={900}
                         fontSize={68}
-                        fill="#FFE7C2"
+                        fill="#FFCCBC"
                     >
                         ₿
                     </text>
@@ -379,7 +379,7 @@ function HeroMedallion() {
 
                 {/* Scattered sparkle dots — light atmosphere, brand
                     consistency with star gradient. */}
-                <g fill="#FFD27A">
+                <g fill="#FFAB91">
                     <circle cx="80" cy="120" r="1.8" opacity="0.7" />
                     <circle cx="330" cy="100" r="1.4" opacity="0.6" />
                     <circle cx="350" cy="280" r="2.2" opacity="0.5" />

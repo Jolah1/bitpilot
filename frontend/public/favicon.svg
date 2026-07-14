@@ -12,7 +12,7 @@
             <stop offset="100%" stop-color="#0B1220" />
         </radialGradient>
         <linearGradient id="bp-fav-star" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stop-color="#FFD27A" />
+            <stop offset="0%" stop-color="#FFAB91" />
             <stop offset="55%" stop-color="#F7931A" />
             <stop offset="100%" stop-color="#E07A0A" />
         </linearGradient>
@@ -40,5 +40,5 @@
          accent from the star points instead of looking sterile. -->
     <text x="32" y="40" text-anchor="middle"
         font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif"
-        font-weight="900" font-size="20" fill="#FFE7C2">₿</text>
+        font-weight="900" font-size="20" fill="#FFCCBC">₿</text>
 </svg>

@@ -24,7 +24,7 @@ export function BrandMark({ size }: { size: number }) {
                         <stop offset="100%" stopColor="#0B1220" />
                     </radialGradient>
                     <linearGradient id="bp-mini-star" x1="0%" y1="0%" x2="100%" y2="100%">
-                        <stop offset="0%" stopColor="#FFD27A" />
+                        <stop offset="0%" stopColor="#FFAB91" />
                         <stop offset="55%" stopColor="#F7931A" />
                         <stop offset="100%" stopColor="#E07A0A" />
                     </linearGradient>
@@ -51,7 +51,7 @@ export function BrandMark({ size }: { size: number }) {
                         fontFamily="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif"
                         fontWeight={900}
                         fontSize={16}
-                        fill="#FFE7C2"
+                        fill="#FFCCBC"
                     >
                         ₿
                     </text>
