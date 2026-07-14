@@ -1,7 +1,7 @@
 /**
  * Solo learner achievement + progress dashboard.
  *
- * Replaces the FacilitatorDashboard for solo learners — the multi-participant
+ * Replaces the FacilitatorDashboard for solo learners, the multi-participant
  * table layout doesn't make sense when there's only one person in the
  * session. This view focuses on the individual: total missions completed,
  * skill trees earned, current target, and clickable tree badges that open
@@ -43,7 +43,7 @@ export default function SoloProgressView({
                 setParticipant(p)
                 setBadges(b)
             } catch {
-                // Keep the empty state — the network error will show in
+                // Keep the empty state, the network error will show in
                 // LearnerView too, no need to duplicate it here.
             } finally {
                 if (!cancelled) setLoading(false)
@@ -126,7 +126,7 @@ export default function SoloProgressView({
             >
                 <Stat label="Missions" value={`${completed.length}/${MISSION_COUNT}`} />
                 <Stat
-                    label="Trees earned"
+                    label="Chapters earned"
                     value={`${earnedBadges}/${TREES.length}`}
                     accent={earnedBadges > 0}
                 />
@@ -134,7 +134,7 @@ export default function SoloProgressView({
             </section>
 
             {/* Tree progress bars */}
-            <section aria-label="Tree progress" style={{ ...card, padding: 16 }}>
+            <section aria-label="Chapter progress" style={{ ...card, padding: 16 }}>
                 <h2
                     style={{
                         margin: 0,
@@ -213,7 +213,7 @@ export default function SoloProgressView({
             </section>
 
             {/* Badge gallery */}
-            <section aria-label="Tree badges" style={{ ...card, padding: 16 }}>
+            <section aria-label="Chapter badges" style={{ ...card, padding: 16 }}>
                 <h2
                     style={{
                         margin: 0,
@@ -234,7 +234,7 @@ export default function SoloProgressView({
                     }}
                 >
                     {earnedBadges === 0
-                        ? `Finish every lesson in a skill tree to unlock its medallion. ${TREES[0].label} is ${TREES[0].missions.length} missions.`
+                        ? `Finish every lesson in a chapter to unlock its medallion. ${TREES[0].label} is ${TREES[0].missions.length} missions.`
                         : 'Tap an earned badge to download or share it.'}
                 </p>
                 <div
@@ -361,7 +361,7 @@ export default function SoloProgressView({
                                     minHeight: 44,
                                 }}
                             >
-                                Continue your missions →
+                                Continue your missions
                             </button>
                         )}
                     </section>
@@ -393,7 +393,7 @@ function Stat({
             <div
                 style={{
                     // Display-size numeric: scales from phone to desktop.
-                    // The big number is the "wow" — the label is supporting.
+                    // The big number is the "wow", the label is supporting.
                     fontSize: 'clamp(30px, 7vw, 44px)',
                     fontWeight: 900,
                     lineHeight: 1,

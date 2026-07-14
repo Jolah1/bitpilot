@@ -6,7 +6,7 @@
  * behind it. Two actions: Save badge (→ ShareBadgeModal) and Continue.
  *
  * Stays open until the learner explicitly dismisses via Continue (or the
- * backdrop / Escape). Intentionally a big interrupt — the moment of
+ * backdrop / Escape). Intentionally a big interrupt, the moment of
  * earning is the one we want to celebrate hard.
  */
 import { useEffect, useRef, useState } from 'react'
@@ -180,7 +180,7 @@ export function BadgeCelebrationModal({
                         textTransform: 'uppercase',
                     }}
                 >
-                    Tree complete
+                    Chapter complete
                 </div>
                 <h1
                     style={{
@@ -196,7 +196,7 @@ export function BadgeCelebrationModal({
                     You earned the {label} badge
                 </h1>
 
-                {/* The badge itself — swings gently. */}
+                {/* The badge itself, swings gently. */}
                 <div
                     className="bp-celebrate-badge"
                     style={{
@@ -228,9 +228,9 @@ export function BadgeCelebrationModal({
                         lineHeight: 1.5,
                     }}
                 >
-                    You completed every lesson in the {label} tree ({badge.required} mission{badge.required === 1 ? '' : 's'}).{' '}
+                    You completed every lesson in the {label} chapter ({badge.required} mission{badge.required === 1 ? '' : 's'}).{' '}
                     <strong style={{ color: '#FFFFFF' }}>
-                        Save the badge or share it — it's yours.
+                        Save the badge or share it, it's yours.
                     </strong>
                 </div>
 
@@ -258,7 +258,7 @@ export function BadgeCelebrationModal({
                         onClick={onClose}
                         style={ghost()}
                     >
-                        Continue mission →
+                        Continue mission
                     </button>
                 </div>
                 <div

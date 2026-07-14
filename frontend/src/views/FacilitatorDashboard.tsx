@@ -20,7 +20,7 @@ const isFinished = (p: Participant) => p.completed_missions.length === MISSION_C
  * progress strip for each participant.
  *
  * The earlier design tried to render a column grid one per mission. At
- * 60+ missions that becomes ~2000px wide — completely broken on every
+ * 60+ missions that becomes ~2000px wide, completely broken on every
  * viewport. New design: 8 tree bars per participant, plus a percentage
  * and current-mission tag. Same info, much smaller footprint, works on
  * mobile.
@@ -193,7 +193,7 @@ export default function FacilitatorDashboard({ sessionId }: { sessionId: string 
 
             {/* Tree legend */}
             <section
-                aria-label="Tree legend"
+                aria-label="Chapter legend"
                 style={{
                     ...card,
                     padding: 12,
@@ -228,14 +228,14 @@ export default function FacilitatorDashboard({ sessionId }: { sessionId: string 
                 ))}
             </section>
 
-            {/* Mission distribution — answers "where is everyone right now?" */}
+            {/* Mission distribution, answers "where is everyone right now?" */}
             {participants.length > 0 && <MissionHistogram participants={participants} />}
 
-            {/* Leaderboard — who is furthest along. Facilitator-only surface, so
+            {/* Leaderboard, who is furthest along. Facilitator-only surface, so
                 it exposes nothing the host cannot already see in the grid below. */}
             {participants.length > 0 && <Leaderboard participants={participants} />}
 
-            {/* Participant rows — a responsive grid so a facilitator scanning a
+            {/* Participant rows, a responsive grid so a facilitator scanning a
                 room sees many learners at once, not one tall single column. */}
             {participants.length === 0 ? (
                 <section
@@ -394,7 +394,7 @@ function MissionHistogram({ participants }: { participants: Participant[] }) {
                 </span>
             </div>
             {/* At 60+ missions a `repeat(MISSION_COUNT, 1fr)` grid produces
-                ~5px columns on a 360px viewport — bars vanish. Wrap in a
+                ~5px columns on a 360px viewport, bars vanish. Wrap in a
                 horizontal scroller with a min-width so each bar gets at
                 least ~10px even on mobile; the inner grid still pays the
                 tree color cue, the scroll lets a touch user investigate. */}
@@ -427,7 +427,7 @@ function MissionHistogram({ participants }: { participants: Participant[] }) {
                             return (
                                 <div
                                     key={idx}
-                                    title={`Mission ${idx} (${t.label}) — ${c} learner${c === 1 ? '' : 's'}`}
+                                    title={`Mission ${idx} (${t.label}), ${c} learner${c === 1 ? '' : 's'}`}
                                     style={{
                                         height: `${heightPct}%`,
                                         background: c === 0 ? 'var(--border)' : treeColor(t.key),
@@ -626,7 +626,7 @@ function ParticipantRow({ participant, stuckMs }: { participant: Participant; st
                         gridTemplateColumns: `repeat(${TREES.length}, 1fr)`,
                         gap: 4,
                     }}
-                    aria-label="Per-tree progress"
+                    aria-label="Per-chapter progress"
                 >
                     {TREES.map((t) => {
                         const total = t.missions.length

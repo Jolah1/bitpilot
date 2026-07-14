@@ -9,12 +9,12 @@
  * - Facilitator token: returned once from `createSession()`, sent as
  *   `X-Facilitator-Key` on the admin endpoints.
  *
- * The UI layer never touches these directly — it calls the api methods as
+ * The UI layer never touches these directly, it calls the api methods as
  * if the backend were unauthenticated, and this module handles the rest.
  * If you ever need to force-clear them (e.g. user logs out / starts over),
  * call `clearAllTokens()` from `./auth`.
  *
- * Identity material (nsec, BIP39 mnemonic) is *not* in this module — it
+ * Identity material (nsec, BIP39 mnemonic) is *not* in this module, it
  * never crosses the wire except where a specific mission requires sending
  * the nsec for one-shot signing. See ./crypto.ts for client-side
  * generation and ./auth.ts for storage.
@@ -302,7 +302,7 @@ export const api = {
             auth: 'participant',
         }),
 
-    /** Currently simulated — produces a synthetic zap receipt event id. */
+    /** Currently simulated, produces a synthetic zap receipt event id. */
     simulateNostrZap: () =>
         request<NostrZapResponse>('/nostr/zap', {
             method: 'POST',

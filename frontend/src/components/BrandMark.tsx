@@ -1,5 +1,5 @@
 /**
- * Compact compass-medallion brand mark — navbar/footer/chip size.
+ * Compact compass-medallion brand mark, navbar/footer/chip size.
  * Mirrors the favicon and PWA icon at small sizes: 8-point compass star
  * around a central ₿ medallion on a navy disc. Static (no animation)
  * since this sits in chrome where motion would be distracting.

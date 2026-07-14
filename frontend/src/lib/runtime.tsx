@@ -36,7 +36,7 @@ export function useRuntime(): RuntimeInfo | null {
  *   public testnut, so this is true out of the box).
  *
  * When the `/api/runtime` call hasn't completed yet we assume worst case
- * (simulated) for lightning and ecash — better to under-claim than over-claim.
+ * (simulated) for lightning and ecash, better to under-claim than over-claim.
  */
 export function useIsTechReal(tech: Tech): boolean {
     const runtime = useRuntime()

@@ -123,7 +123,7 @@ export async function openApp(browser, creds, identity = {}) {
 
 /** From the learner view, open a tree's current mission by label. */
 export async function enterTree(page, treeLabel) {
-    const trees = page.getByRole('button', { name: /^Trees|← Trees/i })
+    const trees = page.getByRole('button', { name: /^Chapters|← Chapters/i })
     if (await trees.count()) {
         await trees.first().click({ force: true })
         await sleep(400)

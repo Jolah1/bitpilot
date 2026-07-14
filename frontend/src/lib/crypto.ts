@@ -37,7 +37,7 @@ export async function sha256Hex(input: string): Promise<string> {
 // ─── Nostr ────────────────────────────────────────────────────────────────
 
 export interface NostrKeypair {
-    /** Hex secret key. Internal — use nsec for display & transport. */
+    /** Hex secret key. Internal, use nsec for display & transport. */
     skHex: string
     /** Hex public key. Used to derive the bech32 npub. */
     pkHex: string
@@ -81,7 +81,7 @@ function nsecToBytes(nsec: string): Uint8Array {
  * (id + pubkey + signature filled in). Pass the result to
  * `api.broadcastNostrEvent` to push it to relays via the backend.
  *
- * Signing happens entirely client-side — the nsec never leaves this
+ * Signing happens entirely client-side, the nsec never leaves this
  * function. The backend receives only the signed event, which it cannot
  * tamper with (any tampering invalidates the signature, and the broadcast
  * endpoint re-verifies before publishing).
@@ -162,18 +162,18 @@ export function generateBip39Mnemonic(): string {
 /**
  * Derive the first BIP84 receive address from a BIP39 mnemonic.
  *
- * Path: m/84'/0'/0'/0/0 — the standard "first native-segwit receive address"
+ * Path: m/84'/0'/0'/0/0, the standard "first native-segwit receive address"
  * that almost every modern wallet (Sparrow, Electrum, BlueWallet, Phoenix
  * on-chain) generates by default.
  *
  * Returns a bech32 mainnet address (bc1...). We intentionally use mainnet
  * derivation because the pedagogical point is "this is what a real address
- * looks like" — not "this is an address you can spend from". Nobody can
+ * looks like", not "this is an address you can spend from". Nobody can
  * spend from it without the same mnemonic, and the mnemonic is generated
  * locally.
  *
  * NOTE: this is a thin pedagogical implementation. We derive the key but
- * we don't actually encode the segwit address — to keep dependencies
+ * we don't actually encode the segwit address, to keep dependencies
  * narrow, we hex-encode the compressed public-key hash and prefix it with
  * "bc1q…demo" so the user sees an address-shaped string. The backend
  * verifier only checks the prefix "bc1", "tb1", or "bcrt1".

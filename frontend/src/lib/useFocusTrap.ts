@@ -5,7 +5,7 @@
  * Why: BitPilot's modals (badge celebration, share badge) dim the page
  * behind them. Without a trap, a keyboard user pressing
  * Tab eventually walks out of the modal into the still-rendered page
- * underneath — a confusing, inaccessible experience.
+ * underneath, a confusing, inaccessible experience.
  *
  * Usage:
  *   const ref = useRef<HTMLDivElement>(null)
@@ -15,7 +15,7 @@
  * Notes:
  *   - We re-query focusable elements on every Tab so dynamic content
  *     (e.g. a success message replacing a form) is handled correctly.
- *   - We don't auto-focus the first element here — each modal already
+ *   - We don't auto-focus the first element here, each modal already
  *     manages its own initial focus, often on a primary action rather
  *     than the topmost focusable. The trap just keeps focus contained.
  */

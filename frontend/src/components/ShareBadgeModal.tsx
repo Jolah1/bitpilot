@@ -2,7 +2,7 @@
  * Modal that displays the TierBadgeCard and offers download/share actions.
  *
  * Why client-side rasterization: the badge is purely a function of the
- * participant's name, tree, earned-at, and id — no server roundtrip needed.
+ * participant's name, tree, earned-at, and id, no server roundtrip needed.
  * SVG download serializes the in-DOM <svg>; PNG download draws that SVG
  * onto a 1200x1600 offscreen canvas (2x retina) for a crisp social-share
  * image. No third-party libs.
@@ -36,7 +36,7 @@ function treeLabelOf(tree: string): string {
 // fragment derivable from the participant, and a public post is the last
 // place that belongs.
 function buildShareText(tree: string): string {
-    return `I just earned my ${treeLabelOf(tree)} badge on BitPilot — learning Bitcoin by doing.`
+    return `I just earned my ${treeLabelOf(tree)} badge on BitPilot, learning Bitcoin by doing.`
 }
 
 export function ShareBadgeModal({

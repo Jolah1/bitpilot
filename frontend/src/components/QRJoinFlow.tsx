@@ -12,7 +12,7 @@ import { chip, ghostButton } from '../lib/ui'
  * Rendering note: we draw the QR via a *callback ref*, not a useEffect, so
  * the QR appears the instant the canvas element mounts. The previous
  * implementation used `useRef + useEffect([joinUrl])` which fired before
- * the canvas existed — the ref was null at effect time, the effect's
+ * the canvas existed, the ref was null at effect time, the effect's
  * dependency (`joinUrl`) never changed afterwards, and the QR never drew.
  */
 export function QRSessionCard({
