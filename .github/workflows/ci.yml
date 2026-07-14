@@ -1,9 +1,11 @@
 # CI for BitPilot.
 #
-# Runs on every PR and every push to main. Two jobs in parallel:
+# Runs on every PR and every push to main. Three jobs in parallel:
 #
 #   1. backend   — cargo build (release, --locked), cargo-audit for RustSec.
 #   2. frontend  — npm ci, npm run build (which also runs tsc).
+#   3. e2e       — boot the backend + vite dev server and run the browser
+#                  smoke tests (frontend/e2e) against them via system Chrome.
 #
 # Hardening notes:
 # - `permissions: read-all` at the workflow level. Each job re-grants only the
@@ -90,3 +92,74 @@ jobs:
               run: npm audit --audit-level=high || true
             - name: Build (tsc + vite)
               run: npm run build
+
+    e2e:
+        name: e2e (smoke)
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+        steps:
+            - uses: actions/checkout@v4
+            - uses: dtolnay/rust-toolchain@stable
+            - uses: Swatinem/rust-cache@v2
+              with:
+                  workspaces: backend
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: '20'
+                  cache: npm
+                  cache-dependency-path: frontend/package-lock.json
+            # Chrome is preinstalled on ubuntu-latest runners. The smoke tests
+            # drive it via playwright-core (no bundled browser download); point
+            # BP_CHROME at the system binary so channel resolution can't miss.
+            - name: Show Chrome version
+              run: google-chrome --version
+            - name: Build backend
+              working-directory: backend
+              run: cargo build --release --locked
+            - name: Install frontend deps
+              working-directory: frontend
+              run: npm ci
+            # Start the backend on :8080. Relaxed rate limits so the tests'
+            # seeding bursts (join + a handful of mission completions each) don't
+            # trip the per-IP governor; a fresh DB file keeps the run isolated.
+            - name: Start backend
+              working-directory: backend
+              env:
+                  RATE_LIMIT_PER_SEC: '100'
+                  RATE_LIMIT_BURST: '1000'
+                  DATABASE_URL: 'sqlite://ci-e2e.db?mode=rwc'
+              run: |
+                  ./target/release/bitpilot > backend.log 2>&1 &
+                  echo "BACKEND_PID=$!" >> "$GITHUB_ENV"
+            # Vite dev server (not preview): it proxies /api to :8080, which the
+            # built SPA relies on. This mirrors how the suite runs locally.
+            - name: Start frontend
+              working-directory: frontend
+              run: |
+                  npm run dev > frontend.log 2>&1 &
+                  echo "FRONTEND_PID=$!" >> "$GITHUB_ENV"
+            - name: Wait for servers
+              run: |
+                  for i in $(seq 1 60); do
+                    if curl -sf http://localhost:8080/api/runtime >/dev/null \
+                       && curl -sf http://localhost:5173 >/dev/null; then
+                      echo "servers ready"; exit 0
+                    fi
+                    sleep 1
+                  done
+                  echo "::error::servers did not become ready in time"
+                  cat backend/backend.log frontend/frontend.log || true
+                  exit 1
+            - name: Run e2e smoke tests
+              working-directory: frontend
+              env:
+                  BP_CHROME: /usr/bin/google-chrome
+              run: npm run test:e2e
+            - name: Backend log (on failure)
+              if: failure()
+              run: cat backend/backend.log || true
+            - name: Stop servers
+              if: always()
+              run: |
+                  kill "${BACKEND_PID}" "${FRONTEND_PID}" 2>/dev/null || true
