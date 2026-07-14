@@ -367,7 +367,7 @@ export default function LearnerView({ participantId }: { participantId: string }
                     proof = r.invoice
                     outcome = {
                         summary: `Invoice for ${r.amount_sats} sats created.`,
-                        details: [{ label: 'invoice', value: r.invoice }],
+                        details: [{ label: 'Lightning invoice', value: r.invoice }],
                         simulated: r.simulated,
                     }
                     break
@@ -385,7 +385,7 @@ export default function LearnerView({ participantId }: { participantId: string }
                         summary: '50 sats sent.',
                         details: [
                             { label: 'to', value: doInput.trim() },
-                            { label: 'payment_hash', value: r.payment_hash },
+                            { label: 'payment ID', value: r.payment_hash },
                         ],
                         simulated: r.simulated,
                     }
@@ -397,7 +397,7 @@ export default function LearnerView({ participantId }: { participantId: string }
                     proof = r.token
                     outcome = {
                         summary: `Token minted — ${r.amount_sats} sats inside.`,
-                        details: [{ label: 'token', value: r.token }],
+                        details: [{ label: 'eCash token', value: r.token }],
                         simulated: r.simulated,
                     }
                     break
@@ -439,8 +439,8 @@ export default function LearnerView({ participantId }: { participantId: string }
                     outcome = {
                         summary: 'Note signed in your browser and broadcast to public Nostr relays.',
                         details: [
-                            { label: 'event_id', value: r.event_id },
-                            { label: 'relays', value: r.relays.join(', ') },
+                            { label: 'note ID', value: r.event_id },
+                            { label: 'published to', value: r.relays.join(', ') },
                         ],
                         simulated: r.simulated,
                     }
@@ -464,9 +464,9 @@ export default function LearnerView({ participantId }: { participantId: string }
                     const r = await api.broadcastNostrEvent(event)
                     proof = r.event_id
                     outcome = {
-                        summary: 'Profile (kind-0) signed in your browser and published to public relays.',
+                        summary: 'Your profile is signed in your browser and published to public relays.',
                         details: [
-                            { label: 'event_id', value: r.event_id },
+                            { label: 'event ID', value: r.event_id },
                             { label: 'name', value: doInput.trim() },
                             ...(about ? [{ label: 'about', value: about }] : []),
                         ],
@@ -495,10 +495,10 @@ export default function LearnerView({ participantId }: { participantId: string }
                     const r = await api.broadcastNostrEvent(event)
                     proof = r.event_id
                     outcome = {
-                        summary: `Follow list (kind-3) signed in your browser — following ${chosen}.`,
+                        summary: `Your follow list is signed in your browser — now following ${chosen}.`,
                         details: [
-                            { label: 'followed npub', value: target },
-                            { label: 'event_id', value: r.event_id },
+                            { label: 'now following', value: target },
+                            { label: 'event ID', value: r.event_id },
                         ],
                         simulated: r.simulated,
                     }
@@ -510,7 +510,7 @@ export default function LearnerView({ participantId }: { participantId: string }
                     proof = r.event_id
                     outcome = {
                         summary: `Zap receipt generated — ${r.amount_sats} sats.`,
-                        details: [{ label: 'event_id', value: r.event_id }],
+                        details: [{ label: 'event ID', value: r.event_id }],
                         simulated: r.simulated,
                     }
                     break
@@ -528,7 +528,7 @@ export default function LearnerView({ participantId }: { participantId: string }
                     outcome = {
                         summary: 'Derived your first receive address from the seed.',
                         details: [
-                            { label: 'path', value: "m/84'/0'/0'/0/0" },
+                            { label: 'derivation path', value: "m/84'/0'/0'/0/0" },
                             { label: 'address', value: address },
                         ],
                         simulated: true,
@@ -546,7 +546,7 @@ export default function LearnerView({ participantId }: { participantId: string }
                     outcome = {
                         summary: 'Your signet transaction is real — confirmed via mempool.space.',
                         details: [
-                            { label: 'txid', value: proof },
+                            { label: 'transaction ID', value: proof },
                             {
                                 label: 'view on mempool',
                                 value: `mempool.space/signet/tx/${proof}`,
@@ -1972,8 +1972,8 @@ function DoPanel({
                 <>
                     <div style={callout('info')}>
                         <strong>This is public and permanent.</strong> Anyone can read
-                        this, including in your own country. Once it is sent to the
-                        relays, you cannot fully delete it.
+                        this, including in your own country. Once it is published, you
+                        cannot fully delete it.
                     </div>
                     <button
                         className="bp-press"
@@ -2043,7 +2043,7 @@ function uiForKind(kind: MissionDef['do']['kind']): DoUi {
         case 'pay':
             return { primary: { label: 'Lightning address', placeholder: 'demo@ln.tips', maxLength: 80, mono: true } }
         case 'ecash-spend':
-            return { primary: { label: 'Cashu token', placeholder: 'cashuB…', maxLength: 400, mono: true } }
+            return { primary: { label: 'eCash token', placeholder: 'cashuB…', maxLength: 400, mono: true } }
         case 'nostr-publish':
             return {
                 primary: {
