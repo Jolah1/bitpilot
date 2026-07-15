@@ -276,6 +276,7 @@ async fn main() -> anyhow::Result<()> {
             routes::participants::router(state.clone()),
         )
         .nest("/api/missions", routes::missions::router(state.clone()))
+        .nest("/api/challenges", routes::challenges::router())
         .nest("/api", routes::lightning::router(state.clone()))
         .layer(GovernorLayer {
             config: governor_conf,

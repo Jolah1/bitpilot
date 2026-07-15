@@ -20,10 +20,14 @@ pub async fn prune_empty_sessions(
         .unwrap_or(0);
     let cutoff = now - min_age_secs;
 
+    // Challenge-backed sessions are excluded: a public challenge is often
+    // announced days before anyone joins, so "empty and old" is its normal
+    // pre-launch state, not abandonment.
     let result = sqlx::query(
         "DELETE FROM sessions \
          WHERE created_at <= ? \
-           AND id NOT IN (SELECT DISTINCT session_id FROM participants)",
+           AND id NOT IN (SELECT DISTINCT session_id FROM participants) \
+           AND id NOT IN (SELECT DISTINCT session_id FROM challenges)",
     )
     .bind(cutoff)
     .execute(db)
@@ -129,6 +133,30 @@ mod tests {
         .execute(db)
         .await
         .unwrap();
+    }
+
+    #[tokio::test]
+    async fn challenge_backed_sessions_survive_the_prune() {
+        let db = fresh_db().await;
+        // Both sessions are empty and ancient; only the plain one goes.
+        insert_session(&db, "plain-empty", 0).await;
+        insert_session(&db, "challenge-backed", 0).await;
+        sqlx::query(
+            "INSERT INTO challenges \
+                 (id, session_id, title, blurb, missions, starts_at, ends_at, created_at) \
+             VALUES ('c1', 'challenge-backed', 'Money week', '', '[0,1]', 0, 1, 0)",
+        )
+        .execute(&db)
+        .await
+        .unwrap();
+
+        let removed = prune_empty_sessions(&db, 0).await.unwrap();
+        assert_eq!(removed, 1);
+        let remaining: Vec<(String,)> = sqlx::query_as("SELECT id FROM sessions")
+            .fetch_all(&db)
+            .await
+            .unwrap();
+        assert_eq!(remaining, vec![("challenge-backed".to_string(),)]);
     }
 
     #[tokio::test]
