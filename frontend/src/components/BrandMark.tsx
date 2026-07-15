@@ -20,8 +20,8 @@ export function BrandMark({ size }: { size: number }) {
             <svg viewBox="0 0 64 64" width={size} height={size} style={{ display: 'block' }}>
                 <defs>
                     <radialGradient id="bp-mini-bg" cx="50%" cy="42%" r="60%">
-                        <stop offset="0%" stopColor="#1F2D52" />
-                        <stop offset="100%" stopColor="#0B1220" />
+                        <stop offset="0%" stopColor="#1E3B2C" />
+                        <stop offset="100%" stopColor="#0C1A14" />
                     </radialGradient>
                     <linearGradient id="bp-mini-star" x1="0%" y1="0%" x2="100%" y2="100%">
                         <stop offset="0%" stopColor="#FFAB91" />
@@ -43,7 +43,7 @@ export function BrandMark({ size }: { size: number }) {
                         <polygon points="0,26 -5,8 0,6 5,8" />
                         <polygon points="-26,0 -8,-5 -6,0 -8,5" />
                     </g>
-                    <circle cx="0" cy="0" r="13" fill="#0B1220" stroke="#F7931A" strokeWidth="1.6" />
+                    <circle cx="0" cy="0" r="13" fill="#0C1A14" stroke="#F7931A" strokeWidth="1.6" />
                     <text
                         x="0"
                         y="5"

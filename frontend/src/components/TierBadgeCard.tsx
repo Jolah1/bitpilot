@@ -49,8 +49,8 @@ interface Theme {
  * text, (b) the subtitle eyebrow, and (c) the two-line achievement quote.
  */
 const PALETTE = {
-    bg1: '#1F2D52',
-    bg2: '#0B1220',
+    bg1: '#1E3B2C',
+    bg2: '#0C1A14',
     accent: '#F7931A',
     accentLight: '#FFAB91',
     accentDim: '#7A4A0E',
@@ -457,7 +457,7 @@ export const TierBadgeCard = forwardRef<SVGSVGElement, TierBadgeCardProps>(
                     cx={CX}
                     cy={MEDAL_CY}
                     r={MEDAL_R_OUTER - 4}
-                    fill="#0B1220"
+                    fill="#0C1A14"
                 />
                 {/* Brushed metal pinstripe */}
                 <circle

@@ -122,7 +122,7 @@ function Hero({
                     inset: 0,
                     pointerEvents: 'none',
                     background:
-                        'radial-gradient(circle at 50% 28%, rgba(247, 147, 26, 0.18) 0%, rgba(247, 147, 26, 0.06) 18%, rgba(11, 18, 32, 0) 55%)',
+                        'radial-gradient(circle at 50% 28%, rgba(247, 147, 26, 0.18) 0%, rgba(247, 147, 26, 0.06) 18%, rgba(12, 26, 20, 0) 55%)',
                 }}
             />
 
@@ -174,8 +174,8 @@ function Hero({
             >
                 Most people watch videos about Bitcoin and stay confused.
                 BitPilot teaches you by making you{' '}
-                <strong style={{ color: 'var(--text)' }}>actually do it</strong>{' '}
-               , wallets, Lightning, Nostr, the whole stack, in short, hands-on missions.
+                <strong style={{ color: 'var(--text)' }}>actually do it</strong>:
+                wallets, Lightning, Nostr, the whole stack, in short, hands-on missions.
             </p>
 
             <div
@@ -301,9 +301,9 @@ function HeroMedallion() {
             >
                 <defs>
                     <radialGradient id="bp-hero-bg" cx="50%" cy="42%" r="60%">
-                        <stop offset="0%" stopColor="#1F2D52" />
-                        <stop offset="65%" stopColor="#121A30" />
-                        <stop offset="100%" stopColor="#0B1220" />
+                        <stop offset="0%" stopColor="#1E3B2C" />
+                        <stop offset="65%" stopColor="#12241B" />
+                        <stop offset="100%" stopColor="#0C1A14" />
                     </radialGradient>
                     <linearGradient id="bp-hero-star" x1="0%" y1="0%" x2="100%" y2="100%">
                         <stop offset="0%" stopColor="#FFCCBC" />
@@ -362,7 +362,7 @@ function HeroMedallion() {
                         <polygon points="-130,0 -36,-22 -26,0 -36,22" />
                     </g>
                     {/* Central medallion. */}
-                    <circle cx="0" cy="0" r="56" fill="#0B1220" stroke="#F7931A" strokeWidth="4" />
+                    <circle cx="0" cy="0" r="56" fill="#0C1A14" stroke="#F7931A" strokeWidth="4" />
                     <circle cx="0" cy="0" r="48" fill="none" stroke="rgba(255, 171, 145, 0.4)" strokeWidth="1" />
                     <text
                         x="0"

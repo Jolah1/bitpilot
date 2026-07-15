@@ -291,7 +291,7 @@ function primary(): React.CSSProperties {
     return {
         background:
             'linear-gradient(180deg, #FFB958 0%, #F7931A 60%, #E07A0A 100%)',
-        color: '#0B1220',
+        color: '#0C1A14',
         border: 'none',
         borderRadius: 10,
         padding: '14px 18px',
