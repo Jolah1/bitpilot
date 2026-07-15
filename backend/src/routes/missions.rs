@@ -122,7 +122,7 @@ async fn complete_mission(
         .find(|m| !completed_after.contains(m))
         .copied();
 
-    // Update the persisted per-tree JSON. We rewrite the whole 8-key
+    // Update the persisted per-tree JSON. We rewrite the whole 9-key
     // object every time so the column is canonical after any write — no
     // partial-state interpretation headaches at read time.
     let mut new_per_tree = p.current_per_tree.clone();
@@ -246,9 +246,13 @@ async fn verify_proof(
         DoKind::NostrZap => verify_nostr_event(state, participant_id, proof).await,
 
         // Mission 42: signet on-chain — proof is a 64-hex txid. We ask
-        // mempool.space/signet whether the tx exists. This is the only
-        // verifier that hits the public internet for verification.
+        // mempool.space/signet whether the tx exists.
         DoKind::OnchainSignet => verify_signet_txid(proof).await,
+
+        // Mission 105: open-source graduation — proof is the learner's
+        // GitHub username plus a PR URL. We ask the GitHub API whether
+        // that PR is really merged and really authored by that account.
+        DoKind::GithubPr => verify_github_pr(proof).await,
 
         // Mission 11: seed words generated client-side. We can't verify
         // randomness without seeing it (and we don't want to). Proof is
@@ -376,5 +380,180 @@ async fn verify_signet_txid(txid: &str) -> Result<(), AppError> {
         other => Err(AppError::Lightning(format!(
             "mempool.space returned HTTP {other}"
         ))),
+    }
+}
+
+/// Parsed form of the mission-105 proof: "<github-username> <pr-url>"
+/// (either order; we pick the URL out by the github.com marker).
+#[derive(Debug, PartialEq)]
+struct PrProof {
+    owner: String,
+    repo: String,
+    number: u64,
+    username: String,
+}
+
+/// Parse the graduation proof without touching the network, so bad input
+/// fails fast with a message the learner can act on. Pure function — the
+/// GitHub call lives in `verify_github_pr`.
+fn parse_pr_proof(proof: &str) -> Result<PrProof, String> {
+    let tokens: Vec<&str> = proof.split_whitespace().collect();
+    if tokens.len() != 2 {
+        return Err(
+            "send your GitHub username and the PR URL, separated by a space".into(),
+        );
+    }
+    let (url, username) = if tokens[0].contains("github.com/") {
+        (tokens[0], tokens[1])
+    } else if tokens[1].contains("github.com/") {
+        (tokens[1], tokens[0])
+    } else {
+        return Err("the PR URL must be a github.com link".into());
+    };
+
+    if username.is_empty()
+        || username.len() > 39
+        || !username
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-')
+    {
+        return Err("that does not look like a GitHub username".into());
+    }
+
+    // Accept https://github.com/<owner>/<repo>/pull/<n> with optional
+    // trailing segments (/files, #discussion_r1, ?diff=split).
+    let path = url
+        .split("github.com/")
+        .nth(1)
+        .unwrap_or_default()
+        .split(['?', '#'])
+        .next()
+        .unwrap_or_default();
+    let seg: Vec<&str> = path.split('/').filter(|s| !s.is_empty()).collect();
+    if seg.len() < 4 || seg[2] != "pull" {
+        return Err(
+            "the PR URL should look like https://github.com/owner/repo/pull/123".into(),
+        );
+    }
+    let number: u64 = seg[3]
+        .parse()
+        .map_err(|_| "the PR URL should end in the pull request number".to_string())?;
+
+    Ok(PrProof {
+        owner: seg[0].to_string(),
+        repo: seg[1].to_string(),
+        number,
+        username: username.to_string(),
+    })
+}
+
+/// Verify the mission-105 graduation proof against the GitHub API.
+///
+/// Two things must hold: the pull request is merged, and its author is the
+/// account the learner named. That combination can't be satisfied by
+/// pasting someone else's famous PR. Uses the public unauthenticated API
+/// (60 req/hour per IP); set GITHUB_TOKEN to raise the limit on busy
+/// deployments.
+async fn verify_github_pr(proof: &str) -> Result<(), AppError> {
+    let pr = parse_pr_proof(proof).map_err(AppError::BadRequest)?;
+
+    let url = format!(
+        "https://api.github.com/repos/{}/{}/pulls/{}",
+        pr.owner, pr.repo, pr.number
+    );
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(8))
+        .user_agent("bitpilot/0.1")
+        .build()
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("http client: {e}")))?;
+
+    let mut req = client
+        .get(&url)
+        .header("Accept", "application/vnd.github+json");
+    if let Ok(token) = std::env::var("GITHUB_TOKEN") {
+        if !token.is_empty() {
+            req = req.bearer_auth(token);
+        }
+    }
+
+    let res = req.send().await.map_err(|e| {
+        tracing::warn!(error = %e, "github api request failed");
+        AppError::Lightning(format!("could not reach GitHub: {e}"))
+    })?;
+
+    match res.status().as_u16() {
+        200 => {}
+        404 => {
+            return Err(AppError::BadRequest(
+                "GitHub can't find that pull request. Check the URL; private repos won't work"
+                    .into(),
+            ))
+        }
+        403 | 429 => {
+            return Err(AppError::Lightning(
+                "GitHub rate limit hit. Wait a few minutes and try again".into(),
+            ))
+        }
+        other => {
+            return Err(AppError::Lightning(format!(
+                "GitHub returned HTTP {other}"
+            )))
+        }
+    }
+
+    let body: serde_json::Value = res
+        .json()
+        .await
+        .map_err(|e| AppError::Lightning(format!("unreadable GitHub response: {e}")))?;
+
+    if body["merged"] != serde_json::Value::Bool(true) {
+        return Err(AppError::BadRequest(
+            "that pull request isn't merged yet. Come back when a maintainer merges it".into(),
+        ));
+    }
+    let author = body["user"]["login"].as_str().unwrap_or_default();
+    if !author.eq_ignore_ascii_case(&pr.username) {
+        return Err(AppError::BadRequest(format!(
+            "that PR was authored by {author}, not {}. Graduation needs your own merged PR",
+            pr.username
+        )));
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pr_proof_parses_username_and_url_in_either_order() {
+        let want = PrProof {
+            owner: "rust-bitcoin".into(),
+            repo: "rust-bitcoin".into(),
+            number: 42,
+            username: "jolah1".into(),
+        };
+        for p in [
+            "jolah1 https://github.com/rust-bitcoin/rust-bitcoin/pull/42",
+            "https://github.com/rust-bitcoin/rust-bitcoin/pull/42 jolah1",
+            "jolah1 https://github.com/rust-bitcoin/rust-bitcoin/pull/42/files#r1",
+        ] {
+            assert_eq!(parse_pr_proof(p).unwrap(), want, "proof: {p}");
+        }
+    }
+
+    #[test]
+    fn pr_proof_rejects_malformed_input() {
+        for p in [
+            "acknowledged",
+            "jolah1",
+            "jolah1 https://gitlab.com/o/r/pull/1",
+            "jolah1 https://github.com/owner/repo/issues/1",
+            "jolah1 https://github.com/owner/repo/pull/abc",
+            "not a username! https://github.com/o/r/pull/1",
+            "jolah1 extra https://github.com/o/r/pull/1",
+        ] {
+            assert!(parse_pr_proof(p).is_err(), "should reject: {p}");
+        }
     }
 }

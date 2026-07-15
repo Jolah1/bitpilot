@@ -43,7 +43,7 @@ interface Theme {
 }
 
 /**
- * One palette across all eight skill trees, navy field, bitcoin orange ring,
+ * One palette across all nine skill trees, navy field, bitcoin orange ring,
  * deep-orange highlights. Trees are peers (not ranked stages), so they share the
  * same visual family. What distinguishes them on the card is (a) the chip
  * text, (b) the subtitle eyebrow, and (c) the two-line achievement quote.
@@ -130,6 +130,15 @@ const THEMES: Record<Tree, Theme> = {
             'the long game.',
         ],
     },
+    'open-source': {
+        ...PALETTE,
+        subtitle: 'Open Source',
+        chipText: 'CHAPTER · OPEN SOURCE',
+        achievement: [
+            'A real merged PR:',
+            'code strangers now run.',
+        ],
+    },
 }
 
 const RANK_LABEL: Record<Tree, string> = {
@@ -141,6 +150,7 @@ const RANK_LABEL: Record<Tree, string> = {
     'self-custody': 'SELF-CUSTODY',
     privacy: 'PRIVACY',
     sovereignty: 'FULL INDEPENDENCE',
+    'open-source': 'OPEN SOURCE',
 }
 
 /**

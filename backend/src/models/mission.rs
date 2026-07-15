@@ -7,7 +7,7 @@ pub enum MissionStatus {
     Completed,
 }
 
-/// Eight skill trees. The (mission, tree) mapping lives on the backend so
+/// Nine skill trees. The (mission, tree) mapping lives on the backend so
 /// the frontend can't drift — the backend is the only source of truth.
 ///
 /// Each mission belongs to exactly one tree. Within a tree, lessons are
@@ -24,6 +24,7 @@ pub enum Tree {
     SelfCustody,
     Privacy,
     Sovereignty,
+    OpenSource,
 }
 
 impl Tree {
@@ -37,6 +38,7 @@ impl Tree {
         Tree::SelfCustody,
         Tree::Privacy,
         Tree::Sovereignty,
+        Tree::OpenSource,
     ];
 
     /// Ordered mission ids that make up this tree, in pedagogical order.
@@ -53,6 +55,8 @@ impl Tree {
             Tree::Privacy     => &[46, 51, 52, 58, 59, 60, 61, 62, 63, 64, 65, 66],
             // 50 ("You made it") stays last — it's the graduation lesson.
             Tree::Sovereignty => &[42, 47, 53, 54, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 50],
+            // 105 graduates with a real merged GitHub PR (issue #57).
+            Tree::OpenSource  => &[100, 101, 102, 103, 104, 105],
         }
     }
 
@@ -215,6 +219,14 @@ const CATALOGUE: &[Row] = &[
     Row { number: 55, title: "Blind signatures, plainly",     simulated: false, description: "The math trick that makes eCash private." },
     Row { number: 56, title: "Cashu vs Fedimint",             simulated: false, description: "Two flavors of Bitcoin-backed eCash, compared." },
     Row { number: 57, title: "Mint trust: 1-of-N vs federation", simulated: false, description: "Where the failure modes actually live." },
+
+    // ── Open Source ────────────────────────────────────────────────────
+    Row { number: 100, title: "Forks, branches, and pull requests", simulated: false, description: "How strangers on the internet build money together." },
+    Row { number: 101, title: "Read a real codebase",         simulated: false, description: "The code that guards billions is public. Go look at it." },
+    Row { number: 102, title: "Find a docs fix",              simulated: false, description: "Your first contribution is a sentence, not an algorithm." },
+    Row { number: 103, title: "Decode a good first issue",    simulated: false, description: "Maintainers label easy wins for you. Learn to read them." },
+    Row { number: 104, title: "Tests are contributions too",  simulated: false, description: "The easiest code PR: prove an existing function works." },
+    Row { number: 105, title: "Ship a real PR",               simulated: false, description: "Graduation is a merge commit with your name on it." },
 ];
 
 impl Mission {
@@ -243,7 +255,7 @@ impl Mission {
     pub const FIRST: u8 = 0;
 
     /// Last valid mission id (inclusive).
-    pub const LAST: u8 = 99;
+    pub const LAST: u8 = 105;
 
     /// Which `DoKind` does this mission use? Used by `verify_proof` to know
     /// which ledger to check. Kept in lock-step with the frontend's
@@ -267,6 +279,9 @@ impl Mission {
             87 | 88 | 89 | 90 => DoKind::Knowledge,
             91 | 92 | 93 | 94 | 95 | 96 => DoKind::Knowledge,
             97 | 98 | 99 => DoKind::Knowledge,
+            // 102/103 render a paste-value input on the frontend; server-side
+            // any non-empty reflection counts, same as knowledge missions.
+            100 | 101 | 102 | 103 | 104 => DoKind::Knowledge,
 
             // Action missions:
             11 => DoKind::SeedWords,
@@ -281,6 +296,7 @@ impl Mission {
             36 => DoKind::NostrZap,
             41 => DoKind::DeriveAddress,
             42 => DoKind::OnchainSignet,
+            105 => DoKind::GithubPr,
 
             _ => DoKind::Knowledge, // safe default for out-of-range numbers
         }
@@ -336,4 +352,5 @@ pub enum DoKind {
     OnchainSignet,
     SeedWords,
     DeriveAddress,
+    GithubPr,
 }

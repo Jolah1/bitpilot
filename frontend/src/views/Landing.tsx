@@ -517,6 +517,7 @@ const TREE_PITCH: Record<string, TreePitch> = {
     'self-custody': { icon: '🔑', outcome: 'Wallets, seeds, hardware, multisig.' },
     privacy:        { icon: '🕵️', outcome: 'The chain is public, act accordingly.' },
     sovereignty:    { icon: '🚀', outcome: 'Signet on-chain, your own node, the long game.' },
+    'open-source':  { icon: '🛠️', outcome: 'Your first merged PR into a real Bitcoin project.' },
 }
 
 /**
@@ -549,7 +550,7 @@ function YourJourney() {
             <SectionHeading
                 id="journey-headline"
                 eyebrow="Your journey"
-                title="Eight chapters, take them in any order."
+                title="Nine chapters, take them in any order."
             />
 
             <div style={{ position: 'relative' }}>
@@ -605,7 +606,7 @@ function YourJourney() {
                     marginTop: 12,
                 }}
             >
-                Eight chapters · short missions · pick any starting point
+                Nine chapters · short missions · pick any starting point
             </p>
         </section>
     )

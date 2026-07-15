@@ -186,6 +186,7 @@ const TREE_COLORS: Record<Tree, string> = {
     'self-custody': '#34D399', // green
     privacy: '#60A5FA', // blue
     sovereignty: '#F472B6', // pink
+    'open-source': '#818CF8', // indigo
 }
 
 export const treeColor = (tree: Tree): string => TREE_COLORS[tree] ?? 'var(--bitcoin)'

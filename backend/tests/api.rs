@@ -260,10 +260,11 @@ fn create_session_then_join_then_self_fetch() {
     // Per-tree pointer is hydrated from the empty completions list, so
     // every tree's pointer is its first mission (no completions yet).
     let per_tree = v["current_per_tree"].as_object().unwrap();
-    assert_eq!(per_tree.len(), 8, "expected all 8 trees");
+    assert_eq!(per_tree.len(), 9, "expected all 9 trees");
     assert_eq!(per_tree["money"], 0);
     assert_eq!(per_tree["bitcoin"], 6);
     assert_eq!(per_tree["privacy"], 46);
+    assert_eq!(per_tree["open-source"], 100);
 }
 
 #[test]
@@ -425,10 +426,10 @@ fn out_of_range_mission_rejected() {
     let s = create_session(&h.base, "range-test");
     let j = join_session(&h.base, "frank", &s.id);
 
-    let r = complete(&h.base, &j.auth_token, 100, "anything");
+    let r = complete(&h.base, &j.auth_token, 106, "anything");
     assert_eq!(r.status(), 400);
     let v: Value = r.json().unwrap();
-    assert!(v["error"].as_str().unwrap().contains("0..=99"));
+    assert!(v["error"].as_str().unwrap().contains("0..=105"));
 }
 
 #[test]
@@ -552,7 +553,7 @@ fn missions_list_is_public_no_auth_required() {
     let r = client().get(format!("{}/api/missions", h.base)).send().unwrap();
     assert_eq!(r.status(), 200);
     let arr: Vec<Value> = r.json().unwrap();
-    assert_eq!(arr.len(), 100, "curriculum is 0..=99 = 100 missions");
+    assert_eq!(arr.len(), 106, "curriculum is 0..=105 = 106 missions");
     // Tree assignment check — by mission number (catalogue order is
     // grouped by tree, not numeric, so we look up by `number` field).
     let by_num = |n: i64| arr.iter().find(|m| m["number"] == n).unwrap();
@@ -562,6 +563,7 @@ fn missions_list_is_public_no_auth_required() {
     assert_eq!(by_num(31)["tree"], "ecash");
     assert_eq!(by_num(46)["tree"], "privacy");
     assert_eq!(by_num(50)["tree"], "sovereignty");
+    assert_eq!(by_num(105)["tree"], "open-source");
 }
 
 #[test]
@@ -632,9 +634,9 @@ fn me_badges_starts_empty_then_unlocks_money_after_tree_clear() {
             .unwrap()
     };
 
-    // Initial: 8 entries, all unearned.
+    // Initial: 9 entries, all unearned.
     let badges = fetch();
-    assert_eq!(badges.len(), 8);
+    assert_eq!(badges.len(), 9);
     assert!(badges.iter().all(|b| b["earned"] == false));
     let money = badges.iter().find(|b| b["tree"] == "money").unwrap();
     assert_eq!(money["required"], 8);
@@ -785,4 +787,34 @@ fn daily_streak_extends_on_consecutive_days_and_resets_after_a_gap() {
     let r = complete(&h.base, &j.auth_token, 78, "acknowledged");
     assert!(r.status().is_success(), "{}", r.text().unwrap());
     assert_eq!(me(&h.base, &j.auth_token)["streak_count"], 1);
+}
+
+#[test]
+fn open_source_graduation_demands_a_parseable_github_proof() {
+    // Missions 100..=104 are reflection missions (any non-empty proof),
+    // but 105 must name a GitHub account and a github.com PR URL. A bad
+    // proof fails the shape check before any network call happens, so
+    // this test stays offline.
+    let h = Harness::start();
+    let s = create_session(&h.base, "oss-grad");
+    let j = join_session(&h.base, "grace", &s.id);
+
+    for m in [100, 101, 102, 103, 104] {
+        let r = complete(&h.base, &j.auth_token, m, "acknowledged");
+        assert_eq!(r.status(), 200, "completing mission {m}");
+    }
+
+    let r = complete(&h.base, &j.auth_token, 105, "acknowledged");
+    assert_eq!(r.status(), 400);
+    let v: Value = r.json().unwrap();
+    assert!(
+        v["error"].as_str().unwrap().contains("GitHub username"),
+        "unexpected error: {v}"
+    );
+
+    // The per-tree pointer stays parked on 105 after the failed attempt.
+    assert_eq!(
+        me(&h.base, &j.auth_token)["current_per_tree"]["open-source"],
+        105
+    );
 }
