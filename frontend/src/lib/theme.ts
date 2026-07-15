@@ -117,11 +117,10 @@ export function getSavedTheme(): Theme {
         localStorage.removeItem(LEGACY_THEME_KEY)
         return legacy
     }
-    // Honour OS preference on first visit.
-    if (typeof window !== 'undefined' && window.matchMedia?.('(prefers-color-scheme: light)').matches) {
-        return 'light'
-    }
-    return 'dark'
+    // Light is the house default: first-time visitors get the sage-paper
+    // theme regardless of OS preference; the header toggle persists any
+    // explicit choice.
+    return 'light'
 }
 
 export function saveTheme(theme: Theme) {
