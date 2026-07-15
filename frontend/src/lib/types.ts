@@ -370,7 +370,7 @@ export const MISSIONS: MissionDef[] = [
         topic: 'Bitcoin',
         tech: 'bitcoin',
         name: 'Permissionless money',
-        tagline: 'Why nobody needs to approve your transaction',
+        tagline: 'Alice pays her cousin abroad at 2am. Nobody had to say yes.',
         learn: {
             heading: 'No KYC at the protocol layer',
             body:
@@ -480,7 +480,7 @@ export const MISSIONS: MissionDef[] = [
         topic: 'Bitcoin',
         tech: 'bitcoin',
         name: 'Custodial vs self-custodial',
-        tagline: 'The difference between a bank account and cash',
+        tagline: 'Alice keeps sats on an exchange. Ben holds his own keys. Only one of them owns bitcoin.',
         learn: {
             heading: 'Who holds the keys?',
             body:
@@ -535,7 +535,7 @@ export const MISSIONS: MissionDef[] = [
         topic: 'Security',
         tech: 'bitcoin',
         name: 'Your seed IS your wallet',
-        tagline: 'Read this and you understand 80% of self-custody',
+        tagline: 'Alice loses her phone on the bus, and her bitcoin is fine. Her 12 words are why.',
         learn: {
             heading: 'The seed is everything',
             body:
@@ -717,7 +717,7 @@ export const MISSIONS: MissionDef[] = [
         topic: 'Security',
         tech: 'bitcoin',
         name: 'The 5 ways people lose bitcoin',
-        tagline: 'Read this before you ever hold real sats',
+        tagline: 'Five short stories of lost bitcoin. Every single one was preventable.',
         learn: {
             heading: 'How beginners lose money',
             body:
@@ -1305,7 +1305,7 @@ export const MISSIONS: MissionDef[] = [
         topic: 'Security',
         tech: 'bitcoin',
         name: 'Hardware wallets',
-        tagline: 'Why a $50 device is the cheapest peace of mind in crypto',
+        tagline: 'Ben typed his seed into a phishing site. A $50 device makes that mistake impossible.',
         learn: {
             heading: 'Keep the keys off the internet',
             body:
@@ -1327,7 +1327,7 @@ export const MISSIONS: MissionDef[] = [
         topic: 'Security',
         tech: 'bitcoin',
         name: 'Multisig 101',
-        tagline: '2-of-3 keys → you control your bitcoin even if one device is lost',
+        tagline: "A fire destroys one of Alice's three keys. She loses nothing. That is multisig.",
         learn: {
             heading: 'M-of-N signatures',
             body:
@@ -1349,7 +1349,7 @@ export const MISSIONS: MissionDef[] = [
         topic: 'Security',
         tech: 'bitcoin',
         name: 'Cold vs hot storage',
-        tagline: 'Why your savings shouldn\'t be on your phone',
+        tagline: 'Pocket money lives on your phone. Savings live in a vault. Bitcoin works the same way.',
         learn: {
             heading: 'Two tiers of storage',
             body:
@@ -2077,7 +2077,7 @@ export const MISSIONS: MissionDef[] = [
         topic: 'Money',
         tech: 'bitcoin',
         name: 'Why fiat loses value',
-        tagline: 'The dollar in your wallet is not the same dollar as ten years ago',
+        tagline: 'Grandma saved cash under the mattress for twenty years. It kept buying less.',
         learn: {
             heading: 'Inflation is not weather, it is a policy',
             body:
@@ -2385,7 +2385,7 @@ export const MISSIONS: MissionDef[] = [
         topic: 'Self-custody',
         tech: 'bitcoin',
         name: 'The 25th word (passphrase)',
-        tagline: 'A separate secret that turns one seed into infinite hidden wallets',
+        tagline: 'Under pressure, Alice opens a decoy wallet. The real one needs a word only she knows.',
         learn: {
             heading: 'A passphrase is not a password on your seed, it is another seed',
             body:
@@ -2407,7 +2407,7 @@ export const MISSIONS: MissionDef[] = [
         topic: 'Self-custody',
         tech: 'bitcoin',
         name: 'Backing up a seed, seriously',
-        tagline: 'Paper, steel, splits, pick the one that outlives your next move',
+        tagline: 'Paper burns, ink fades, houses flood. Design a backup that survives your life.',
         learn: {
             heading: 'The seed backup is the wallet. Design it like it matters.',
             body:
@@ -2473,7 +2473,7 @@ export const MISSIONS: MissionDef[] = [
         topic: 'Self-custody',
         tech: 'bitcoin',
         name: 'Migrating wallets safely',
-        tagline: 'How to move between apps without losing sats or leaking addresses',
+        tagline: "Alice's wallet app shuts down for good. Twelve words later she is back in business.",
         learn: {
             heading: 'The five-step wallet migration playbook',
             body:
