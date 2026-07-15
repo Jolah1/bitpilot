@@ -31,7 +31,7 @@ export function TierProgressionMark({
                     cx="32"
                     cy="32"
                     r="30"
-                    fill="#0B1220"
+                    fill="#0C1A14"
                     stroke={earned ? '#F7931A' : 'rgba(247, 147, 26, 0.35)'}
                     strokeWidth="2"
                 />

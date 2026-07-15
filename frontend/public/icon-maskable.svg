@@ -8,7 +8,7 @@
     <defs>
         <radialGradient id="bp-mask-bg" cx="50%" cy="38%" r="70%">
             <stop offset="0%" stop-color="#1A2845" />
-            <stop offset="100%" stop-color="#0B1220" />
+            <stop offset="100%" stop-color="#0C1A14" />
         </radialGradient>
         <linearGradient id="bp-mask-star" x1="0%" y1="0%" x2="100%" y2="100%">
             <stop offset="0%" stop-color="#FFAB91" />
@@ -36,7 +36,7 @@
             <polygon points="-68,0 -20,-12 -12,0 -20,12" />
         </g>
         <!-- Central medallion. -->
-        <circle cx="0" cy="0" r="56" fill="#0B1220" stroke="#F7931A" stroke-width="6" />
+        <circle cx="0" cy="0" r="56" fill="#0C1A14" stroke="#F7931A" stroke-width="6" />
         <!-- ₿ glyph. Cream tint matches the star gradient. -->
         <text x="0" y="32" text-anchor="middle"
             font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif"
