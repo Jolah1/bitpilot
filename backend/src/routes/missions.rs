@@ -146,14 +146,26 @@ async fn complete_mission(
     // compat readers. It now tracks the most-recently-advanced tree's
     // pointer; nothing inside this route gates on it anymore.
     let legacy_current = next_in_tree.unwrap_or(body.mission);
+    // Streak accounting in the same write: completing on the already-
+    // credited day changes nothing, the day after extends the run, any
+    // gap starts over at 1.
+    let today = (now() / 86_400) as i64;
     sqlx::query(
         "UPDATE participants \
-         SET current_mission = ?, current_per_tree = ?, last_active = ? \
+         SET current_mission = ?, current_per_tree = ?, last_active = ?, \
+             streak_count = CASE \
+                 WHEN streak_day = ? THEN streak_count \
+                 WHEN streak_day = ? - 1 THEN streak_count + 1 \
+                 ELSE 1 END, \
+             streak_day = ? \
          WHERE id = ?",
     )
     .bind(legacy_current as i64)
     .bind(&per_tree_json)
     .bind(now() as i64)
+    .bind(today)
+    .bind(today)
+    .bind(today)
     .bind(&authed.participant_id)
     .execute(&mut *tx)
     .await?;

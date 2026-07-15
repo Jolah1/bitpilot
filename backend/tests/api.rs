@@ -39,6 +39,10 @@ const BIN_PATH: &str = env!("CARGO_BIN_EXE_bitpilot");
 struct Harness {
     child: Child,
     base: String,
+    /// Path of the server's SQLite file, for tests that need to nudge
+    /// stored state the API deliberately doesn't expose (e.g. rewinding
+    /// `streak_day` to simulate the passage of days).
+    db_path: std::path::PathBuf,
     _tmp: TempDir,
 }
 
@@ -85,7 +89,7 @@ impl Harness {
             std::thread::sleep(Duration::from_millis(50));
         }
 
-        Harness { child, base, _tmp: tmp }
+        Harness { child, base, db_path, _tmp: tmp }
     }
 }
 
@@ -166,6 +170,33 @@ fn complete(
         .json(&json!({ "mission": mission, "proof": proof }))
         .send()
         .unwrap()
+}
+
+/// Authenticated `GET /api/participants/me` as JSON.
+fn me(base: &str, token: &str) -> Value {
+    client()
+        .get(format!("{base}/api/participants/me"))
+        .header("authorization", format!("Bearer {token}"))
+        .send()
+        .unwrap()
+        .json()
+        .unwrap()
+}
+
+/// Rewind a participant's credited streak day by `delta_days` directly in
+/// SQLite, simulating days passing without waiting for them.
+fn shift_streak_day(h: &Harness, participant_id: &str, delta_days: i64) {
+    let url = format!("sqlite://{}?mode=rw", h.db_path.display());
+    tokio::runtime::Runtime::new().unwrap().block_on(async {
+        let pool = sqlx::SqlitePool::connect(&url).await.unwrap();
+        sqlx::query("UPDATE participants SET streak_day = streak_day + ? WHERE id = ?")
+            .bind(delta_days)
+            .bind(participant_id)
+            .execute(&pool)
+            .await
+            .unwrap();
+        pool.close().await;
+    });
 }
 
 // ─── Tests ─────────────────────────────────────────────────────────────────
@@ -724,4 +755,34 @@ fn pairing_code_requires_auth() {
         .send()
         .unwrap();
     assert_eq!(unauth.status(), 401);
+}
+
+#[test]
+fn daily_streak_extends_on_consecutive_days_and_resets_after_a_gap() {
+    let h = Harness::start();
+    let s = create_session(&h.base, "Streak");
+    let j = join_session(&h.base, "Amara", &s.id);
+
+    // First completion of the day starts the streak.
+    let r = complete(&h.base, &j.auth_token, 0, "acknowledged");
+    assert!(r.status().is_success(), "{}", r.text().unwrap());
+    assert_eq!(me(&h.base, &j.auth_token)["streak_count"], 1);
+
+    // A second completion the same day doesn't double-count.
+    let r = complete(&h.base, &j.auth_token, 1, "acknowledged");
+    assert!(r.status().is_success(), "{}", r.text().unwrap());
+    assert_eq!(me(&h.base, &j.auth_token)["streak_count"], 1);
+
+    // Credited day was "yesterday": the next completion extends the run.
+    // (77 is the money chapter's third mission; the order is non-contiguous.)
+    shift_streak_day(&h, &j.participant_id, -1);
+    let r = complete(&h.base, &j.auth_token, 77, "acknowledged");
+    assert!(r.status().is_success(), "{}", r.text().unwrap());
+    assert_eq!(me(&h.base, &j.auth_token)["streak_count"], 2);
+
+    // A multi-day gap resets the run to 1.
+    shift_streak_day(&h, &j.participant_id, -5);
+    let r = complete(&h.base, &j.auth_token, 78, "acknowledged");
+    assert!(r.status().is_success(), "{}", r.text().unwrap());
+    assert_eq!(me(&h.base, &j.auth_token)["streak_count"], 1);
 }

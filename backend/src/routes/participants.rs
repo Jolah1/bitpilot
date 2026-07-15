@@ -219,6 +219,8 @@ async fn join_session(
             current_per_tree: Participant::hydrate_per_tree("{}", &[]),
             nostr_pubkey: None,
             last_active: created_at as u64,
+            streak_count: 0,
+            streak_day: 0,
         },
         auth_token,
     }))
@@ -420,8 +422,8 @@ pub async fn load_participant(
     state: &AppState,
     participant_id: &str,
 ) -> Result<Participant, AppError> {
-    let row: Option<(String, String, String, i64, Option<String>, String, i64)> = sqlx::query_as(
-        "SELECT id, name, session_id, current_mission, nostr_pubkey, current_per_tree, last_active \
+    let row: Option<(String, String, String, i64, Option<String>, String, i64, i64, i64)> = sqlx::query_as(
+        "SELECT id, name, session_id, current_mission, nostr_pubkey, current_per_tree, last_active, streak_count, streak_day \
          FROM participants WHERE id = ?",
     )
     .bind(participant_id)
@@ -449,6 +451,8 @@ pub async fn load_participant(
         completed_missions,
         current_per_tree,
         last_active: row.6 as u64,
+        streak_count: row.7 as u32,
+        streak_day: row.8 as u64,
     })
 }
 
@@ -456,8 +460,8 @@ async fn load_participants_by_session(
     state: &AppState,
     session_id: &str,
 ) -> Result<Vec<Participant>, AppError> {
-    let rows: Vec<(String, String, String, i64, Option<String>, String, i64)> = sqlx::query_as(
-        "SELECT id, name, session_id, current_mission, nostr_pubkey, current_per_tree, last_active \
+    let rows: Vec<(String, String, String, i64, Option<String>, String, i64, i64, i64)> = sqlx::query_as(
+        "SELECT id, name, session_id, current_mission, nostr_pubkey, current_per_tree, last_active, streak_count, streak_day \
          FROM participants WHERE session_id = ? ORDER BY created_at",
     )
     .bind(session_id)
@@ -488,6 +492,8 @@ async fn load_participants_by_session(
             completed_missions,
             current_per_tree,
             last_active: r.6 as u64,
+            streak_count: r.7 as u32,
+            streak_day: r.8 as u64,
         });
     }
     Ok(out)

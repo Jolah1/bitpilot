@@ -31,6 +31,13 @@ pub struct Participant {
     /// completion). The facilitator dashboard uses it to flag learners who
     /// have stalled. Set on join, bumped on every mission completion.
     pub last_active: u64,
+    /// Consecutive UTC days with at least one mission completion. 0 until
+    /// the first completion; never gates anything, it's a nudge.
+    pub streak_count: u32,
+    /// UTC day number (unix seconds / 86400) the streak was last credited.
+    /// The frontend compares this to its own "today" to show whether the
+    /// streak is already banked for the day.
+    pub streak_day: u64,
 }
 
 impl Participant {

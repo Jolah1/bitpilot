@@ -19,6 +19,10 @@ export interface Participant {
      * have stalled, so the signal is accurate and survives a reload.
      */
     last_active: number
+    /** Consecutive UTC days with at least one mission completion. */
+    streak_count: number
+    /** UTC day number (unix seconds / 86400) the streak was last credited. */
+    streak_day: number
 }
 
 export interface Session {
