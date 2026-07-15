@@ -142,7 +142,9 @@ export async function enterTree(page, treeLabel) {
 export async function passLearnAndQuiz(page, correct, report) {
     const quizBtn = page.getByRole('button', { name: /take the quiz/i })
     let advanced = false
-    for (let i = 0; i < 40; i++) {
+    // The dwell timer caps at 20s, so a 20s poll budget (40 x 500ms) races
+    // it exactly and loses on a slow CI runner. Give it 30s of headroom.
+    for (let i = 0; i < 60; i++) {
         if ((await quizBtn.count()) && !(await quizBtn.first().isDisabled())) {
             await quizBtn.first().click({ force: true })
             advanced = true
