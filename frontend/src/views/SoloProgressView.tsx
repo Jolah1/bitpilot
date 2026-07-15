@@ -59,6 +59,12 @@ export default function SoloProgressView({
     const currentMission = participant?.current_mission ?? 0
     const currentTree = treeFor(currentMission)
     const pctComplete = Math.round((completed.length / MISSION_COUNT) * 100)
+    // Server truth for the run length; "banked today" compares the credited
+    // UTC day to the browser's UTC day so the label can invite one more
+    // mission when today's isn't done yet.
+    const streak = participant?.streak_count ?? 0
+    const streakBankedToday =
+        streak > 0 && participant?.streak_day === Math.floor(Date.now() / 86_400_000)
     const currentMissionDef = MISSIONS[Math.min(currentMission, MISSION_COUNT - 1)]
 
     return (
@@ -131,6 +137,11 @@ export default function SoloProgressView({
                     accent={earnedBadges > 0}
                 />
                 <Stat label="Complete" value={`${pctComplete}%`} />
+                <Stat
+                    label={streakBankedToday ? 'Day streak · done today' : 'Day streak'}
+                    value={`${streak > 0 ? '🔥 ' : ''}${streak}`}
+                    accent={streak > 0}
+                />
             </section>
 
             {/* Tree progress bars */}
@@ -144,7 +155,7 @@ export default function SoloProgressView({
                         marginBottom: 12,
                     }}
                 >
-                    Skill-tree progress
+                    Chapter progress
                 </h2>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                     {TREES.map((t) => {
