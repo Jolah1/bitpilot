@@ -67,7 +67,7 @@ export const primaryButton = (disabled = false): CSSProperties => ({
     // transforms live in .bp-press in index.css, pair this style with
     // className="bp-press" to get the lift on hover.
     boxShadow:
-        '0 1px 0 rgba(0,0,0,0.1), 0 4px 16px rgba(247, 147, 26, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.18)',
+        '0 1px 0 rgba(0,0,0,0.1), 0 4px 16px rgba(255, 87, 34, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.18)',
 })
 
 /** className to pair with primaryButton / ghostButton for hover + press
@@ -112,7 +112,7 @@ export const label: CSSProperties = {
 
 export const chip = (tone: 'orange' | 'purple' | 'cyan' | 'green' | 'red' | 'neutral' = 'orange'): CSSProperties => {
     const toneMap: Record<string, { bg: string; fg: string; border: string }> = {
-        orange: { bg: 'rgba(247, 147, 26, 0.1)', fg: 'var(--bitcoin)', border: 'rgba(247, 147, 26, 0.3)' },
+        orange: { bg: 'rgba(255, 87, 34, 0.1)', fg: 'var(--bitcoin)', border: 'rgba(255, 87, 34, 0.3)' },
         purple: { bg: 'rgba(167, 139, 250, 0.1)', fg: 'var(--nostr-purple)', border: 'rgba(167, 139, 250, 0.3)' },
         cyan: { bg: 'rgba(94, 234, 212, 0.1)', fg: 'var(--ecash-cyan)', border: 'rgba(94, 234, 212, 0.3)' },
         green: { bg: 'rgba(16, 197, 126, 0.1)', fg: 'var(--success)', border: 'rgba(16, 197, 126, 0.3)' },
@@ -139,7 +139,7 @@ export const chip = (tone: 'orange' | 'purple' | 'cyan' | 'green' | 'red' | 'neu
 
 export const callout = (tone: 'info' | 'warn' | 'danger' | 'success' = 'info'): CSSProperties => {
     const toneMap: Record<string, { bg: string; border: string; fg: string }> = {
-        info: { bg: 'rgba(247, 147, 26, 0.08)', border: 'rgba(247, 147, 26, 0.25)', fg: 'var(--text)' },
+        info: { bg: 'rgba(255, 87, 34, 0.08)', border: 'rgba(255, 87, 34, 0.25)', fg: 'var(--text)' },
         warn: { bg: 'rgba(255, 87, 34, 0.08)', border: 'rgba(255, 87, 34, 0.3)', fg: 'var(--text)' },
         danger: { bg: 'rgba(248, 113, 113, 0.08)', border: 'rgba(248, 113, 113, 0.3)', fg: 'var(--danger)' },
         success: { bg: 'rgba(16, 197, 126, 0.08)', border: 'rgba(16, 197, 126, 0.3)', fg: 'var(--text)' },
@@ -179,7 +179,7 @@ export const techTone = (tech: 'bitcoin' | 'lightning' | 'nostr' | 'ecash'): 'or
  */
 const TREE_COLORS: Record<Tree, string> = {
     money: '#FF5722', // deep orange
-    bitcoin: '#F7931A', // bitcoin orange
+    bitcoin: '#F7931A', // bitcoin orange (categorical chart color only; the brand accent is deep orange)
     lightning: '#FF8A50', // bright coral orange
     nostr: '#A78BFA', // nostr purple
     ecash: '#5EEAD4', // ecash cyan

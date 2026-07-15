@@ -1020,10 +1020,10 @@ function TreePicker({
                                     width: '100%',
                                     textAlign: 'left',
                                     background: isDone
-                                        ? 'rgba(247, 147, 26, 0.10)'
+                                        ? 'rgba(255, 87, 34, 0.10)'
                                         : 'var(--surface)',
                                     border: isDone
-                                        ? '1px solid rgba(247, 147, 26, 0.40)'
+                                        ? '1px solid rgba(255, 87, 34, 0.40)'
                                         : '1px solid var(--border)',
                                     borderRadius: 'var(--radius-3)',
                                     padding: '14px 16px',
@@ -1202,9 +1202,9 @@ function BadgesStrip({
                             gap: 2,
                             padding: '6px 4px',
                             borderRadius: 'var(--radius-2)',
-                            background: b.earned ? 'rgba(247, 147, 26, 0.10)' : 'transparent',
+                            background: b.earned ? 'rgba(255, 87, 34, 0.10)' : 'transparent',
                             border: b.earned
-                                ? '1px solid rgba(247, 147, 26, 0.35)'
+                                ? '1px solid rgba(255, 87, 34, 0.35)'
                                 : '1px dashed var(--border)',
                             cursor: interactive ? 'pointer' : 'default',
                         }}
@@ -1571,7 +1571,7 @@ function QuizPanel({
                         : isWrong
                           ? 'rgba(248, 113, 113, 0.08)'
                           : isChosen
-                            ? 'rgba(247, 147, 26, 0.08)'
+                            ? 'rgba(255, 87, 34, 0.08)'
                             : 'var(--bg)'
                     return (
                         <li key={i}>
@@ -2015,7 +2015,7 @@ function ResultBlock({
         fontWeight: 700,
         color: 'var(--bitcoin)',
         background: 'transparent',
-        border: '1px solid rgba(247, 147, 26, 0.5)',
+        border: '1px solid rgba(255, 87, 34, 0.5)',
         borderRadius: 'var(--radius-1)',
         padding: '4px 10px',
         cursor: 'pointer',

@@ -20,7 +20,7 @@ export function TierProgressionMark({
     earned: boolean
     size: number
 }) {
-    const starColor = earned ? '#F7931A' : 'rgba(247, 147, 26, 0.55)'
+    const starColor = earned ? '#FF5722' : 'rgba(255, 87, 34, 0.55)'
     return (
         <span
             aria-hidden="true"
@@ -32,7 +32,7 @@ export function TierProgressionMark({
                     cy="32"
                     r="30"
                     fill="#0C1A14"
-                    stroke={earned ? '#F7931A' : 'rgba(247, 147, 26, 0.35)'}
+                    stroke={earned ? '#FF5722' : 'rgba(255, 87, 34, 0.35)'}
                     strokeWidth="2"
                 />
                 {/* 4-point cardinal compass, shared across all 8 trees. */}
