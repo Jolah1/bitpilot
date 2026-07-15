@@ -420,8 +420,8 @@ export function ShareBadgeModal({
                     {pendingShare ? (
                         <div
                             style={{
-                                background: 'rgba(247, 147, 26, 0.08)',
-                                border: '1px solid rgba(247, 147, 26, 0.30)',
+                                background: 'rgba(255, 87, 34, 0.08)',
+                                border: '1px solid rgba(255, 87, 34, 0.30)',
                                 borderRadius: 'var(--radius-2)',
                                 padding: '12px 14px',
                                 display: 'flex',

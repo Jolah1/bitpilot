@@ -25,8 +25,8 @@ export function BrandMark({ size }: { size: number }) {
                     </radialGradient>
                     <linearGradient id="bp-mini-star" x1="0%" y1="0%" x2="100%" y2="100%">
                         <stop offset="0%" stopColor="#FFAB91" />
-                        <stop offset="55%" stopColor="#F7931A" />
-                        <stop offset="100%" stopColor="#E07A0A" />
+                        <stop offset="55%" stopColor="#FF5722" />
+                        <stop offset="100%" stopColor="#D84315" />
                     </linearGradient>
                 </defs>
                 <rect width="64" height="64" rx="10" fill="url(#bp-mini-bg)" />
@@ -43,7 +43,7 @@ export function BrandMark({ size }: { size: number }) {
                         <polygon points="0,26 -5,8 0,6 5,8" />
                         <polygon points="-26,0 -8,-5 -6,0 -8,5" />
                     </g>
-                    <circle cx="0" cy="0" r="13" fill="#0C1A14" stroke="#F7931A" strokeWidth="1.6" />
+                    <circle cx="0" cy="0" r="13" fill="#0C1A14" stroke="#FF5722" strokeWidth="1.6" />
                     <text
                         x="0"
                         y="5"

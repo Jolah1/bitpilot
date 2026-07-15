@@ -13,8 +13,8 @@
         </radialGradient>
         <linearGradient id="bp-fav-star" x1="0%" y1="0%" x2="100%" y2="100%">
             <stop offset="0%" stop-color="#FFAB91" />
-            <stop offset="55%" stop-color="#F7931A" />
-            <stop offset="100%" stop-color="#E07A0A" />
+            <stop offset="55%" stop-color="#FF5722" />
+            <stop offset="100%" stop-color="#D84315" />
         </linearGradient>
     </defs>
     <!-- Rounded navy square works in tabs, home-screen icons, and macOS docks. -->
@@ -35,7 +35,7 @@
     </g>
     <!-- Central medallion: navy fill with an orange rim that catches the eye
          at small sizes. -->
-    <circle cx="32" cy="32" r="14" fill="#0C1A14" stroke="#F7931A" stroke-width="1.5" />
+    <circle cx="32" cy="32" r="14" fill="#0C1A14" stroke="#FF5722" stroke-width="1.5" />
     <!-- Bitcoin ₿. Cream rather than pure white so it picks up the gold
          accent from the star points instead of looking sterile. -->
     <text x="32" y="40" text-anchor="middle"

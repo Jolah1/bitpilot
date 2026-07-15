@@ -16,7 +16,7 @@ import { useFocusTrap } from '../lib/useFocusTrap'
 import { TierBadgeCard, badgeIdFor } from './TierBadgeCard'
 import { ShareBadgeModal } from './ShareBadgeModal'
 
-const CONFETTI_COLORS = ['#F7931A', '#FFAB91', '#FFCCBC', '#FFFFFF']
+const CONFETTI_COLORS = ['#FF5722', '#FFAB91', '#FFCCBC', '#FFFFFF']
 const CONFETTI_COUNT = 36
 
 /**
@@ -109,7 +109,7 @@ export function BadgeCelebrationModal({
                 position: 'fixed',
                 inset: 0,
                 background:
-                    'radial-gradient(ellipse at top, rgba(247,147,26,0.18), rgba(11,18,32,0.92) 55%)',
+                    'radial-gradient(ellipse at top, rgba(255,87,34,0.18), rgba(11,18,32,0.92) 55%)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -190,7 +190,7 @@ export function BadgeCelebrationModal({
                         color: '#FFFFFF',
                         letterSpacing: '-0.02em',
                         textAlign: 'center',
-                        textShadow: '0 4px 24px rgba(247,147,26,0.45)',
+                        textShadow: '0 4px 24px rgba(255,87,34,0.45)',
                     }}
                 >
                     You earned the {label} badge
@@ -207,7 +207,7 @@ export function BadgeCelebrationModal({
                         animation: 'bp-badge-swing 4.2s ease-in-out infinite',
                         transformOrigin: 'top center',
                         filter:
-                            'drop-shadow(0 24px 48px rgba(0,0,0,0.55)) drop-shadow(0 0 36px rgba(247,147,26,0.30))',
+                            'drop-shadow(0 24px 48px rgba(0,0,0,0.55)) drop-shadow(0 0 36px rgba(255,87,34,0.30))',
                     }}
                 >
                     <TierBadgeCard
@@ -290,7 +290,7 @@ export function BadgeCelebrationModal({
 function primary(): React.CSSProperties {
     return {
         background:
-            'linear-gradient(180deg, #FFB958 0%, #F7931A 60%, #E07A0A 100%)',
+            'linear-gradient(180deg, #FFB958 0%, #FF5722 60%, #D84315 100%)',
         color: '#0C1A14',
         border: 'none',
         borderRadius: 10,
@@ -301,7 +301,7 @@ function primary(): React.CSSProperties {
         fontFamily: 'var(--font-sans)',
         letterSpacing: '0.01em',
         boxShadow:
-            '0 1px 0 rgba(255,255,255,0.35) inset, 0 8px 24px rgba(247,147,26,0.35)',
+            '0 1px 0 rgba(255,255,255,0.35) inset, 0 8px 24px rgba(255,87,34,0.35)',
     }
 }
 

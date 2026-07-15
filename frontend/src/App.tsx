@@ -964,7 +964,7 @@ function AppShell({
         fontWeight: 700,
         border: `1px solid ${view === v ? 'var(--bitcoin)' : 'var(--border-strong)'}`,
         cursor: 'pointer',
-        background: view === v ? 'rgba(247, 147, 26, 0.12)' : 'transparent',
+        background: view === v ? 'rgba(255, 87, 34, 0.12)' : 'transparent',
         color: view === v ? 'var(--bitcoin)' : 'var(--muted)',
         fontFamily: 'var(--font-sans)',
         minHeight: 36,

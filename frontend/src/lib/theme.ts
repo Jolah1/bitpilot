@@ -7,9 +7,9 @@ export type Theme = 'dark' | 'light'
  */
 const TOKENS: Record<Theme, Record<string, string>> = {
     dark: {
-        '--bitcoin': '#F7931A',
-        '--bitcoin-strong': '#FFA940',
-        '--bitcoin-dim': '#6B3D06',
+        '--bitcoin': '#FF5722',
+        '--bitcoin-strong': '#FF7043',
+        '--bitcoin-dim': '#5F2412',
         '--gold': '#FFAB91',
         '--gold-strong': '#FFCCBC',
         '--sat-green': '#10C57E',
@@ -33,16 +33,16 @@ const TOKENS: Record<Theme, Record<string, string>> = {
         '--success': '#10C57E',
         '--warning': '#FF5722',
 
-        '--gradient-bitcoin': 'linear-gradient(135deg, #F7931A 0%, #FFB74D 100%)',
-        '--gradient-lightning': 'linear-gradient(135deg, #F7931A 0%, #FFAB91 100%)',
+        '--gradient-bitcoin': 'linear-gradient(135deg, #FF5722 0%, #FF8A65 100%)',
+        '--gradient-lightning': 'linear-gradient(135deg, #FF5722 0%, #FFAB91 100%)',
         '--gradient-nostr': 'linear-gradient(135deg, #A78BFA 0%, #5EEAD4 100%)',
         '--gradient-ecash': 'linear-gradient(135deg, #5EEAD4 0%, #10C57E 100%)',
-        '--gradient-hero': 'linear-gradient(135deg, #F7931A 0%, #FFAB91 100%)',
-        '--gradient-surface': 'linear-gradient(180deg, rgba(247, 147, 26, 0.05) 0%, rgba(12, 26, 20, 0.0) 100%)',
+        '--gradient-hero': 'linear-gradient(135deg, #FF5722 0%, #FFAB91 100%)',
+        '--gradient-surface': 'linear-gradient(180deg, rgba(255, 87, 34, 0.05) 0%, rgba(12, 26, 20, 0.0) 100%)',
 
         '--shadow-1': '0 1px 2px rgba(0, 0, 0, 0.4)',
         '--shadow-2': '0 6px 24px rgba(0, 0, 0, 0.35)',
-        '--shadow-focus': '0 0 0 3px rgba(247, 147, 26, 0.45)',
+        '--shadow-focus': '0 0 0 3px rgba(255, 87, 34, 0.45)',
     },
     light: {
         // Light-mode tokens. Bitcoin orange is darkened to clear AA contrast on
@@ -50,9 +50,9 @@ const TOKENS: Record<Theme, Record<string, string>> = {
         // off-white. The dark mode goes deep forest; light mode stays warm sage-tinted paper
         // so the two themes feel like daylight + forest at night rather than two
         // mismatched colour systems.
-        '--bitcoin': '#AC5605',
-        '--bitcoin-strong': '#C76C0F',
-        '--bitcoin-dim': '#FDE8CC',
+        '--bitcoin': '#C2410C',
+        '--bitcoin-strong': '#D2500F',
+        '--bitcoin-dim': '#FADDD2',
         '--gold': '#B84A0E',
         '--gold-strong': '#93380B',
         '--sat-green': '#0F7A4F',
@@ -76,16 +76,16 @@ const TOKENS: Record<Theme, Record<string, string>> = {
         '--success': '#0F7A4F',
         '--warning': '#C2410C',
 
-        '--gradient-bitcoin': 'linear-gradient(135deg, #AC5605 0%, #E2872A 100%)',
-        '--gradient-lightning': 'linear-gradient(135deg, #AC5605 0%, #B84A0E 100%)',
+        '--gradient-bitcoin': 'linear-gradient(135deg, #C2410C 0%, #E8622C 100%)',
+        '--gradient-lightning': 'linear-gradient(135deg, #C2410C 0%, #B84A0E 100%)',
         '--gradient-nostr': 'linear-gradient(135deg, #6D28D9 0%, #0F766E 100%)',
         '--gradient-ecash': 'linear-gradient(135deg, #0F766E 0%, #0F7A4F 100%)',
-        '--gradient-hero': 'linear-gradient(135deg, #AC5605 0%, #B84A0E 100%)',
-        '--gradient-surface': 'linear-gradient(180deg, rgba(180, 90, 6, 0.05) 0%, rgba(184, 74, 14, 0.02) 100%)',
+        '--gradient-hero': 'linear-gradient(135deg, #C2410C 0%, #B84A0E 100%)',
+        '--gradient-surface': 'linear-gradient(180deg, rgba(194, 65, 12, 0.05) 0%, rgba(184, 74, 14, 0.02) 100%)',
 
         '--shadow-1': '0 1px 2px rgba(0, 0, 0, 0.06)',
         '--shadow-2': '0 8px 28px rgba(0, 0, 0, 0.08)',
-        '--shadow-focus': '0 0 0 3px rgba(180, 90, 6, 0.35)',
+        '--shadow-focus': '0 0 0 3px rgba(194, 65, 12, 0.35)',
     },
 }
 

@@ -122,7 +122,7 @@ function Hero({
                     inset: 0,
                     pointerEvents: 'none',
                     background:
-                        'radial-gradient(circle at 50% 28%, rgba(247, 147, 26, 0.18) 0%, rgba(247, 147, 26, 0.06) 18%, rgba(12, 26, 20, 0) 55%)',
+                        'radial-gradient(circle at 50% 28%, rgba(255, 87, 34, 0.18) 0%, rgba(255, 87, 34, 0.06) 18%, rgba(12, 26, 20, 0) 55%)',
                 }}
             />
 
@@ -297,7 +297,7 @@ function HeroMedallion() {
                 viewBox="0 0 400 400"
                 width="100%"
                 height="100%"
-                style={{ display: 'block', filter: 'drop-shadow(0 18px 40px rgba(247, 147, 26, 0.25))' }}
+                style={{ display: 'block', filter: 'drop-shadow(0 18px 40px rgba(255, 87, 34, 0.25))' }}
             >
                 <defs>
                     <radialGradient id="bp-hero-bg" cx="50%" cy="42%" r="60%">
@@ -307,13 +307,13 @@ function HeroMedallion() {
                     </radialGradient>
                     <linearGradient id="bp-hero-star" x1="0%" y1="0%" x2="100%" y2="100%">
                         <stop offset="0%" stopColor="#FFCCBC" />
-                        <stop offset="50%" stopColor="#F7931A" />
-                        <stop offset="100%" stopColor="#E07A0A" />
+                        <stop offset="50%" stopColor="#FF5722" />
+                        <stop offset="100%" stopColor="#D84315" />
                     </linearGradient>
                     <radialGradient id="bp-hero-glow" cx="50%" cy="50%" r="50%">
-                        <stop offset="0%" stopColor="#F7931A" stopOpacity="0.55" />
-                        <stop offset="60%" stopColor="#F7931A" stopOpacity="0.12" />
-                        <stop offset="100%" stopColor="#F7931A" stopOpacity="0" />
+                        <stop offset="0%" stopColor="#FF5722" stopOpacity="0.55" />
+                        <stop offset="60%" stopColor="#FF5722" stopOpacity="0.12" />
+                        <stop offset="100%" stopColor="#FF5722" stopOpacity="0" />
                     </radialGradient>
                 </defs>
 
@@ -362,7 +362,7 @@ function HeroMedallion() {
                         <polygon points="-130,0 -36,-22 -26,0 -36,22" />
                     </g>
                     {/* Central medallion. */}
-                    <circle cx="0" cy="0" r="56" fill="#0C1A14" stroke="#F7931A" strokeWidth="4" />
+                    <circle cx="0" cy="0" r="56" fill="#0C1A14" stroke="#FF5722" strokeWidth="4" />
                     <circle cx="0" cy="0" r="48" fill="none" stroke="rgba(255, 171, 145, 0.4)" strokeWidth="1" />
                     <text
                         x="0"
@@ -570,6 +570,14 @@ function YourJourney() {
                         // for the (rare) Firefox case as belt-and-braces.
                         scrollbarWidth: 'none',
                         WebkitOverflowScrolling: 'touch',
+                        // Fade the clipped card at the right edge so the
+                        // cut-off reads as "scroll for more", not a broken
+                        // layout. Constant 56px fade; subtle enough not to
+                        // matter on the last slide.
+                        maskImage:
+                            'linear-gradient(90deg, #000 0%, #000 calc(100% - 56px), transparent 100%)',
+                        WebkitMaskImage:
+                            'linear-gradient(90deg, #000 0%, #000 calc(100% - 56px), transparent 100%)',
                     }}
                 >
                     {TREES.map((t, i) => (

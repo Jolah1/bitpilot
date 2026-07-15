@@ -51,7 +51,7 @@ interface Theme {
 const PALETTE = {
     bg1: '#1E3B2C',
     bg2: '#0C1A14',
-    accent: '#F7931A',
+    accent: '#FF5722',
     accentLight: '#FFAB91',
     accentDim: '#7A4A0E',
     accent2: '#FFCCBC',

@@ -45,9 +45,9 @@
        The forest field reads calm and money-adjacent; orange is the
        canonical Bitcoin colour; the peach/deep-orange accent is for tier badges
        and CTAs that needs to feel earned, not just clickable. */
-    --bitcoin: #F7931A;
-    --bitcoin-strong: #FFA940;
-    --bitcoin-dim: #6B3D06;
+    --bitcoin: #FF5722;
+    --bitcoin-strong: #FF7043;
+    --bitcoin-dim: #5F2412;
     --gold: #FFAB91;
     --gold-strong: #FFCCBC;
     --sat-green: #10C57E;
@@ -72,12 +72,12 @@
     --warning: #FF5722;
 
     /* Gradients — used sparingly, only for accents/CTAs, never for body text. */
-    --gradient-bitcoin: linear-gradient(135deg, #F7931A 0%, #FFB74D 100%);
-    --gradient-lightning: linear-gradient(135deg, #F7931A 0%, #FFAB91 100%);
+    --gradient-bitcoin: linear-gradient(135deg, #FF5722 0%, #FF8A65 100%);
+    --gradient-lightning: linear-gradient(135deg, #FF5722 0%, #FFAB91 100%);
     --gradient-nostr: linear-gradient(135deg, #A78BFA 0%, #5EEAD4 100%);
     --gradient-ecash: linear-gradient(135deg, #5EEAD4 0%, #10C57E 100%);
-    --gradient-hero: linear-gradient(135deg, #F7931A 0%, #FFAB91 100%);
-    --gradient-surface: linear-gradient(180deg, rgba(247, 147, 26, 0.05) 0%, rgba(12, 26, 20, 0.0) 100%);
+    --gradient-hero: linear-gradient(135deg, #FF5722 0%, #FFAB91 100%);
+    --gradient-surface: linear-gradient(180deg, rgba(255, 87, 34, 0.05) 0%, rgba(12, 26, 20, 0.0) 100%);
 
     /* Spacing scale (8px base) */
     --space-1: 4px;
@@ -103,7 +103,7 @@
     /* Shadows */
     --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
     --shadow-2: 0 6px 24px rgba(0, 0, 0, 0.35);
-    --shadow-focus: 0 0 0 3px rgba(247, 147, 26, 0.45);
+    --shadow-focus: 0 0 0 3px rgba(255, 87, 34, 0.45);
 }
 
 /* ─── Reset ─────────────────────────────────────────────────────────────── */
@@ -217,7 +217,7 @@ button {
 
 /* Selection color */
 ::selection {
-    background: rgba(247, 147, 26, 0.35);
+    background: rgba(255, 87, 34, 0.35);
     color: var(--text);
 }
 
@@ -284,13 +284,13 @@ input, textarea, select {
 .bp-press:hover:not(:disabled) {
     transform: translateY(-1px);
     box-shadow: 0 1px 0 rgba(0, 0, 0, 0.1),
-                0 6px 22px rgba(247, 147, 26, 0.32),
+                0 6px 22px rgba(255, 87, 34, 0.32),
                 inset 0 1px 0 rgba(255, 255, 255, 0.25);
 }
 .bp-press:active:not(:disabled) {
     transform: translateY(0);
     box-shadow: 0 1px 0 rgba(0, 0, 0, 0.1),
-                0 2px 8px rgba(247, 147, 26, 0.22),
+                0 2px 8px rgba(255, 87, 34, 0.22),
                 inset 0 1px 0 rgba(255, 255, 255, 0.15);
 }
 

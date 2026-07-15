@@ -273,10 +273,10 @@ export default function SoloProgressView({
                                 }
                                 style={{
                                     background: b.earned
-                                        ? 'rgba(247, 147, 26, 0.08)'
+                                        ? 'rgba(255, 87, 34, 0.08)'
                                         : 'transparent',
                                     border: b.earned
-                                        ? '1px solid rgba(247, 147, 26, 0.35)'
+                                        ? '1px solid rgba(255, 87, 34, 0.35)'
                                         : '1px dashed var(--border)',
                                     borderRadius: 'var(--radius-2)',
                                     padding: 14,
