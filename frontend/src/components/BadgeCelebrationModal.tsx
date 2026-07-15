@@ -170,6 +170,32 @@ export function BadgeCelebrationModal({
                     animation: 'bp-modal-pop 0.5s cubic-bezier(0.2, 1.2, 0.4, 1) both',
                 }}
             >
+                {/* Explicit close mark. Escape/backdrop/Continue all close
+                    too, but a visible × is the affordance people look for. */}
+                <button
+                    type="button"
+                    onClick={onClose}
+                    aria-label="Close celebration"
+                    style={{
+                        position: 'absolute',
+                        top: -6,
+                        right: 0,
+                        background: 'rgba(255,255,255,0.08)',
+                        border: '1px solid rgba(255,255,255,0.22)',
+                        borderRadius: '50%',
+                        width: 34,
+                        height: 34,
+                        color: 'rgba(255,255,255,0.85)',
+                        fontSize: 17,
+                        lineHeight: 1,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                    }}
+                >
+                    ✕
+                </button>
                 <div
                     id="bp-celebrate-title"
                     style={{
@@ -180,7 +206,7 @@ export function BadgeCelebrationModal({
                         textTransform: 'uppercase',
                     }}
                 >
-                    Chapter complete
+                    Flight path complete
                 </div>
                 <h1
                     style={{
@@ -215,6 +241,7 @@ export function BadgeCelebrationModal({
                         participantName={participantName}
                         earnedAt={badge.earned_at}
                         badgeId={badgeId}
+                        fluid
                     />
                 </div>
 
@@ -228,7 +255,7 @@ export function BadgeCelebrationModal({
                         lineHeight: 1.5,
                     }}
                 >
-                    You completed every lesson in the {label} chapter ({badge.required} mission{badge.required === 1 ? '' : 's'}).{' '}
+                    You completed every lesson in the {label} flight path ({badge.required} mission{badge.required === 1 ? '' : 's'}).{' '}
                     <strong style={{ color: '#FFFFFF' }}>
                         Save the badge or share it, it's yours.
                     </strong>

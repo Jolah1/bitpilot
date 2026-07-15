@@ -32,6 +32,7 @@ import {
     setSessionId as persistSessionId,
 } from './lib/auth'
 import { RuntimeProvider } from './lib/runtime'
+import { GOALS, saveGoal, type Goal } from './lib/goals'
 import {
     card,
     ghostButton,
@@ -45,7 +46,15 @@ const queryClient = new QueryClient({
 })
 
 type View = 'learner' | 'facilitator'
-type Screen = 'landing' | 'setup' | 'session-not-found' | 'app' | 'pair' | 'challenge'
+type Screen =
+    | 'landing'
+    | 'mode' // solo vs workshop, first onboarding step
+    | 'goal' // curious / builder / privacy, second onboarding step (solo only)
+    | 'setup'
+    | 'session-not-found'
+    | 'app'
+    | 'pair'
+    | 'challenge'
 
 /**
  * Sentinel session name for solo learners.
@@ -270,7 +279,9 @@ export default function App() {
                             onToggleTheme={toggleTheme}
                             onStart={() => {
                                 setView('learner')
-                                setScreen('setup')
+                                // Onboarding: solo vs workshop first, then
+                                // (for solo) the goal picker, then the name.
+                                setScreen('mode')
                             }}
                             onFacilitator={() => {
                                 setView('facilitator')
@@ -282,11 +293,45 @@ export default function App() {
                         />
                     </Suspense>
                 )}
+                {screen === 'mode' && (
+                    <ChooseMode
+                        theme={theme}
+                        onToggleTheme={toggleTheme}
+                        onBack={() => setScreen('landing')}
+                        onSolo={() => {
+                            setView('learner')
+                            setScreen('goal')
+                        }}
+                        onWorkshop={() => {
+                            setView('facilitator')
+                            setScreen('setup')
+                        }}
+                    />
+                )}
+                {screen === 'goal' && (
+                    <ChooseGoal
+                        theme={theme}
+                        onToggleTheme={toggleTheme}
+                        onBack={() => setScreen('mode')}
+                        onPick={(g) => {
+                            saveGoal(g)
+                            setScreen('setup')
+                        }}
+                    />
+                )}
                 {screen === 'setup' && (
                     <Setup
                         theme={theme}
                         onToggleTheme={toggleTheme}
-                        onBack={() => setScreen('landing')}
+                        onBack={() =>
+                            setScreen(
+                                joinSessionId
+                                    ? 'landing'
+                                    : view === 'learner'
+                                      ? 'goal'
+                                      : 'mode',
+                            )
+                        }
                         participantName={participantName}
                         setParticipantName={setParticipantName}
                         sessionName={sessionName}
@@ -343,6 +388,248 @@ export default function App() {
                 )}
             </RuntimeProvider>
         </QueryClientProvider>
+    )
+}
+
+// ─── Onboarding steps (mode → goal → setup) ──────────────────────────────────
+
+/**
+ * Shared frame for the small pre-app step screens: sticky bar with back +
+ * theme toggle, then one centered card. Setup and PairDevice predate this
+ * helper and keep their own copies of the same markup.
+ */
+function StepShell({
+    theme,
+    onToggleTheme,
+    onBack,
+    children,
+}: {
+    theme: Theme
+    onToggleTheme: () => void
+    onBack: () => void
+    children: React.ReactNode
+}) {
+    return (
+        <div
+            style={{
+                minHeight: '100vh',
+                display: 'flex',
+                flexDirection: 'column',
+                background: 'var(--bg)',
+            }}
+        >
+            <div
+                style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '12px 16px',
+                    borderBottom: '1px solid var(--border)',
+                    gap: 8,
+                }}
+            >
+                <button
+                    onClick={onBack}
+                    style={{ ...ghostButton, padding: '8px 14px', minHeight: 40 }}
+                    aria-label="Go back"
+                >
+                    ← Back
+                </button>
+                <ThemeToggle theme={theme} onToggle={onToggleTheme} />
+            </div>
+            <main
+                id="main-content"
+                style={{
+                    flex: 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: 'clamp(1rem, 4vw, 1.5rem)',
+                }}
+            >
+                <div style={{ width: '100%', maxWidth: 460 }}>
+                    <div
+                        style={{
+                            ...card,
+                            padding: 'clamp(20px, 5vw, 32px)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 16,
+                        }}
+                    >
+                        {children}
+                    </div>
+                </div>
+            </main>
+        </div>
+    )
+}
+
+/** Big tappable option used by the two onboarding steps. */
+function StepOption({
+    icon,
+    title,
+    body,
+    onClick,
+}: {
+    icon?: string
+    title: string
+    body: string
+    onClick: () => void
+}) {
+    return (
+        <button
+            type="button"
+            className="bp-press"
+            onClick={onClick}
+            style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: 12,
+                width: '100%',
+                textAlign: 'left',
+                padding: '14px 16px',
+                background: 'var(--surface)',
+                border: '1px solid var(--border-strong)',
+                borderRadius: 'var(--radius-3)',
+                cursor: 'pointer',
+                fontFamily: 'var(--font-sans)',
+                color: 'var(--text)',
+                minHeight: 64,
+            }}
+        >
+            {icon && (
+                <span aria-hidden="true" style={{ fontSize: 24, lineHeight: 1.2 }}>
+                    {icon}
+                </span>
+            )}
+            <span style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                <span style={{ fontSize: 15, fontWeight: 700, letterSpacing: '-0.01em' }}>
+                    {title}
+                </span>
+                <span style={{ fontSize: 12.5, color: 'var(--muted)', lineHeight: 1.5 }}>
+                    {body}
+                </span>
+            </span>
+        </button>
+    )
+}
+
+/** Onboarding step 1: solo run or workshop session. */
+function ChooseMode({
+    theme,
+    onToggleTheme,
+    onBack,
+    onSolo,
+    onWorkshop,
+}: {
+    theme: Theme
+    onToggleTheme: () => void
+    onBack: () => void
+    onSolo: () => void
+    onWorkshop: () => void
+}) {
+    return (
+        <StepShell theme={theme} onToggleTheme={onToggleTheme} onBack={onBack}>
+            <header>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                    <BrandMark size={36} />
+                    <h1
+                        style={{
+                            fontSize: 'clamp(20px, 5vw, 24px)',
+                            fontWeight: 800,
+                            letterSpacing: '-0.025em',
+                            margin: 0,
+                        }}
+                    >
+                        How do you want to learn?
+                    </h1>
+                </div>
+                <p style={{ fontSize: 13.5, color: 'var(--muted)', lineHeight: 1.55, margin: 0 }}>
+                    Both are free and cover the same missions. You can switch later.
+                </p>
+            </header>
+            <StepOption
+                icon="🧑‍🚀"
+                title="Learn solo"
+                body="Go at your own pace. Progress saves in this browser, and every badge is earnable on your own."
+                onClick={onSolo}
+            />
+            <StepOption
+                icon="🎓"
+                title="Run a workshop"
+                body="Host a group session: you get a live dashboard and a link learners join with."
+                onClick={onWorkshop}
+            />
+            <p style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.5, margin: 0 }}>
+                Joining someone else's workshop? Open the link or QR code your
+                facilitator shared and you'll land straight in their session.
+            </p>
+        </StepShell>
+    )
+}
+
+/** Onboarding step 2 (solo only): pick a learning goal, or skip. */
+function ChooseGoal({
+    theme,
+    onToggleTheme,
+    onBack,
+    onPick,
+}: {
+    theme: Theme
+    onToggleTheme: () => void
+    onBack: () => void
+    onPick: (goal: Goal | null) => void
+}) {
+    const icons: Record<Goal, string> = {
+        curious: '🌱',
+        builder: '🔧',
+        privacy: '🕵️',
+    }
+    return (
+        <StepShell theme={theme} onToggleTheme={onToggleTheme} onBack={onBack}>
+            <header>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                    <BrandMark size={36} />
+                    <h1
+                        style={{
+                            fontSize: 'clamp(20px, 5vw, 24px)',
+                            fontWeight: 800,
+                            letterSpacing: '-0.025em',
+                            margin: 0,
+                        }}
+                    >
+                        What brings you here?
+                    </h1>
+                </div>
+                <p style={{ fontSize: 13.5, color: 'var(--muted)', lineHeight: 1.55, margin: 0 }}>
+                    This orders your flight paths so the next best step is always
+                    on top. Nothing gets locked, and you can change it any time.
+                </p>
+            </header>
+            {(Object.keys(GOALS) as Goal[]).map((g) => (
+                <StepOption
+                    key={g}
+                    icon={icons[g]}
+                    title={GOALS[g].label}
+                    body={GOALS[g].blurb}
+                    onClick={() => onPick(g)}
+                />
+            ))}
+            <button
+                type="button"
+                onClick={() => onPick(null)}
+                style={{
+                    ...ghostButton,
+                    width: '100%',
+                    minHeight: 44,
+                    fontSize: 13.5,
+                    justifyContent: 'center',
+                }}
+            >
+                Just exploring, show me everything
+            </button>
+        </StepShell>
     )
 }
 

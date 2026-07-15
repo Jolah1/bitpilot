@@ -203,6 +203,13 @@ export interface MissionDef {
         placeholder?: string
         /** For text inputs: max length. */
         maxLength?: number
+        /**
+         * Where the task actually happens. When the Do step sends the
+         * learner somewhere external (a faucet, a repo, an issue list),
+         * list it here and the DoPanel renders tappable links, so nobody
+         * has to retype a URL out of the lesson body.
+         */
+        links?: { label: string; href: string }[]
     }
 }
 
@@ -222,6 +229,7 @@ interface KnowledgeOpts {
     quiz: MissionQuiz
     actionLabel?: string
     helper?: string
+    links?: { label: string; href: string }[]
 }
 
 function knowledge(o: KnowledgeOpts): MissionDef {
@@ -239,12 +247,13 @@ function knowledge(o: KnowledgeOpts): MissionDef {
             kind: 'knowledge',
             actionLabel: o.actionLabel ?? 'You got it',
             helper: o.helper ?? "Knowledge mission. Understanding *is* the goal; the button just credits you.",
+            links: o.links,
         },
     }
 }
 
 /**
- * The full BitPilot curriculum: 106 missions (0..=105) across 9 chapters.
+ * The full BitPilot curriculum: 106 missions (0..=105) across 9 flight paths.
  *
  * Mission ids are stable across tree reshuffles, they don't renumber when
  * a mission moves to a different tree. The catalogue below is ordered by
@@ -267,7 +276,7 @@ export const MISSIONS: MissionDef[] = [
         learn: {
             heading: 'Why this exists',
             body:
-                "Most people learn about Bitcoin by reading. You'll learn by using. Over more than 100 missions you'll generate real cryptographic keys, send (testnet) payments, publish a message to a network nobody owns, and end up understanding more than 99% of people who 'know about crypto'.\n\nNo wallet to install. No money at risk. Every action that touches a real network is clearly labeled, and everything that's just a demonstration is too.\n\nMissions are grouped into nine chapters: Money, Bitcoin, Lightning, Nostr, eCash, Self-custody, Privacy, Sovereignty, Open Source. Start anywhere, finish a chapter, earn its compass badge.",
+                "Most people learn about Bitcoin by reading. You'll learn by using. Over more than 100 missions you'll generate real cryptographic keys, send (testnet) payments, publish a message to a network nobody owns, and end up understanding more than 99% of people who 'know about crypto'.\n\nNo wallet to install. No money at risk. Every action that touches a real network is clearly labeled, and everything that's just a demonstration is too.\n\nMissions are grouped into nine flight paths: Money, Bitcoin, Lightning, Nostr, eCash, Self-custody, Privacy, Sovereignty, Open Source. Start anywhere, finish a flight path, earn its compass badge.",
             tip: 'You\'ll learn to think in sats, the unit real Bitcoiners use. No money changes hands inside BitPilot.',
         },
         quiz: {
@@ -401,7 +410,7 @@ export const MISSIONS: MissionDef[] = [
             heading: 'A block is a batch of transactions',
             body:
                 "Every ~10 minutes a miner wins the right to publish the next block, which bundles up recently broadcast transactions. Once your transaction is in a block, it has '1 confirmation'.\n\nFor small amounts, 1 confirmation is enough. For large amounts (think: buying a house), people wait for 6 confirmations, about an hour, because reorganising the chain that far back is astronomically expensive.\n\nThis is why on-chain Bitcoin is bad for buying coffee: 10-60 minutes is silly for $3. It's great for settlement of larger value, where waiting an hour buys you decades of mathematical certainty.",
-            tip: 'For day-to-day spending, use Lightning. The Lightning chapter covers that.',
+            tip: 'For day-to-day spending, use Lightning. The Lightning flight path covers that.',
         },
         quiz: {
             question: 'Why wait for 6 confirmations on a large payment?',
@@ -659,7 +668,7 @@ export const MISSIONS: MissionDef[] = [
         learn: {
             heading: 'A Nostr event has 5 fields',
             body:
-                "Everything on Nostr is an 'event': a JSON object with five fields, id, pubkey, kind, content, signature. The 'kind' number says what type of thing it is.\n\nKind 1: a short text note (a tweet, basically).\nKind 0: profile metadata (name, about, picture).\nKind 3: contact list (your follows).\nKind 7: a reaction (like/dislike).\nKind 9735: a zap receipt (zaps come later in this chapter).\n\nThat's the whole protocol. Add new kinds, build new apps, same plumbing.",
+                "Everything on Nostr is an 'event': a JSON object with five fields, id, pubkey, kind, content, signature. The 'kind' number says what type of thing it is.\n\nKind 1: a short text note (a tweet, basically).\nKind 0: profile metadata (name, about, picture).\nKind 3: contact list (your follows).\nKind 7: a reaction (like/dislike).\nKind 9735: a zap receipt (zaps come later on this flight path).\n\nThat's the whole protocol. Add new kinds, build new apps, same plumbing.",
             tip: "Every post, follow, reaction, and zap is a JSON object you cryptographically signed.",
         },
         quiz: {
@@ -1011,7 +1020,7 @@ export const MISSIONS: MissionDef[] = [
         learn: {
             heading: 'Digital banknotes, sort of',
             body:
-                "When you pay with a card, your bank sees every purchase. Even on-chain Bitcoin is public, anyone can see your transaction history if they know your address.\n\neCash (Cashu is the most common Bitcoin-backed protocol) is different. A 'mint' issues tokens backed by real sats. Once you hold a token, whoever holds the token holds the value, like a banknote. The mint can't trace what you do with it. That property is called 'bearer'.\n\nThe trick behind the privacy is a 'blind signature', the mint certifies each token without being able to recognise it later. A later lesson in this chapter unpacks how that works.\n\nA Cashu token is a long string. Possessing it = owning the sats inside.",
+                "When you pay with a card, your bank sees every purchase. Even on-chain Bitcoin is public, anyone can see your transaction history if they know your address.\n\neCash (Cashu is the most common Bitcoin-backed protocol) is different. A 'mint' issues tokens backed by real sats. Once you hold a token, whoever holds the token holds the value, like a banknote. The mint can't trace what you do with it. That property is called 'bearer'.\n\nThe trick behind the privacy is a 'blind signature', the mint certifies each token without being able to recognise it later. A later lesson on this flight path unpacks how that works.\n\nA Cashu token is a long string. Possessing it = owning the sats inside.",
             tip: "Bearer money cuts both ways: lose the token string, the sats are gone. Treat tokens like cash.",
         },
         quiz: {
@@ -1229,7 +1238,7 @@ export const MISSIONS: MissionDef[] = [
         learn: {
             heading: 'The scaling landscape',
             body:
-                "Lightning is the most-used Bitcoin Layer 2, but it's not the only design.\n\n• Liquid: a federated sidechain run by Blockstream, fast, confidential, custodial-ish.\n\n• Ark: emerging design for non-custodial, no-channels payments.\n\n• Statechains, channel factories, BitVM: research directions that may or may not pan out.\n\n• Drivechains (BIP-300): proposed soft fork to enable miner-secured sidechains. Politically contested.\n\nThe point: Bitcoin is base-layer. Anything built on top is an L2 with its own trade-offs (trust assumptions, custody model, speed, privacy). 'Lightning' isn't the end of the story, it's the most mature chapter.",
+                "Lightning is the most-used Bitcoin Layer 2, but it's not the only design.\n\n• Liquid: a federated sidechain run by Blockstream, fast, confidential, custodial-ish.\n\n• Ark: emerging design for non-custodial, no-channels payments.\n\n• Statechains, channel factories, BitVM: research directions that may or may not pan out.\n\n• Drivechains (BIP-300): proposed soft fork to enable miner-secured sidechains. Politically contested.\n\nThe point: Bitcoin is base-layer. Anything built on top is an L2 with its own trade-offs (trust assumptions, custody model, speed, privacy). 'Lightning' isn't the end of the story, it is just the most mature design so far.",
             tip: "Treat 'L2' as a category, not a product. Each L2 has different trust assumptions.",
         },
         quiz: {
@@ -1299,6 +1308,11 @@ export const MISSIONS: MissionDef[] = [
             kind: 'onchain-signet',
             actionLabel: 'Verify my signet txid',
             helper: "Paste your 64-character hex txid. We'll ask mempool.space/signet whether it's real.",
+            links: [
+                { label: 'Signet faucet (bc-2.jp)', href: 'https://signet.bc-2.jp/' },
+                { label: 'Signet faucet (signetfaucet.com)', href: 'https://signetfaucet.com' },
+                { label: 'Signet block explorer', href: 'https://mempool.space/signet' },
+            ],
             placeholder: '64-character hex transaction id',
             maxLength: 64,
         },
@@ -2606,6 +2620,13 @@ export const MISSIONS: MissionDef[] = [
                 { text: 'The LICENSE file', correct: false, why: 'That covers your rights, not the API.' },
             ],
         },
+        helper: 'Open one of these real codebases, find its README and tests, and try one search. The button credits you when you have looked around.',
+        links: [
+            { label: 'rust-bitcoin', href: 'https://github.com/rust-bitcoin/rust-bitcoin' },
+            { label: 'BDK', href: 'https://github.com/bitcoindevkit/bdk' },
+            { label: 'LDK', href: 'https://github.com/lightningdevkit/rust-lightning' },
+            { label: 'Core Lightning', href: 'https://github.com/ElementsProject/lightning' },
+        ],
     }),
     {
         id: 102,
@@ -2635,6 +2656,11 @@ export const MISSIONS: MissionDef[] = [
             helper: 'Paste a link to the docs page (or the sentence itself) you would improve. This becomes your target for the final mission.',
             placeholder: 'https://... or the sentence that made you stumble',
             maxLength: 300,
+            links: [
+                { label: 'BDK docs', href: 'https://bitcoindevkit.org' },
+                { label: 'LDK docs', href: 'https://lightningdevkit.org' },
+                { label: 'rust-bitcoin API docs', href: 'https://docs.rs/bitcoin' },
+            ],
         },
     },
     {
@@ -2665,6 +2691,11 @@ export const MISSIONS: MissionDef[] = [
             helper: 'Restate your chosen issue in your own words: what is wanted, and how would you know it is done?',
             placeholder: 'The issue asks for... it is done when...',
             maxLength: 500,
+            links: [
+                { label: 'rust-bitcoin good first issues', href: 'https://github.com/rust-bitcoin/rust-bitcoin/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22' },
+                { label: 'BDK good first issues', href: 'https://github.com/bitcoindevkit/bdk/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22' },
+                { label: 'LDK good first issues', href: 'https://github.com/lightningdevkit/rust-lightning/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22' },
+            ],
         },
     },
     knowledge({
@@ -2700,11 +2731,11 @@ export const MISSIONS: MissionDef[] = [
         learn: {
             heading: 'The last mission is real',
             body:
-                "Everything before this was practice. Now pick your target: the docs fix you found, the good first issue you decoded, or a test like the one you studied. Fork the repository, make the change on a branch, open a pull request, and work with the maintainers until it merges.\n\nThat can take a day or a month. This mission waits. Review rounds are not rejection, they are the maintainers investing time in your change, so answer them and iterate.\n\nWhat wins review: one small, focused change. A clear description of what and why. Patience.\n\nWhen your PR merges, come back and paste its URL along with your GitHub username. BitPilot asks GitHub's public API two questions: is this PR really merged, and was it really authored by that account? If both are yes, you graduate this chapter with something no certificate can match: code strangers now run.",
+                "Everything before this was practice. Now pick your target: the docs fix you found, the good first issue you decoded, or a test like the one you studied. Fork the repository, make the change on a branch, open a pull request, and work with the maintainers until it merges.\n\nThat can take a day or a month. This mission waits. Review rounds are not rejection, they are the maintainers investing time in your change, so answer them and iterate.\n\nWhat wins review: one small, focused change. A clear description of what and why. Patience.\n\nWhen your PR merges, come back and paste its URL along with your GitHub username. BitPilot asks GitHub's public API two questions: is this PR really merged, and was it really authored by that account? If both are yes, you graduate this flight path with something no certificate can match: code strangers now run.",
             tip: 'Small and polite wins. Maintainers remember contributors who make review easy.',
         },
         quiz: {
-            question: 'What counts as graduating this chapter?',
+            question: 'What counts as graduating this flight path?',
             options: [
                 { text: 'Opening a pull request', correct: false, why: 'Opening is the start. The merge is the graduation.' },
                 { text: 'A maintainer merges your PR into a real project', correct: true },
@@ -2715,6 +2746,9 @@ export const MISSIONS: MissionDef[] = [
             kind: 'github-pr',
             actionLabel: 'Verify my merged PR',
             helper: "Paste your merged pull request's URL and your GitHub username. BitPilot checks GitHub that it is merged and that you authored it.",
+            links: [
+                { label: 'How to open a pull request (GitHub docs)', href: 'https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/creating-a-pull-request' },
+            ],
         },
     },
 ]

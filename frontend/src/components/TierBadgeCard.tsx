@@ -36,7 +36,7 @@ interface Theme {
     accent2: string
     /** Subtitle eyebrow above the medallion (small caps). */
     subtitle: string
-    /** Short label printed on the chip, e.g. "CHAPTER · LIGHTNING". */
+    /** Short label printed on the chip, e.g. "FLIGHT PATH · LIGHTNING". */
     chipText: string
     /** Two-line achievement description; pre-wrapped to fit. */
     achievement: [string, string]
@@ -61,7 +61,7 @@ const THEMES: Record<Tree, Theme> = {
     money: {
         ...PALETTE,
         subtitle: 'Money Basics',
-        chipText: 'CHAPTER · MONEY',
+        chipText: 'FLIGHT PATH · MONEY',
         achievement: [
             'Learned what bitcoin is and',
             'why thinking in sats matters.',
@@ -70,7 +70,7 @@ const THEMES: Record<Tree, Theme> = {
     bitcoin: {
         ...PALETTE,
         subtitle: 'Bitcoin Protocol',
-        chipText: 'CHAPTER · BITCOIN',
+        chipText: 'FLIGHT PATH · BITCOIN',
         achievement: [
             'Blocks, fees, miners, and how',
             'bitcoin moves, the base layer.',
@@ -79,7 +79,7 @@ const THEMES: Record<Tree, Theme> = {
     lightning: {
         ...PALETTE,
         subtitle: 'Lightning Network',
-        chipText: 'CHAPTER · LIGHTNING',
+        chipText: 'FLIGHT PATH · LIGHTNING',
         achievement: [
             'Opened the door to fast,',
             'cheap, routable bitcoin payments.',
@@ -88,7 +88,7 @@ const THEMES: Record<Tree, Theme> = {
     nostr: {
         ...PALETTE,
         subtitle: 'Nostr & Zaps',
-        chipText: 'CHAPTER · NOSTR',
+        chipText: 'FLIGHT PATH · NOSTR',
         achievement: [
             'Real cryptographic identity,',
             'notes signed against no one.',
@@ -97,7 +97,7 @@ const THEMES: Record<Tree, Theme> = {
     ecash: {
         ...PALETTE,
         subtitle: 'eCash & Mints',
-        chipText: 'CHAPTER · eCASH',
+        chipText: 'FLIGHT PATH · eCASH',
         achievement: [
             'Bearer money in your pocket,',
             'redeemable to Lightning.',
@@ -106,7 +106,7 @@ const THEMES: Record<Tree, Theme> = {
     'self-custody': {
         ...PALETTE,
         subtitle: 'Self-custody',
-        chipText: 'CHAPTER · SELF-CUSTODY',
+        chipText: 'FLIGHT PATH · SELF-CUSTODY',
         achievement: [
             'Keys, seeds, addresses, backups:',
             'your bitcoin, your responsibility.',
@@ -115,7 +115,7 @@ const THEMES: Record<Tree, Theme> = {
     privacy: {
         ...PALETTE,
         subtitle: 'Privacy',
-        chipText: 'CHAPTER · PRIVACY',
+        chipText: 'FLIGHT PATH · PRIVACY',
         achievement: [
             'The chain is public.',
             'Now you know how to behave.',
@@ -124,7 +124,7 @@ const THEMES: Record<Tree, Theme> = {
     sovereignty: {
         ...PALETTE,
         subtitle: 'Full Independence',
-        chipText: 'CHAPTER · SOVEREIGNTY',
+        chipText: 'FLIGHT PATH · SOVEREIGNTY',
         achievement: [
             'Signet on-chain, your own node,',
             'the long game.',
@@ -133,7 +133,7 @@ const THEMES: Record<Tree, Theme> = {
     'open-source': {
         ...PALETTE,
         subtitle: 'Open Source',
-        chipText: 'CHAPTER · OPEN SOURCE',
+        chipText: 'FLIGHT PATH · OPEN SOURCE',
         achievement: [
             'A real merged PR:',
             'code strangers now run.',
@@ -195,10 +195,19 @@ export interface TierBadgeCardProps {
     badgeId: string
     /** Visual scale. Default 1 = 600x800. Pass < 1 for inline previews. */
     scale?: number
+    /**
+     * Fill the parent element instead of a fixed pixel size. Modals use
+     * this so the card shrinks with the viewport and never pushes the
+     * action buttons off a phone screen. Exporters must reset width and
+     * height to 600x800 on the serialized clone (ShareBadgeModal does).
+     */
+    fluid?: boolean
 }
 
 const W = 600
 const H = 800
+/** Corner radius of the physical card. */
+const CARD_R = 28
 const CX = W / 2
 const MEDAL_CY = 360
 const MEDAL_R_OUTER = 150
@@ -244,7 +253,7 @@ function TreeGlyph({ accent, glyph }: { accent: string; glyph: string }) {
  * ShareBadgeModal can grab the raw <svg> for serialization.
  */
 export const TierBadgeCard = forwardRef<SVGSVGElement, TierBadgeCardProps>(
-    function TierBadgeCard({ tree, participantName, earnedAt, badgeId, scale = 1 }, ref) {
+    function TierBadgeCard({ tree, participantName, earnedAt, badgeId, scale = 1, fluid = false }, ref) {
         const theme = THEMES[tree]
         const label = RANK_LABEL[tree]
         const dateStr = formatBadgeDate(earnedAt)
@@ -261,14 +270,14 @@ export const TierBadgeCard = forwardRef<SVGSVGElement, TierBadgeCardProps>(
             <svg
                 ref={ref}
                 xmlns="http://www.w3.org/2000/svg"
-                width={W * scale}
-                height={H * scale}
+                width={fluid ? '100%' : W * scale}
+                height={fluid ? '100%' : H * scale}
                 viewBox={`0 0 ${W} ${H}`}
                 role="img"
                 aria-label={
                     earnedAt
-                        ? `${label} chapter badge for ${safeName}, earned ${dateStr}. Badge ID ${badgeId}.`
-                        : `${label} chapter badge for ${safeName}. Badge ID ${badgeId}.`
+                        ? `${label} flight path badge for ${safeName}, earned ${dateStr}. Badge ID ${badgeId}.`
+                        : `${label} flight path badge for ${safeName}. Badge ID ${badgeId}.`
                 }
             >
                 <defs>
@@ -317,7 +326,16 @@ export const TierBadgeCard = forwardRef<SVGSVGElement, TierBadgeCardProps>(
                     </pattern>
 
                     <path id={ringTextId} d={ringTextPath} />
+
+                    {/* Rounded-corner clip: everything renders inside this,
+                        so the card reads as a solid physical object with a
+                        border radius, in the UI and in PNG/SVG exports. */}
+                    <clipPath id={`card-clip-${tree}`}>
+                        <rect x="0" y="0" width={W} height={H} rx={CARD_R} />
+                    </clipPath>
                 </defs>
+
+                <g clipPath={`url(#card-clip-${tree})`}>
 
                 {/* ── Layer 1: aurora background ──────────────────────────── */}
                 <rect x="0" y="0" width={W} height={H} fill={`url(#bg-${tree})`} />
@@ -640,6 +658,21 @@ export const TierBadgeCard = forwardRef<SVGSVGElement, TierBadgeCardProps>(
                 >
                     BITPILOT · LEARN BITCOIN BY DOING
                 </text>
+
+                {/* Solid card edge, drawn last so it sits on top of the
+                    aurora. Follows the same radius as the clip. */}
+                <rect
+                    x="1.5"
+                    y="1.5"
+                    width={W - 3}
+                    height={H - 3}
+                    rx={CARD_R - 1.5}
+                    fill="none"
+                    stroke={theme.accent}
+                    strokeOpacity="0.85"
+                    strokeWidth="3"
+                />
+                </g>
             </svg>
         )
     },

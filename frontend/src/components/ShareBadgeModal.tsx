@@ -94,6 +94,10 @@ export function ShareBadgeModal({
         if (!clone.getAttribute('xmlns')) {
             clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
         }
+        // The in-DOM card renders fluid (100%/100%) so it fits phone
+        // screens; exports always go out at the full 600x800.
+        clone.setAttribute('width', '600')
+        clone.setAttribute('height', '800')
         return new XMLSerializer().serializeToString(clone)
     }
 
@@ -351,6 +355,9 @@ export function ShareBadgeModal({
                     </button>
                 </div>
 
+                {/* Preview area. It flexes and scrolls so the badge can never
+                    push the share buttons below the fold on a phone; the
+                    buttons matter more than a bigger preview. */}
                 <div
                     style={{
                         padding: '16px 18px',
@@ -358,14 +365,17 @@ export function ShareBadgeModal({
                         justifyContent: 'center',
                         background: 'var(--bg)',
                         overflowY: 'auto',
+                        flex: '1 1 auto',
+                        minHeight: 120,
                     }}
                 >
                     <div
                         style={{
                             width: '100%',
-                            maxWidth: 360,
+                            maxWidth: 320,
                             aspectRatio: '600 / 800',
                             display: 'flex',
+                            margin: '0 auto',
                         }}
                     >
                         <TierBadgeCard
@@ -374,6 +384,7 @@ export function ShareBadgeModal({
                             participantName={participantName}
                             earnedAt={badge.earned_at}
                             badgeId={badgeId}
+                            fluid
                         />
                     </div>
                 </div>
@@ -385,6 +396,7 @@ export function ShareBadgeModal({
                         display: 'flex',
                         flexDirection: 'column',
                         gap: 10,
+                        flexShrink: 0,
                     }}
                 >
                     {error && (
@@ -507,6 +519,13 @@ export function ShareBadgeModal({
                                 Nostr uses the key you made earlier, so it stays yours.
                                 PNG and SVG just save the image to your device.
                             </div>
+                            <button
+                                onClick={onClose}
+                                disabled={downloading !== null}
+                                style={shareButton('secondary', downloading !== null)}
+                            >
+                                Close
+                            </button>
                         </>
                     )}
                 </div>

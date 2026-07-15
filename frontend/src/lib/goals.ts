@@ -1,8 +1,8 @@
 /**
- * Learner-goal presets: a recommended chapter order per goal, nothing more.
+ * Learner-goal presets: a recommended flight path order per goal, nothing more.
  *
- * A goal never locks anything. It sorts the chapter picker and marks the
- * next recommended chapter, replacing the per-card "finish X first" nudges
+ * A goal never locks anything. It sorts the flight path picker and marks the
+ * next recommended flight path, replacing the per-card "finish X first" nudges
  * with a single clear pointer. Stored client-side only; the server has no
  * concept of goals (see issue #56 for the possible future column).
  */

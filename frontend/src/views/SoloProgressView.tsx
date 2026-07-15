@@ -132,7 +132,7 @@ export default function SoloProgressView({
             >
                 <Stat label="Missions" value={`${completed.length}/${MISSION_COUNT}`} />
                 <Stat
-                    label="Chapters earned"
+                    label="Flight paths earned"
                     value={`${earnedBadges}/${TREES.length}`}
                     accent={earnedBadges > 0}
                 />
@@ -145,7 +145,7 @@ export default function SoloProgressView({
             </section>
 
             {/* Tree progress bars */}
-            <section aria-label="Chapter progress" style={{ ...card, padding: 16 }}>
+            <section aria-label="Flight path progress" style={{ ...card, padding: 16 }}>
                 <h2
                     style={{
                         margin: 0,
@@ -155,7 +155,7 @@ export default function SoloProgressView({
                         marginBottom: 12,
                     }}
                 >
-                    Chapter progress
+                    Flight path progress
                 </h2>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                     {TREES.map((t) => {
@@ -224,7 +224,7 @@ export default function SoloProgressView({
             </section>
 
             {/* Badge gallery */}
-            <section aria-label="Chapter badges" style={{ ...card, padding: 16 }}>
+            <section aria-label="Flight path badges" style={{ ...card, padding: 16 }}>
                 <h2
                     style={{
                         margin: 0,
@@ -245,7 +245,7 @@ export default function SoloProgressView({
                     }}
                 >
                     {earnedBadges === 0
-                        ? `Finish every lesson in a chapter to unlock its medallion. ${TREES[0].label} is ${TREES[0].missions.length} missions.`
+                        ? `Finish every lesson in a flight path to unlock its medallion. ${TREES[0].label} is ${TREES[0].missions.length} missions.`
                         : 'Tap an earned badge to download or share it.'}
                 </p>
                 <div
