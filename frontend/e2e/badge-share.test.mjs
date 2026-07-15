@@ -30,9 +30,13 @@ try {
     await sleep(1800)
 
     report.assert(
-        (await page.getByText(/Chapter complete/i).count()) > 0 &&
+        (await page.getByText(/Flight path complete/i).count()) > 0 &&
             (await page.getByText(/You earned the .*badge/i).count()) > 0,
         'badge celebration appears on tree completion',
+    )
+    report.assert(
+        (await page.getByRole('button', { name: /Close celebration/i }).count()) > 0,
+        'the celebration shows an explicit close mark',
     )
 
     // Open the share modal. The celebration badge art overlaps the buttons,

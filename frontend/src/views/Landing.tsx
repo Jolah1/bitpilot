@@ -246,7 +246,7 @@ function Hero({
                     position: 'relative',
                 }}
             >
-                About 45 minutes per chapter · works on your phone
+                About 45 minutes per flight path · works on your phone
             </p>
         </section>
     )
@@ -415,7 +415,7 @@ function HowItWorks() {
         {
             n: '4',
             title: 'Level Up',
-            body: 'Finish a chapter, earn the medallion, pick the next one.',
+            body: 'Finish a flight path, earn the medallion, pick the next one.',
         },
     ]
     return (
@@ -550,7 +550,7 @@ function YourJourney() {
             <SectionHeading
                 id="journey-headline"
                 eyebrow="Your journey"
-                title="Nine chapters, take them in any order."
+                title="Nine flight paths, take them in any order."
             />
 
             <div style={{ position: 'relative' }}>
@@ -606,7 +606,7 @@ function YourJourney() {
                     marginTop: 12,
                 }}
             >
-                Nine chapters · short missions · pick any starting point
+                Nine flight paths · short missions · pick any starting point
             </p>
         </section>
     )
@@ -636,7 +636,7 @@ function TierSlide({
                 gap: 12,
                 minHeight: 200,
             }}
-            aria-label={`Chapter ${index} of ${total}: ${t.label}`}
+            aria-label={`Flight path ${index} of ${total}: ${t.label}`}
         >
             <div
                 aria-hidden="true"
@@ -665,7 +665,7 @@ function TierSlide({
                     fontFamily: 'var(--font-mono)',
                 }}
             >
-                Chapter {index} / {total}
+                Flight path {index} / {total}
             </div>
             <h3
                 style={{
@@ -717,10 +717,10 @@ function SliderArrows({ onLeft, onRight }: { onLeft: () => void; onRight: () => 
                 marginTop: 4,
             }}
         >
-            <button type="button" onClick={onLeft} style={btn} aria-label="Scroll chapters left">
+            <button type="button" onClick={onLeft} style={btn} aria-label="Scroll flight paths left">
                 ←
             </button>
-            <button type="button" onClick={onRight} style={btn} aria-label="Scroll chapters right">
+            <button type="button" onClick={onRight} style={btn} aria-label="Scroll flight paths right">
                 →
             </button>
         </div>

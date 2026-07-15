@@ -193,7 +193,7 @@ export default function FacilitatorDashboard({ sessionId }: { sessionId: string 
 
             {/* Tree legend */}
             <section
-                aria-label="Chapter legend"
+                aria-label="Flight path legend"
                 style={{
                     ...card,
                     padding: 12,
@@ -626,7 +626,7 @@ function ParticipantRow({ participant, stuckMs }: { participant: Participant; st
                         gridTemplateColumns: `repeat(${TREES.length}, 1fr)`,
                         gap: 4,
                     }}
-                    aria-label="Per-chapter progress"
+                    aria-label="Per flight path progress"
                 >
                     {TREES.map((t) => {
                         const total = t.missions.length

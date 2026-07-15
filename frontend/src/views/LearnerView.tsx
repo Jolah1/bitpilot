@@ -665,13 +665,17 @@ export default function LearnerView({ participantId }: { participantId: string }
                     maxWidth: 960,
                     margin: '0 auto',
                 }}
-                aria-label="Chapters"
+                aria-label="Flight paths"
             >
                 {/* Badge medallions only once there's progress to show; a
                     fresh account seeing eight locked placeholders is pure
                     noise on an already-dense screen. */}
                 {completedMissions.length > 0 && (
-                    <BadgesStrip badges={badges} onShareBadge={setSharingBadge} />
+                    <BadgesStrip
+                        badges={badges}
+                        onShareBadge={setSharingBadge}
+                        onOpenTree={enterTree}
+                    />
                 )}
                 {modals}
                 <TreePicker
@@ -815,7 +819,7 @@ function mergePerTreeMap(
 /**
  * Step navigation row above the mission card, scoped to the active tree.
  *
- *   ← Chapters · ← Prev · Mission n / m in <tree> · Next →
+ *   ← Flight paths · ← Prev · Mission n / m in <tree> · Next →
  *
  * - **Trees** returns to the tree picker (home).
  * - **Previous** walks back through any completed mission *in this tree*.
@@ -867,10 +871,10 @@ function MissionNav({
                 <button
                     type="button"
                     onClick={onExit}
-                    aria-label="Back to chapters"
+                    aria-label="Back to flight paths"
                     style={navButtonStyle(true)}
                 >
-                    ← Chapters
+                    ← Flight paths
                 </button>
                 <span
                     style={{
@@ -898,7 +902,7 @@ function MissionNav({
                         type="button"
                         onClick={onPrev}
                         disabled={!canPrev}
-                        aria-label="Previous mission in this chapter"
+                        aria-label="Previous mission on this flight path"
                         style={navButtonStyle(canPrev)}
                     >
                         ←
@@ -907,7 +911,7 @@ function MissionNav({
                         type="button"
                         onClick={onNext}
                         disabled={!canNext}
-                        aria-label="Next mission in this chapter"
+                        aria-label="Next mission on this flight path"
                         style={navButtonStyle(canNext)}
                         title={
                             canNext
@@ -971,7 +975,7 @@ function TreePicker({
     }
 
     // With a goal, cards sort into that goal's recommended order and the
-    // first unfinished chapter gets a single "Up next" pointer. Without
+    // first unfinished flight path gets a single "Up next" pointer. Without
     // one, the default easiest-to-hardest order stands and each card may
     // carry its own muted prerequisite tip.
     const ordered: TreeMeta[] = goal
@@ -985,7 +989,7 @@ function TreePicker({
 
     return (
         <section
-            aria-label="Pick a chapter to learn"
+            aria-label="Pick a flight path to learn"
             style={{
                 marginTop: 18,
                 display: 'flex',
@@ -1002,7 +1006,7 @@ function TreePicker({
                         margin: 0,
                     }}
                 >
-                    <span className="gradient-text">Pick a chapter</span>
+                    <span className="gradient-text">Pick a flight path</span>
                 </h1>
                 <p
                     style={{
@@ -1077,11 +1081,11 @@ function TreePicker({
                     const isDone = done === total
                     const isUpNext = t.key === upNextKey
                     const cta = isDone
-                        ? 'Review chapter'
+                        ? 'Fly it again'
                         : done === 0
                           ? 'Start'
                           : 'Continue'
-                    const subline = isDone ? 'Chapter complete' : `${done}/${total}`
+                    const subline = isDone ? 'Flight path complete' : `${done}/${total}`
                     // Soft prerequisite nudge, only when no goal is guiding
                     // the order. Never blocks, the card is still tappable.
                     const recTree = t.recommendedAfter
@@ -1143,7 +1147,7 @@ function TreePicker({
                                     </span>
                                     {isDone ? (
                                         <span
-                                            aria-label="Chapter complete"
+                                            aria-label="Flight path complete"
                                             style={{ ...chip('green'), fontSize: 10 }}
                                         >
                                             ✓ Done
@@ -1240,9 +1244,13 @@ function navButtonStyle(enabled: boolean): CSSProperties {
 }
 
 /**
- * Eight tree-badge medallions, one per skill tree. Filled = earned (the
- * learner finished every mission in the tree); outlined = locked, with a
- * "n/m" counter showing progress toward the unlock.
+ * Nine tree-badge medallions, one per flight path. Filled = earned (the
+ * learner finished every mission in the tree); outlined = in progress,
+ * with a "n/m" counter showing progress toward the unlock.
+ *
+ * Every tile is a real button: earned opens the share modal, in-progress
+ * jumps straight into that flight path. The grid wraps on narrow
+ * viewports instead of squeezing nine tiles into one row.
  *
  * Renders nothing on first paint before `getMyBadges()` resolves, so the
  * page doesn't flash a row of empty placeholders.
@@ -1250,59 +1258,53 @@ function navButtonStyle(enabled: boolean): CSSProperties {
 function BadgesStrip({
     badges,
     onShareBadge,
+    onOpenTree,
 }: {
     badges: Badge[]
     onShareBadge: (b: Badge) => void
+    onOpenTree: (tree: TreeMeta) => void
 }) {
     if (badges.length === 0) return null
     return (
         <section
-            aria-label="Chapter badges"
+            aria-label="Flight path badges"
             style={{
                 display: 'grid',
-                gridTemplateColumns: `repeat(${badges.length}, 1fr)`,
-                gap: 6,
+                gridTemplateColumns: 'repeat(auto-fill, minmax(92px, 1fr))',
+                gap: 8,
                 marginTop: 8,
             }}
         >
             {badges.map((b) => {
                 const treeMeta = TREES.find((t) => t.key === b.tree)
                 const label = treeMeta?.label ?? b.tree
-                const interactive = b.earned
-                const title = interactive
-                    ? `${label} earned · ${b.required}/${b.required} missions · click to share`
-                    : `${label} locked · ${b.completed}/${b.required} missions`
+                const title = b.earned
+                    ? `${label} earned · ${b.required}/${b.required} missions · tap to share`
+                    : `${label} · ${b.completed}/${b.required} missions · tap to open`
                 return (
-                    <div
+                    <button
                         key={b.tree}
+                        type="button"
                         title={title}
                         aria-label={title}
-                        role={interactive ? 'button' : undefined}
-                        tabIndex={interactive ? 0 : -1}
-                        className={interactive ? 'bp-tile' : undefined}
-                        onClick={interactive ? () => onShareBadge(b) : undefined}
-                        onKeyDown={
-                            interactive
-                                ? (e) => {
-                                      if (e.key === 'Enter' || e.key === ' ') {
-                                          e.preventDefault()
-                                          onShareBadge(b)
-                                      }
-                                  }
-                                : undefined
-                        }
+                        className="bp-tile"
+                        onClick={() => {
+                            if (b.earned) onShareBadge(b)
+                            else if (treeMeta) onOpenTree(treeMeta)
+                        }}
                         style={{
                             display: 'flex',
                             flexDirection: 'column',
                             alignItems: 'center',
                             gap: 2,
-                            padding: '6px 4px',
+                            padding: '8px 4px',
                             borderRadius: 'var(--radius-2)',
-                            background: b.earned ? 'rgba(255, 87, 34, 0.10)' : 'transparent',
+                            background: b.earned ? 'rgba(255, 87, 34, 0.10)' : 'var(--surface)',
                             border: b.earned
                                 ? '1px solid rgba(255, 87, 34, 0.35)'
                                 : '1px dashed var(--border)',
-                            cursor: interactive ? 'pointer' : 'default',
+                            cursor: 'pointer',
+                            fontFamily: 'var(--font-sans)',
                         }}
                     >
                         <TierProgressionMark earned={b.earned} size={22} />
@@ -1312,8 +1314,8 @@ function BadgesStrip({
                                 fontWeight: 700,
                                 letterSpacing: '0.05em',
                                 textTransform: 'uppercase',
+                                textAlign: 'center',
                                 color: b.earned ? 'var(--bitcoin)' : 'var(--muted)',
-                                fontFamily: 'var(--font-sans)',
                             }}
                         >
                             {label}
@@ -1327,7 +1329,7 @@ function BadgesStrip({
                         >
                             {b.completed}/{b.required}
                         </span>
-                    </div>
+                    </button>
                 )
             })}
         </section>
@@ -1757,6 +1759,44 @@ function QuizPanel({
     )
 }
 
+/**
+ * Tappable "where the task happens" links for Do steps that point at an
+ * external site (a faucet, a repo, an issue list). Renders nothing when a
+ * mission has no links, which is most of them.
+ */
+function TaskLinks({ links }: { links?: { label: string; href: string }[] }) {
+    if (!links || links.length === 0) return null
+    return (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {links.map((l) => (
+                <a
+                    key={l.href}
+                    href={l.href}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        padding: '7px 12px',
+                        fontSize: 12.5,
+                        fontWeight: 600,
+                        borderRadius: 'var(--radius-pill)',
+                        border: '1px solid var(--border-strong)',
+                        background: 'var(--surface)',
+                        color: 'var(--bitcoin)',
+                        textDecoration: 'none',
+                        lineHeight: 1.2,
+                    }}
+                >
+                    <span aria-hidden="true">🔗</span>
+                    {l.label}
+                </a>
+            ))}
+        </div>
+    )
+}
+
 function DoPanel({
     mission,
     tone,
@@ -1834,6 +1874,7 @@ function DoPanel({
                 <p style={{ fontSize: 14, color: 'var(--muted)', lineHeight: 1.6, margin: 0 }}>
                     {mission.do.helper}
                 </p>
+                <TaskLinks links={mission.do.links} />
                 <div style={callout('success')}>
                     <strong>✓ You've completed this mission.</strong>{' '}
                     Use Previous/Next above to navigate, or jump back to your current
@@ -1855,6 +1896,8 @@ function DoPanel({
             <p style={{ fontSize: 14, color: 'var(--muted)', lineHeight: 1.6, margin: 0 }}>
                 {mission.do.helper}
             </p>
+
+            <TaskLinks links={mission.do.links} />
 
             {!outcome && ui.primary && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -2282,7 +2325,7 @@ function FinishedScreen() {
                     maxWidth: 480,
                 }}
             >
-                106 missions across nine chapters. You used Bitcoin, Lightning, Nostr, and eCash for real, and you actually understand
+                106 missions across nine flight paths. You used Bitcoin, Lightning, Nostr, and eCash for real, and you actually understand
                 what each one does. That puts you ahead of about 99% of people on earth.
             </p>
             <ul
