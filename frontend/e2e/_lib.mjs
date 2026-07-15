@@ -123,15 +123,24 @@ export async function openApp(browser, creds, identity = {}) {
 
 /** From the learner view, open a tree's current mission by label. */
 export async function enterTree(page, treeLabel) {
-    const trees = page.getByRole('button', { name: /^Flight paths|← Flight paths/i })
-    if (await trees.count()) {
-        await trees.first().click({ force: true })
+    const back = page.getByRole('button', { name: /^Flight paths|← Flight paths/i })
+    if (await back.count()) {
+        await back.first().click({ force: true })
         await sleep(400)
     }
-    const card = page.getByRole('button', { name: new RegExp(treeLabel, 'i') })
-    if (await card.count()) {
-        await card.first().click({ force: true })
+    // Scope to the picker section: the badge strip above it renders its own
+    // buttons named after the same trees, and it pops in asynchronously once
+    // badges load, so an unscoped `.first()` match is a race on slow runners.
+    const picker = page.locator('[aria-label="Pick a flight path to learn"]')
+    const card = picker.getByRole('button', { name: new RegExp(treeLabel, 'i') })
+    // Click, then confirm we actually left the picker (the mission nav's
+    // back button appears). Retry a few times to ride out hydration races.
+    const navBack = page.getByRole('button', { name: /Back to flight paths/i })
+    for (let attempt = 0; attempt < 5; attempt++) {
+        if (await card.count()) await card.first().click({ force: true })
         await sleep(600)
+        if (await navBack.count()) return
+        await sleep(400)
     }
 }
 
