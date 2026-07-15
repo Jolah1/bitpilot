@@ -35,7 +35,7 @@ export interface Session {
 export type Tech = 'bitcoin' | 'lightning' | 'nostr' | 'ecash'
 
 /**
- * Eight skill trees. Each mission belongs to exactly one tree, see
+ * Nine skill trees. Each mission belongs to exactly one tree, see
  * `Tree::from_mission` in backend/src/models/mission.rs (the only source
  * of truth). The frontend mirrors that mapping in `TREES` below so the UI
  * can group/colour without a server roundtrip.
@@ -52,6 +52,7 @@ export type Tree =
     | 'self-custody'
     | 'privacy'
     | 'sovereignty'
+    | 'open-source'
 
 /**
  * Difficulty tier shown on each tree so a newcomer knows where to begin and
@@ -91,6 +92,8 @@ export const TREES: TreeMeta[] = [
     { key: 'privacy',      label: 'Privacy',      missions: [46, 51, 52, 58, 59, 60, 61, 62, 63, 64, 65, 66], tagline: 'Chain analysis, CoinJoin, KYC leaks, threat models.', difficulty: 'Advanced', recommendedAfter: 'bitcoin' },
     // Mission 50 ("You made it") stays last, it's the graduation lesson.
     { key: 'sovereignty',  label: 'Full Independence', missions: [42, 47, 53, 54, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 50], tagline: 'Signet, nodes, exit optionality, and the long game.', difficulty: 'Advanced', recommendedAfter: 'self-custody' },
+    // Mission 105 graduates with a real merged GitHub PR (issue #57).
+    { key: 'open-source',  label: 'Open Source',  missions: [100, 101, 102, 103, 104, 105],                tagline: 'Git, real codebases, and your first merged Bitcoin PR.', difficulty: 'Advanced', recommendedAfter: 'bitcoin' },
 ]
 
 /** Returns the tree a mission id belongs to. */
@@ -101,7 +104,7 @@ export function treeFor(missionId: number): TreeMeta {
 /**
  * Tree badge as returned by GET /api/participants/me/badges.
  *
- * One per skill tree (8 total). Earned when every mission in the tree
+ * One per skill tree (9 total). Earned when every mission in the tree
  * has been completed. `earned_at` is unix-seconds of the latest
  * completion in the tree (the moment the badge actually unlocked),
  * `null` while still in progress.
@@ -160,7 +163,8 @@ export type DoKind =
     | 'onchain-signet'    /* paste a signet txid; verifier asks mempool.space */
     | 'seed-words'        /* generate BIP39 mnemonic client-side; quiz on a word */
     | 'derive-address'    /* derive an address from the mnemonic and submit */
-    | 'paste-value'       /* generic "paste this thing", used for npub copy, etc. */
+    | 'paste-value'       /* generic "type or paste this thing" reflection input */
+    | 'github-pr'         /* mission 105: backend asks the GitHub API if the PR is merged and yours */
 
 export interface MissionDef {
     /** Mission number, stable across catalogue reshapes. Tree assignment
@@ -240,7 +244,7 @@ function knowledge(o: KnowledgeOpts): MissionDef {
 }
 
 /**
- * The full BitPilot curriculum: 100 missions (0..=99) across 8 skill trees.
+ * The full BitPilot curriculum: 106 missions (0..=105) across 9 chapters.
  *
  * Mission ids are stable across tree reshuffles, they don't renumber when
  * a mission moves to a different tree. The catalogue below is ordered by
@@ -263,7 +267,7 @@ export const MISSIONS: MissionDef[] = [
         learn: {
             heading: 'Why this exists',
             body:
-                "Most people learn about Bitcoin by reading. You'll learn by using. Over the next 100 missions you'll generate real cryptographic keys, send (testnet) payments, publish a message to a network nobody owns, and end up understanding more than 99% of people who 'know about crypto'.\n\nNo wallet to install. No money at risk. Every action that touches a real network is clearly labeled, and everything that's just a demonstration is too.\n\nMissions are grouped into eight chapters: Money, Bitcoin, Lightning, Nostr, eCash, Self-custody, Privacy, Sovereignty. Start anywhere, finish a chapter, earn its compass badge.",
+                "Most people learn about Bitcoin by reading. You'll learn by using. Over more than 100 missions you'll generate real cryptographic keys, send (testnet) payments, publish a message to a network nobody owns, and end up understanding more than 99% of people who 'know about crypto'.\n\nNo wallet to install. No money at risk. Every action that touches a real network is clearly labeled, and everything that's just a demonstration is too.\n\nMissions are grouped into nine chapters: Money, Bitcoin, Lightning, Nostr, eCash, Self-custody, Privacy, Sovereignty, Open Source. Start anywhere, finish a chapter, earn its compass badge.",
             tip: 'You\'ll learn to think in sats, the unit real Bitcoiners use. No money changes hands inside BitPilot.',
         },
         quiz: {
@@ -1463,7 +1467,7 @@ export const MISSIONS: MissionDef[] = [
         learn: {
             heading: 'Curriculum complete. Now build the habit.',
             body:
-                "You generated a real Nostr identity, learned Lightning, sent a signet on-chain transaction, and walked the full 100-mission curriculum across all eight chapters. You're past the hard part: understanding.\n\nWhat to do from here:\n\n• Pick a wallet. Phoenix (Lightning, semi-self-custodial) is a great starter. Sparrow + a hardware wallet for cold storage.\n• Buy a small amount of bitcoin, not as investment advice, but as 'now I have skin in the game'. Even 5,000 sats teaches more than 5,000 articles.\n• Follow a few people on Nostr who explain things calmly: fiatjaf, jb55, Lyn Alden, Knut Svanholm, Marty Bent.\n• Read 'The Bitcoin Standard' or 'Inventing Bitcoin' if you want depth.\n• Keep using sats. Lightning addresses are everywhere now. Tip your favourite podcaster, your friend, a random stranger on Nostr.\n\nWelcome to Bitcoin. Don't stop.",
+                "You generated a real Nostr identity, learned Lightning, sent a signet on-chain transaction, and walked a curriculum of more than 100 missions. You're past the hard part: understanding.\n\nWhat to do from here:\n\n• Pick a wallet. Phoenix (Lightning, semi-self-custodial) is a great starter. Sparrow + a hardware wallet for cold storage.\n• Buy a small amount of bitcoin, not as investment advice, but as 'now I have skin in the game'. Even 5,000 sats teaches more than 5,000 articles.\n• Follow a few people on Nostr who explain things calmly: fiatjaf, jb55, Lyn Alden, Knut Svanholm, Marty Bent.\n• Read 'The Bitcoin Standard' or 'Inventing Bitcoin' if you want depth.\n• Keep using sats. Lightning addresses are everywhere now. Tip your favourite podcaster, your friend, a random stranger on Nostr.\n\nWelcome to Bitcoin. Don't stop.",
             tip: "The best Bitcoin education is using it. Earnestly, in tiny amounts, until it's boring.",
         },
         quiz: {
@@ -2555,6 +2559,164 @@ export const MISSIONS: MissionDef[] = [
             ],
         },
     }),
+
+    // ═════════════════════════════════════════════════════════════════════
+    // Missions 100-105, Open Source: zero to your first merged Bitcoin PR
+    // ═════════════════════════════════════════════════════════════════════
+    knowledge({
+        id: 100,
+        emoji: '🍴',
+        topic: 'Open Source',
+        tech: 'bitcoin',
+        name: 'Forks, branches, and pull requests',
+        tagline: 'Every wallet you trust was built by volunteers. Here is how they do it.',
+        learn: {
+            heading: 'The contribution loop',
+            body:
+                "Bitcoin is not a company. Every node, wallet, and library is open source code that someone, somewhere, chose to improve. The tool they all use is git, and the loop is always the same.\n\nFork: make your own copy of a project on GitHub. It costs nothing and breaks nothing.\nBranch: open a workspace inside your copy for one specific change.\nCommit: save a step of work with a short message saying what and why.\nPull request (PR): show the maintainers your change and ask them to review and merge it.\n\nThat last word matters: it is a *request*. Maintainers review, ask questions, suggest edits. When they merge, your code ships to everyone who uses the project. Nobody needs permission to start, and nobody gets to skip review, not even the founders.",
+            tip: 'You can fork any public repository right now. Forking is reversible, free, and invisible to everyone else.',
+        },
+        quiz: {
+            question: 'What is a pull request?',
+            options: [
+                { text: 'A demand that maintainers accept my code', correct: false, why: 'It is a request. Review decides what gets merged.' },
+                { text: "A proposal: 'here is my change, please review and merge it'", correct: true },
+                { text: 'A way to download code to my computer', correct: false, why: "That's cloning (or pulling). A PR pushes a proposal the other way." },
+            ],
+        },
+    }),
+    knowledge({
+        id: 101,
+        emoji: '🔍',
+        topic: 'Open Source',
+        tech: 'bitcoin',
+        name: 'Read a real codebase',
+        tagline: 'The code guarding billions of dollars is public. Most people never look.',
+        learn: {
+            heading: 'Reading comes before writing',
+            body:
+                "Every contribution starts with reading someone else's code, so practice on a real project: rust-bitcoin (the Rust building blocks), BDK (wallet kits), LDK (Lightning), or Core Lightning.\n\nYou are not trying to understand everything. You are building a map. Good first stops, in order:\n\n1. README: what the project is and who it is for.\n2. CONTRIBUTING.md: how the maintainers want help delivered.\n3. The examples folder: small, complete programs that actually run.\n4. The tests: real inputs and expected outputs for every important function.\n\nThen try one search: open the repository, press the dot key (or use GitHub's search box), and look up a word you know from this course, like 'mnemonic' or 'invoice'. Follow it to the function that implements it. That moment, 'oh, THIS is where seed phrases come from', is the whole skill.",
+            tip: 'Tests are the best documentation. They cannot go stale, because CI runs them on every change.',
+        },
+        quiz: {
+            question: 'Where do you most reliably see how a function is meant to be used?',
+            options: [
+                { text: "The project's marketing site", correct: false, why: 'Marketing describes outcomes, not usage.' },
+                { text: 'Its tests and examples', correct: true },
+                { text: 'The LICENSE file', correct: false, why: 'That covers your rights, not the API.' },
+            ],
+        },
+    }),
+    {
+        id: 102,
+        emoji: '✏️',
+        topic: 'Open Source',
+        tech: 'bitcoin',
+        name: 'Find a docs fix',
+        tagline: 'Your first contribution is a sentence, not an algorithm.',
+        simulated: false,
+        learn: {
+            heading: 'Documentation is the front door',
+            body:
+                "Ask around: a huge share of Bitcoin developers merged their first PR into documentation. A typo, a broken link, a sentence that made them read it twice. These are real contributions, they get reviewed fast, and maintainers love them because docs rot quietly while everyone stares at the code.\n\nSo hunt for one. Open the documentation of any Bitcoin project you have met in this course: the BDK book, the LDK docs, rust-bitcoin's API docs, a wallet's user guide. Read like a newcomer, because you are one. The moment something makes you stumble, stop. You just found your contribution.\n\nThe rule of thumb: if you had to read a sentence twice, that is a bug in the sentence, not in you.",
+            tip: 'Fixing a typo teaches you the entire fork, branch, commit, PR loop with zero risk of breaking software.',
+        },
+        quiz: {
+            question: 'Why are documentation fixes such a good first PR?',
+            options: [
+                { text: "They skip review, so they merge instantly", correct: false, why: 'Everything gets reviewed. Docs are just fast to verify.' },
+                { text: 'They are real, useful, and quick for a maintainer to check and merge', correct: true },
+                { text: 'They pay better than code', correct: false, why: 'Open source contributions are usually unpaid either way.' },
+            ],
+        },
+        do: {
+            kind: 'paste-value',
+            actionLabel: 'Log my find',
+            helper: 'Paste a link to the docs page (or the sentence itself) you would improve. This becomes your target for the final mission.',
+            placeholder: 'https://... or the sentence that made you stumble',
+            maxLength: 300,
+        },
+    },
+    {
+        id: 103,
+        emoji: '🐣',
+        topic: 'Open Source',
+        tech: 'bitcoin',
+        name: 'Decode a good first issue',
+        tagline: 'Maintainers label easy wins for newcomers. Learn to read the label.',
+        simulated: false,
+        learn: {
+            heading: "'good first issue' is a real label",
+            body:
+                "Most projects tag beginner-friendly work with the literal label 'good first issue'. Open the Issues tab of rust-bitcoin, BDK, LDK, or any Nostr client, filter by that label, and pick one that interests you.\n\nThen do the step most people skip: restate the issue in your own words. Three questions:\n\n1. What is being asked for?\n2. Why does the project want it?\n3. How would you know it is done?\n\nIf you can answer all three, you understand the issue well enough to try it. If you cannot, that is normal too, and there is a professional move for it: ask a clarifying question in a comment on the issue. Maintainers vastly prefer a good question over a confused PR.",
+            tip: "On any GitHub repo: Issues tab, then filter by label 'good first issue'. Some projects also use 'help wanted'.",
+        },
+        quiz: {
+            question: "You found an issue but don't fully understand it. What is the best move?",
+            options: [
+                { text: 'Start coding and hope it becomes clear', correct: false, why: 'A confused PR costs the maintainer more time than a question.' },
+                { text: 'Ask a clarifying question in a comment on the issue', correct: true },
+                { text: 'Give up on the project entirely', correct: false, why: 'Not understanding one issue says nothing about the next one.' },
+            ],
+        },
+        do: {
+            kind: 'paste-value',
+            actionLabel: "That's my issue",
+            helper: 'Restate your chosen issue in your own words: what is wanted, and how would you know it is done?',
+            placeholder: 'The issue asks for... it is done when...',
+            maxLength: 500,
+        },
+    },
+    knowledge({
+        id: 104,
+        emoji: '🧪',
+        topic: 'Open Source',
+        tech: 'bitcoin',
+        name: 'Tests are contributions too',
+        tagline: 'The easiest code PR in existence: prove an existing function works.',
+        learn: {
+            heading: 'Why maintainers love test-only PRs',
+            body:
+                "If a docs fix feels too small and a feature feels too big, there is a perfect middle: write a test for code that already exists.\n\nA test-only PR cannot break production, it documents how the code actually behaves, and reviewing it takes minutes. Find a function with thin coverage, write a test that pins down its current behavior, and you have made the project safer without touching its logic.\n\nAlmost every test has the same three-beat shape:\nArrange: set up the inputs.\nAct: call the function.\nAssert: check the result is what you expected.\n\nOne craft note that is half of code review: copy the style of the neighboring tests. Same naming, same helpers, same layout. A test that looks native merges much faster than a clever one.",
+            tip: 'Before writing, run the existing test suite. If you cannot run the tests, that is your real first task.',
+        },
+        quiz: {
+            question: 'What makes a test-only PR easy for maintainers to merge?',
+            options: [
+                { text: 'Nobody actually reads test code', correct: false, why: 'They read it. It is just fast to evaluate.' },
+                { text: 'It cannot change runtime behavior, and it documents what the code really does', correct: true },
+                { text: 'CI pipelines skip test files', correct: false, why: 'CI exists precisely to run them.' },
+            ],
+        },
+    }),
+    {
+        id: 105,
+        emoji: '🏁',
+        topic: 'Open Source',
+        tech: 'bitcoin',
+        name: 'Ship a real PR',
+        tagline: 'Graduation is not a certificate. It is a merge commit with your name on it.',
+        simulated: false,
+        learn: {
+            heading: 'The last mission is real',
+            body:
+                "Everything before this was practice. Now pick your target: the docs fix you found, the good first issue you decoded, or a test like the one you studied. Fork the repository, make the change on a branch, open a pull request, and work with the maintainers until it merges.\n\nThat can take a day or a month. This mission waits. Review rounds are not rejection, they are the maintainers investing time in your change, so answer them and iterate.\n\nWhat wins review: one small, focused change. A clear description of what and why. Patience.\n\nWhen your PR merges, come back and paste its URL along with your GitHub username. BitPilot asks GitHub's public API two questions: is this PR really merged, and was it really authored by that account? If both are yes, you graduate this chapter with something no certificate can match: code strangers now run.",
+            tip: 'Small and polite wins. Maintainers remember contributors who make review easy.',
+        },
+        quiz: {
+            question: 'What counts as graduating this chapter?',
+            options: [
+                { text: 'Opening a pull request', correct: false, why: 'Opening is the start. The merge is the graduation.' },
+                { text: 'A maintainer merges your PR into a real project', correct: true },
+                { text: 'Getting 100 stars on your fork', correct: false, why: 'Stars are nice. Merged code is the credential.' },
+            ],
+        },
+        do: {
+            kind: 'github-pr',
+            actionLabel: 'Verify my merged PR',
+            helper: "Paste your merged pull request's URL and your GitHub username. BitPilot checks GitHub that it is merged and that you authored it.",
+        },
+    },
 ]
 
 /** Total mission count. The frontend never hardcodes 58, it reads this. */

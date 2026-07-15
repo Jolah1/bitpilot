@@ -557,16 +557,41 @@ export default function LearnerView({ participantId }: { participantId: string }
                     break
                 }
 
-                // Generic "paste this thing", currently unused but reserved
-                // for future missions (e.g. "paste your npub here").
+                // Generic reflection input: missions 102/103 log the docs
+                // fix / issue restatement the learner will act on in 105.
                 case 'paste-value': {
                     if (!doInput.trim()) {
-                        setDoError('Paste a value first.')
+                        setDoError('Write or paste your answer first.')
                         setLoading(false)
                         return
                     }
                     proof = doInput.trim()
-                    outcome = { summary: 'Captured.', simulated: false }
+                    outcome = {
+                        summary: 'Saved. This is your raw material for the final mission.',
+                        simulated: false,
+                    }
+                    break
+                }
+
+                case 'github-pr': {
+                    const url = doInput.trim()
+                    const username = doInputB.trim()
+                    if (!url || !username) {
+                        setDoError('Both the PR URL and your GitHub username are needed.')
+                        setLoading(false)
+                        return
+                    }
+                    // The backend parses "<username> <url>", asks the GitHub
+                    // API whether the PR is merged, and matches the author.
+                    proof = `${username} ${url}`
+                    outcome = {
+                        summary: 'Merged and verified. A real project now ships your work.',
+                        details: [
+                            { label: 'pull request', value: url },
+                            { label: 'author', value: username },
+                        ],
+                        simulated: false,
+                    }
                     break
                 }
             }
@@ -2060,9 +2085,29 @@ function uiForKind(kind: MissionDef['do']['kind']): DoUi {
                     mono: true,
                 },
             }
+        case 'paste-value':
+            // Generic reflection input; label stays neutral because the
+            // mission's own helper/placeholder carry the specifics.
+            return {
+                primary: { label: 'Your answer', type: 'textarea', maxLength: 500 },
+            }
+        case 'github-pr':
+            return {
+                primary: {
+                    label: 'Merged PR URL',
+                    placeholder: 'https://github.com/owner/repo/pull/123',
+                    maxLength: 200,
+                    mono: true,
+                },
+                secondary: {
+                    label: 'Your GitHub username',
+                    placeholder: 'the account that authored the PR',
+                    maxLength: 39,
+                },
+            }
         default:
             // knowledge, seed-words, nostr-identity, invoice, ecash-claim,
-            // nostr-zap, derive-address, paste-value with no UI need.
+            // nostr-zap, derive-address: no input needed.
             return {}
     }
 }
@@ -2237,7 +2282,7 @@ function FinishedScreen() {
                     maxWidth: 480,
                 }}
             >
-                100 missions across eight chapters. You used Bitcoin, Lightning, Nostr, and eCash for real, and you actually understand
+                106 missions across nine chapters. You used Bitcoin, Lightning, Nostr, and eCash for real, and you actually understand
                 what each one does. That puts you ahead of about 99% of people on earth.
             </p>
             <ul

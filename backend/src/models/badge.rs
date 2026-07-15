@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::models::mission::{Mission, Tree};
 
-/// One per skill tree (8 total). Derived from `mission_completions` on
+/// One per skill tree (9 total). Derived from `mission_completions` on
 /// demand — there's no badge table, so a learner's badges always match
 /// their completions exactly (no drift, no migration when tree membership
 /// shifts).
@@ -18,7 +18,7 @@ pub struct Badge {
     pub earned_at: Option<i64>,
 }
 
-/// Display order for the 8 tree badges. The mission membership of each
+/// Display order for the 9 tree badges. The mission membership of each
 /// tree lives in `Tree::from_mission` (single source of truth) — we just
 /// iterate `0..=Mission::LAST` and group by that.
 const TREE_ORDER: &[Tree] = &[
@@ -30,11 +30,12 @@ const TREE_ORDER: &[Tree] = &[
     Tree::SelfCustody,
     Tree::Privacy,
     Tree::Sovereignty,
+    Tree::OpenSource,
 ];
 
 impl Badge {
-    /// Build the full 8-badge list from a participant's (mission, completed_at)
-    /// rows. Always returns exactly 8 entries in tree order.
+    /// Build the full 9-badge list from a participant's (mission, completed_at)
+    /// rows. Always returns exactly 9 entries in tree order.
     pub fn all_for(completions: &[(u8, i64)]) -> Vec<Badge> {
         TREE_ORDER
             .iter()
@@ -67,9 +68,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn empty_completions_yields_eight_unearned_badges() {
+    fn empty_completions_yields_nine_unearned_badges() {
         let badges = Badge::all_for(&[]);
-        assert_eq!(badges.len(), 8);
+        assert_eq!(badges.len(), 9);
         assert!(badges.iter().all(|b| !b.earned && b.completed == 0));
     }
 
