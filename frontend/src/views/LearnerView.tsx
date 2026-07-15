@@ -9,6 +9,7 @@ import {
     type CSSProperties,
 } from 'react'
 import { api, ApiError } from '../lib/api'
+import { GOALS, getSavedGoal, saveGoal, type Goal } from '../lib/goals'
 import { useIsTechReal } from '../lib/runtime'
 import {
     MISSION_COUNT,
@@ -641,7 +642,12 @@ export default function LearnerView({ participantId }: { participantId: string }
                 }}
                 aria-label="Chapters"
             >
-                <BadgesStrip badges={badges} onShareBadge={setSharingBadge} />
+                {/* Badge medallions only once there's progress to show; a
+                    fresh account seeing eight locked placeholders is pure
+                    noise on an already-dense screen. */}
+                {completedMissions.length > 0 && (
+                    <BadgesStrip badges={badges} onShareBadge={setSharingBadge} />
+                )}
                 {modals}
                 <TreePicker
                     completedMissions={completedMissions}
@@ -933,6 +939,25 @@ function TreePicker({
     currentPerTree: Record<Tree, number | null>
     onEnter: (tree: TreeMeta) => void
 }) {
+    const [goal, setGoal] = useState<Goal | null>(() => getSavedGoal())
+    const pickGoal = (g: Goal | null) => {
+        setGoal(g)
+        saveGoal(g)
+    }
+
+    // With a goal, cards sort into that goal's recommended order and the
+    // first unfinished chapter gets a single "Up next" pointer. Without
+    // one, the default easiest-to-hardest order stands and each card may
+    // carry its own muted prerequisite tip.
+    const ordered: TreeMeta[] = goal
+        ? GOALS[goal].order.map((k) => TREES.find((t) => t.key === k)!)
+        : [...TREES]
+    const upNextKey: Tree | null = goal
+        ? (ordered.find(
+              (t) => !t.missions.every((m) => completedMissions.includes(m)),
+          )?.key ?? null)
+        : null
+
     return (
         <section
             aria-label="Pick a chapter to learn"
@@ -962,49 +987,86 @@ function TreePicker({
                         lineHeight: 1.5,
                     }}
                 >
-                    Eight chapters, easiest to hardest. New to Bitcoin?
-                    Start with Money Basics and work down. Already comfortable?
-                    Jump to any chapter you like. Each one is short and
-                    self-contained.
+                    Easiest to hardest. New here? Start with Money Basics.
                 </p>
             </header>
+
+            <div
+                role="group"
+                aria-label="Pick a learning goal"
+                style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 8,
+                    flexWrap: 'wrap',
+                }}
+            >
+                <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>I'm here as:</span>
+                {(Object.keys(GOALS) as Goal[]).map((g) => {
+                    const active = goal === g
+                    return (
+                        <button
+                            key={g}
+                            type="button"
+                            aria-pressed={active}
+                            title={GOALS[g].blurb}
+                            onClick={() => pickGoal(active ? null : g)}
+                            style={{
+                                padding: '6px 12px',
+                                fontSize: 12.5,
+                                fontWeight: 600,
+                                fontFamily: 'var(--font-sans)',
+                                borderRadius: 'var(--radius-pill)',
+                                cursor: 'pointer',
+                                background: active
+                                    ? 'rgba(255, 87, 34, 0.12)'
+                                    : 'transparent',
+                                border: active
+                                    ? '1px solid var(--bitcoin)'
+                                    : '1px solid var(--border)',
+                                color: active ? 'var(--bitcoin)' : 'var(--text-soft)',
+                            }}
+                        >
+                            {GOALS[g].label}
+                        </button>
+                    )
+                })}
+            </div>
+
             <ol
                 style={{
                     listStyle: 'none',
                     margin: 0,
                     padding: 0,
                     display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
-                    gap: 12,
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+                    gap: 14,
                 }}
             >
-                {TREES.map((t) => {
+                {ordered.map((t) => {
                     const total = t.missions.length
                     const done = t.missions.filter((m) =>
                         completedMissions.includes(m),
                     ).length
                     const isDone = done === total
-                    const next = currentPerTree[t.key]
+                    const isUpNext = t.key === upNextKey
                     const cta = isDone
                         ? 'Review chapter'
                         : done === 0
                           ? 'Start'
                           : 'Continue'
-                    const subline = isDone
-                        ? 'Chapter complete'
-                        : next === null
-                          ? `${done}/${total} complete`
-                          : `${done}/${total} · next: mission ${t.missions.indexOf(next) + 1}`
-                    // Soft prerequisite nudge: if this tree recommends another
-                    // one first and the learner hasn't finished that one, show
-                    // a gentle tip. Never blocks, the card is still tappable.
+                    const subline = isDone ? 'Chapter complete' : `${done}/${total}`
+                    // Soft prerequisite nudge, only when no goal is guiding
+                    // the order. Never blocks, the card is still tappable.
                     const recTree = t.recommendedAfter
                         ? TREES.find((x) => x.key === t.recommendedAfter)
                         : undefined
                     const recDone =
                         !recTree ||
                         recTree.missions.every((m) => completedMissions.includes(m))
-                    const showNudge = !isDone && done === 0 && recTree && !recDone
+                    const showNudge =
+                        !goal && !isDone && done === 0 && recTree && !recDone
                     const diffColor =
                         t.difficulty === 'Beginner'
                             ? 'green'
@@ -1024,13 +1086,15 @@ function TreePicker({
                                         : 'var(--surface)',
                                     border: isDone
                                         ? '1px solid rgba(255, 87, 34, 0.40)'
-                                        : '1px solid var(--border)',
+                                        : isUpNext
+                                          ? '1px solid var(--bitcoin)'
+                                          : '1px solid var(--border)',
                                     borderRadius: 'var(--radius-3)',
-                                    padding: '14px 16px',
+                                    padding: '16px 18px',
                                     cursor: 'pointer',
                                     display: 'flex',
                                     flexDirection: 'column',
-                                    gap: 6,
+                                    gap: 7,
                                     fontFamily: 'var(--font-sans)',
                                     color: 'var(--text)',
                                 }}
@@ -1059,6 +1123,13 @@ function TreePicker({
                                         >
                                             ✓ Done
                                         </span>
+                                    ) : isUpNext ? (
+                                        <span
+                                            aria-label="Recommended next for your goal"
+                                            style={{ ...chip('orange'), fontSize: 10 }}
+                                        >
+                                            Up next
+                                        </span>
                                     ) : (
                                         <span
                                             aria-label={`Difficulty: ${t.difficulty}`}
@@ -1083,11 +1154,11 @@ function TreePicker({
                                         style={{
                                             margin: 0,
                                             fontSize: 11.5,
-                                            color: 'var(--bitcoin)',
+                                            color: 'var(--muted)',
                                             lineHeight: 1.4,
                                         }}
                                     >
-                                        Tip: finish {recTree!.label} first for an easier ride.
+                                        Easier after {recTree!.label}.
                                     </p>
                                 )}
                                 <div
