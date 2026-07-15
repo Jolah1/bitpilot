@@ -16,6 +16,8 @@ const Landing = lazy(() => import('./views/Landing'))
 // them so a fresh learner doesn't pay for ~30KB of code they may never open.
 const FacilitatorDashboard = lazy(() => import('./views/FacilitatorDashboard'))
 const SoloProgressView = lazy(() => import('./views/SoloProgressView'))
+// Public challenge leaderboard, reached only via a ?challenge= deep link.
+const ChallengeView = lazy(() => import('./views/ChallengeView'))
 import { BrandMark } from './components/BrandMark'
 import { ThemeToggle } from './components/ThemeToggle'
 import { ContinueOnDeviceModal } from './components/ContinueOnDeviceModal'
@@ -43,7 +45,7 @@ const queryClient = new QueryClient({
 })
 
 type View = 'learner' | 'facilitator'
-type Screen = 'landing' | 'setup' | 'session-not-found' | 'app' | 'pair'
+type Screen = 'landing' | 'setup' | 'session-not-found' | 'app' | 'pair' | 'challenge'
 
 /**
  * Sentinel session name for solo learners.
@@ -78,13 +80,16 @@ function rehydrate(): {
     participantId: string | null
     restored: boolean
     deepLinkSessionId: string | null
+    deepLinkChallengeId: string | null
 } {
     const token = getAuthToken()
     const sid = getSessionId()
     const pid = getParticipantId()
 
-    // ?session= deep link (facilitator-shared QR / URL).
+    // ?session= / ?challenge= deep links (facilitator-shared QR / URL,
+    // or a publicly announced community challenge).
     let deepLinkSessionId: string | null = null
+    let deepLinkChallengeId: string | null = null
     try {
         const url = new URL(window.location.href)
         const candidate = url.searchParams.get('session')
@@ -93,14 +98,18 @@ function rehydrate(): {
         if (candidate && /^[0-9a-f-]{36}$/i.test(candidate)) {
             deepLinkSessionId = candidate
         }
+        const challenge = url.searchParams.get('challenge')
+        if (challenge && /^[0-9a-f-]{36}$/i.test(challenge)) {
+            deepLinkChallengeId = challenge
+        }
     } catch {
         // SSR or weird URL, ignore.
     }
 
     if (token && pid && sid) {
-        return { sessionId: sid, participantId: pid, restored: true, deepLinkSessionId }
+        return { sessionId: sid, participantId: pid, restored: true, deepLinkSessionId, deepLinkChallengeId }
     }
-    return { sessionId: null, participantId: null, restored: false, deepLinkSessionId }
+    return { sessionId: null, participantId: null, restored: false, deepLinkSessionId, deepLinkChallengeId }
 }
 
 export default function App() {
@@ -109,6 +118,7 @@ export default function App() {
     const [view, setView] = useState<View>('learner')
     const [theme, setTheme] = useState<Theme>(getSavedTheme)
     // Routing rule:
+    //   - ?challenge= deep link → public challenge leaderboard
     //   - ?session= deep link → setup (joining)
     //   - otherwise → landing
     // We deliberately do NOT auto-jump to the app screen even if there are
@@ -116,8 +126,13 @@ export default function App() {
     // is on every visit; if they want to resume, the landing offers a
     // "Continue your missions" pill that reads from `initial.restored`.
     const [screen, setScreen] = useState<Screen>(
-        initial.deepLinkSessionId ? 'setup' : 'landing',
+        initial.deepLinkChallengeId
+            ? 'challenge'
+            : initial.deepLinkSessionId
+              ? 'setup'
+              : 'landing',
     )
+    const [challengeId] = useState<string | null>(initial.deepLinkChallengeId)
     const [sessionId, setSessionId] = useState<string | null>(initial.sessionId)
     const [participantId, setParticipantId] = useState<string | null>(initial.participantId)
     const [sessionName, setSessionName] = useState('')
@@ -185,10 +200,12 @@ export default function App() {
             persistSessionId(sid)
             persistParticipantId(participant.id)
             setScreen('app')
-            // Clean up the URL, no need to keep ?session= hanging around.
+            // Clean up the URL, no need to keep ?session= or ?challenge=
+            // hanging around once we're in.
             try {
                 const url = new URL(window.location.href)
                 url.searchParams.delete('session')
+                url.searchParams.delete('challenge')
                 window.history.replaceState({}, '', url.toString())
             } catch {
                 /* ignore */
@@ -287,6 +304,23 @@ export default function App() {
                         onBack={() => setScreen('landing')}
                         onPaired={onPaired}
                     />
+                )}
+                {screen === 'challenge' && challengeId && (
+                    <Suspense fallback={<ViewLoading />}>
+                        <ChallengeView
+                            challengeId={challengeId}
+                            theme={theme}
+                            onToggleTheme={toggleTheme}
+                            onBack={() => setScreen('landing')}
+                            onJoin={(sid) => {
+                                // Same funnel as a ?session= deep link: the
+                                // setup screen joins the backing session.
+                                setJoinSessionId(sid)
+                                setView('learner')
+                                setScreen('setup')
+                            }}
+                        />
+                    </Suspense>
                 )}
                 {screen === 'session-not-found' && (
                     <SessionNotFound

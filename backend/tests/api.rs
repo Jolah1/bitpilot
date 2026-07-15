@@ -818,3 +818,158 @@ fn open_source_graduation_demands_a_parseable_github_proof() {
         105
     );
 }
+
+// ─── Weekly community challenges (issue #58) ────────────────────────────────
+
+fn create_challenge(base: &str, body: Value) -> reqwest::blocking::Response {
+    client()
+        .post(format!("{base}/api/challenges"))
+        .json(&body)
+        .send()
+        .unwrap()
+}
+
+#[test]
+fn challenge_create_validates_input() {
+    let h = Harness::start();
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs() as i64;
+
+    // Happy path returns the challenge plus a facilitator token.
+    let r = create_challenge(
+        &h.base,
+        json!({
+            "title": "Lightning week",
+            "blurb": "First Lightning payment.",
+            "missions": [21, 22, 23, 24],
+            "starts_at": now - 60,
+            "ends_at": now + 3600,
+        }),
+    );
+    assert_eq!(r.status(), 200, "{}", r.text().unwrap());
+    let v: Value = r.json().unwrap();
+    assert_eq!(v["challenge"]["status"], "live");
+    assert!(!v["facilitator_token"].as_str().unwrap().is_empty());
+
+    // Rejections: empty title, no missions, out-of-range mission,
+    // inverted window, window entirely in the past.
+    for (body, why) in [
+        (json!({"title": " ", "missions": [1], "starts_at": now, "ends_at": now + 10}), "empty title"),
+        (json!({"title": "x", "missions": [], "starts_at": now, "ends_at": now + 10}), "no missions"),
+        (json!({"title": "x", "missions": [106], "starts_at": now, "ends_at": now + 10}), "mission out of range"),
+        (json!({"title": "x", "missions": [1], "starts_at": now + 10, "ends_at": now}), "inverted window"),
+        (json!({"title": "x", "missions": [1], "starts_at": now - 100, "ends_at": now - 50}), "window in the past"),
+    ] {
+        let r = create_challenge(&h.base, body);
+        assert_eq!(r.status(), 400, "expected 400 for {why}");
+    }
+}
+
+#[test]
+fn challenge_results_rank_by_window_completions() {
+    let h = Harness::start();
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs() as i64;
+
+    let r = create_challenge(
+        &h.base,
+        json!({
+            "title": "Money week",
+            "missions": [0, 1, 77],
+            "starts_at": now - 60,
+            "ends_at": now + 3600,
+        }),
+    );
+    let created: Value = r.json().unwrap();
+    let challenge_id = created["challenge"]["id"].as_str().unwrap().to_string();
+    let session_id = created["challenge"]["session_id"].as_str().unwrap().to_string();
+
+    // Two learners join the backing session through the normal flow.
+    let alice = join_session(&h.base, "alice", &session_id);
+    let bob = join_session(&h.base, "bob", &session_id);
+
+    // Alice clears all three challenge missions; bob clears one challenge
+    // mission plus one that is NOT part of the challenge (mission 78).
+    for m in [0, 1, 77] {
+        assert!(complete(&h.base, &alice.auth_token, m, "acknowledged").status().is_success());
+    }
+    assert!(complete(&h.base, &bob.auth_token, 0, "acknowledged").status().is_success());
+    assert!(complete(&h.base, &bob.auth_token, 1, "acknowledged").status().is_success());
+    // 77 completed but we only count the subset: give bob a non-subset one
+    // by walking the tree order (78 comes right after 77 in Money).
+    assert!(complete(&h.base, &bob.auth_token, 77, "acknowledged").status().is_success());
+    assert!(complete(&h.base, &bob.auth_token, 78, "acknowledged").status().is_success());
+
+    // Public, no auth header at all.
+    let v: Value = client()
+        .get(format!("{}/api/challenges/{}/results", h.base, challenge_id))
+        .send()
+        .unwrap()
+        .json()
+        .unwrap();
+    let results = v["results"].as_array().unwrap();
+    assert_eq!(results.len(), 2);
+    // Both cleared all 3 subset missions; alice finished earlier so she
+    // ranks first. Bob's mission 78 must not have counted as a 4th clear.
+    assert_eq!(results[0]["name"], "alice");
+    assert_eq!(results[0]["cleared"], 3);
+    assert_eq!(results[1]["name"], "bob");
+    assert_eq!(results[1]["cleared"], 3);
+
+    // The leaderboard never leaks ids or tokens.
+    let raw = serde_json::to_string(&v).unwrap();
+    assert!(!raw.contains(&alice.participant_id));
+    assert!(!raw.contains("token"));
+
+    // The public list endpoint shows the challenge with its join counts.
+    let list: Vec<Value> = client()
+        .get(format!("{}/api/challenges", h.base))
+        .send()
+        .unwrap()
+        .json()
+        .unwrap();
+    assert_eq!(list.len(), 1);
+    assert_eq!(list[0]["participant_count"], 2);
+    assert_eq!(list[0]["status"], "live");
+}
+
+#[test]
+fn challenge_completions_outside_the_window_do_not_count() {
+    let h = Harness::start();
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs() as i64;
+
+    // Window opens an hour from now, so completions made today are
+    // practice, not entries.
+    let r = create_challenge(
+        &h.base,
+        json!({
+            "title": "Next week's challenge",
+            "missions": [0, 1],
+            "starts_at": now + 3600,
+            "ends_at": now + 7200,
+        }),
+    );
+    let created: Value = r.json().unwrap();
+    let challenge_id = created["challenge"]["id"].as_str().unwrap().to_string();
+    let session_id = created["challenge"]["session_id"].as_str().unwrap().to_string();
+
+    let early = join_session(&h.base, "early-bird", &session_id);
+    assert!(complete(&h.base, &early.auth_token, 0, "acknowledged").status().is_success());
+
+    let v: Value = client()
+        .get(format!("{}/api/challenges/{}/results", h.base, challenge_id))
+        .send()
+        .unwrap()
+        .json()
+        .unwrap();
+    assert_eq!(v["challenge"]["status"], "upcoming");
+    assert_eq!(v["results"][0]["cleared"], 0);
+    assert_eq!(v["results"][0]["last_clear"], Value::Null);
+}

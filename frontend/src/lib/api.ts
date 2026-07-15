@@ -188,10 +188,42 @@ export interface RuntimeInfo {
     nostr_relays: string[]
 }
 
+// ── Weekly community challenges ──────────────────────────────────────────
+
+export interface ChallengeInfo {
+    id: string
+    session_id: string
+    title: string
+    blurb: string
+    missions: number[]
+    starts_at: number
+    ends_at: number
+    status: 'upcoming' | 'live' | 'ended'
+    participant_count: number
+}
+
+export interface ChallengeResultRow {
+    name: string
+    cleared: number
+    last_clear: number | null
+}
+
+export interface ChallengeResults {
+    challenge: ChallengeInfo
+    results: ChallengeResultRow[]
+}
+
 // ── API surface ──────────────────────────────────────────────────────────
 
 export const api = {
     runtime: () => request<RuntimeInfo>('/runtime'),
+
+    /** Public list of community challenges, newest window first. */
+    listChallenges: () => request<ChallengeInfo[]>('/challenges'),
+
+    /** Public read-only leaderboard for one challenge. No auth. */
+    getChallengeResults: (id: string) =>
+        request<ChallengeResults>(`/challenges/${id}/results`),
 
     createSession: async (name: string): Promise<Session> => {
         const wire = await request<CreateSessionWire>('/sessions', {
