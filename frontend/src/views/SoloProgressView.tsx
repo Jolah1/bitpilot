@@ -19,6 +19,7 @@ import {
     type Participant,
 } from '../lib/types'
 import { card, chip, primaryButton, treeColor } from '../lib/ui'
+import { RANK_LADDER, listLabels, rankFor } from '../lib/rank'
 import { ShareBadgeModal } from '../components/ShareBadgeModal'
 
 export default function SoloProgressView({
@@ -120,6 +121,9 @@ export default function SoloProgressView({
                     </span>
                 </div>
             </header>
+
+            {/* Rank card: the overall standing across all flight paths. */}
+            {!loading && badges.length > 0 && <RankCard badges={badges} />}
 
             {/* Stat row */}
             <section
@@ -387,6 +391,98 @@ export default function SoloProgressView({
                 />
             )}
         </main>
+    )
+}
+
+/**
+ * Overall rank across all flight paths: Cadet, Pilot, Captain, Commander.
+ * The ladder shows where the learner stands; the line under it says, in
+ * plain words, exactly which paths unlock the next rank.
+ */
+function RankCard({ badges }: { badges: Badge[] }) {
+    const rank = rankFor(badges)
+    const currentIdx = RANK_LADDER.findIndex((r) => r.key === rank.key)
+    return (
+        <section aria-label="Your rank" style={{ ...card, padding: 16 }}>
+            <div
+                style={{
+                    fontSize: 10,
+                    letterSpacing: '0.1em',
+                    textTransform: 'uppercase',
+                    color: 'var(--muted)',
+                    fontWeight: 700,
+                    marginBottom: 6,
+                }}
+            >
+                Your rank
+            </div>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
+                <span
+                    style={{
+                        fontSize: 'clamp(26px, 6vw, 36px)',
+                        fontWeight: 900,
+                        letterSpacing: '-0.02em',
+                        lineHeight: 1,
+                        background: 'var(--gradient-bitcoin)',
+                        WebkitBackgroundClip: 'text',
+                        backgroundClip: 'text',
+                        WebkitTextFillColor: 'transparent',
+                        color: 'transparent',
+                    }}
+                >
+                    {rank.title}
+                </span>
+                <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>{rank.blurb}</span>
+            </div>
+
+            {/* Rank ladder: passed and current ranks light up. */}
+            <div
+                role="list"
+                aria-label="Rank ladder"
+                style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    flexWrap: 'wrap',
+                    marginTop: 12,
+                }}
+            >
+                {RANK_LADDER.map((r, i) => {
+                    const reached = i <= currentIdx
+                    const isCurrent = i === currentIdx
+                    return (
+                        <span
+                            role="listitem"
+                            key={r.key}
+                            aria-current={isCurrent ? 'step' : undefined}
+                            style={{
+                                fontSize: 11,
+                                fontWeight: 800,
+                                letterSpacing: '0.08em',
+                                textTransform: 'uppercase',
+                                padding: '4px 10px',
+                                borderRadius: 'var(--radius-pill)',
+                                border: isCurrent
+                                    ? '1px solid var(--bitcoin)'
+                                    : '1px solid var(--border)',
+                                color: reached ? 'var(--bitcoin)' : 'var(--muted)',
+                                background: isCurrent ? 'rgba(255, 87, 34, 0.08)' : 'transparent',
+                                opacity: reached ? 1 : 0.6,
+                            }}
+                        >
+                            {r.title}
+                        </span>
+                    )
+                })}
+            </div>
+
+            {rank.next && (
+                <p style={{ margin: '12px 0 0', fontSize: 13, color: 'var(--text)', lineHeight: 1.5 }}>
+                    Finish {listLabels(rank.next.remaining)} to make{' '}
+                    <strong>{rank.next.title}</strong>.
+                </p>
+            )}
+        </section>
     )
 }
 
