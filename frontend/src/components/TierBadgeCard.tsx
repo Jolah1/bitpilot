@@ -258,7 +258,10 @@ export const TierBadgeCard = forwardRef<SVGSVGElement, TierBadgeCardProps>(
         const label = RANK_LABEL[tree]
         const dateStr = formatBadgeDate(earnedAt)
         const safeName = (participantName || 'BitPilot Learner').trim().slice(0, 28)
-        const ringTextId = `ring-${tree}`
+        // NOT `ring-${tree}`: that id belongs to the ring's linearGradient
+        // below, and a duplicate id makes textPath resolve to the gradient,
+        // silently dropping the curved brand text from exports.
+        const ringTextId = `ring-text-${tree}`
         // Circle path for ring text. Drawn clockwise starting at 9 o'clock
         // so the text reads naturally along the top arc.
         const ringTextPath =

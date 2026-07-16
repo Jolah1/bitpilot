@@ -663,6 +663,76 @@ fn me_badges_starts_empty_then_unlocks_money_after_tree_clear() {
     assert!(privacy["earned_at"].is_null());
 }
 
+/// Verifiable badge certificates (issue #59): an earned badge can be
+/// certified exactly once per flight path; the public verify endpoint
+/// serves the signed Nostr event to anyone; unearned badges are refused.
+#[test]
+fn badge_certificate_issue_and_public_verify() {
+    let h = Harness::start();
+    let s = create_session(&h.base, "cert-flow");
+    let j = join_session(&h.base, "dana", &s.id);
+
+    let issue = |tree: &str| {
+        client()
+            .post(format!(
+                "{}/api/participants/me/badges/{tree}/certificate",
+                h.base
+            ))
+            .header("authorization", format!("Bearer {}", j.auth_token))
+            .send()
+            .unwrap()
+    };
+
+    // Not earned yet → 400 with a human message; bogus tree slug → 404.
+    assert_eq!(issue("money").status(), 400);
+    assert_eq!(issue("no-such-tree").status(), 404);
+
+    // Clear the Money tree, then certify it.
+    let money_ids: [u8; 8] = [0, 1, 77, 78, 2, 5, 9, 10];
+    for m in money_ids {
+        assert_eq!(complete(&h.base, &j.auth_token, m, "acknowledged").status(), 200);
+    }
+    let r = issue("money");
+    assert_eq!(r.status(), 200);
+    let cert: Value = r.json().unwrap();
+    let cert_id = cert["id"].as_str().unwrap().to_string();
+    assert_eq!(cert["tree"], "money");
+    assert_eq!(cert["tree_label"], "Money Basics");
+    assert_eq!(cert["participant_name"], "dana");
+    assert_eq!(cert["missions_completed"], 8);
+    assert_eq!(cert["signature_valid"], true);
+    assert!(cert["earned_at"].as_i64().unwrap() > 0);
+    assert!(cert["server_npub"].as_str().unwrap().starts_with("npub1"));
+    // The embedded Nostr event is kind 8 (badge award), signed by the
+    // server key, and carries the certificate id in its tags.
+    assert_eq!(cert["event"]["kind"], 8);
+    assert_eq!(cert["event"]["pubkey"], cert["server_pubkey"]);
+    let tags = cert["event"]["tags"].as_array().unwrap();
+    assert!(tags.iter().any(|t| t[0] == "cert" && t[1] == cert_id.as_str()));
+
+    // Idempotent: issuing again returns the same certificate.
+    let again: Value = issue("money").json().unwrap();
+    assert_eq!(again["id"].as_str().unwrap(), cert_id);
+
+    // Public verification needs no auth and returns the same record.
+    let public: Value = client()
+        .get(format!("{}/api/certificates/{cert_id}", h.base))
+        .send()
+        .unwrap()
+        .json()
+        .unwrap();
+    assert_eq!(public["id"].as_str().unwrap(), cert_id);
+    assert_eq!(public["signature_valid"], true);
+    assert_eq!(public["participant_name"], "dana");
+
+    // Unknown certificate id → 404.
+    let missing = client()
+        .get(format!("{}/api/certificates/00000000-0000-0000-0000-000000000000", h.base))
+        .send()
+        .unwrap();
+    assert_eq!(missing.status(), 404);
+}
+
 
 /// Full "continue on another device" pairing handoff: a logged-in learner
 /// mints a code, a second device redeems it, the second device inherits the

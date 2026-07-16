@@ -20,7 +20,7 @@ import { useFocusTrap } from '../lib/useFocusTrap'
 import { TierBadgeCard, badgeIdFor } from './TierBadgeCard'
 import { getNsec } from '../lib/auth'
 import { signNostrTextNote } from '../lib/crypto'
-import { api } from '../lib/api'
+import { api, type BadgeCertificate } from '../lib/api'
 
 const PNG_SCALE = 2 // 2x the 600x800 SVG => 1200x1600 PNG
 
@@ -34,9 +34,12 @@ function treeLabelOf(tree: string): string {
 
 // Public share caption. Deliberately omits the badge id: it used to embed a
 // fragment derivable from the participant, and a public post is the last
-// place that belongs.
-function buildShareText(tree: string): string {
-    return `I just earned my ${treeLabelOf(tree)} badge on BitPilot, learning Bitcoin by doing.`
+// place that belongs. The certificate link is different: the learner
+// explicitly created it to be public proof, so once one exists it rides
+// along in shares.
+function buildShareText(tree: string, certUrl: string | null): string {
+    const base = `I just earned my ${treeLabelOf(tree)} badge on BitPilot, learning Bitcoin by doing.`
+    return certUrl ? `${base} Verify it: ${certUrl}` : base
 }
 
 export function ShareBadgeModal({
@@ -52,9 +55,13 @@ export function ShareBadgeModal({
 }) {
     const svgRef = useRef<SVGSVGElement | null>(null)
     const dialogRef = useRef<HTMLDivElement | null>(null)
-    const [downloading, setDownloading] = useState<'png' | 'svg' | 'share' | 'nostr' | null>(null)
+    const [downloading, setDownloading] = useState<'png' | 'svg' | 'share' | 'nostr' | 'cert' | null>(null)
     const [error, setError] = useState<string | null>(null)
     const [status, setStatus] = useState<string | null>(null)
+    // Verifiable certificate for this badge, once the learner asks for one.
+    // Issuance is idempotent server-side, so re-clicking is harmless.
+    const [cert, setCert] = useState<BadgeCertificate | null>(null)
+    const [certCopied, setCertCopied] = useState(false)
     // Which public share the learner has asked for and is being asked to
     // confirm. Public posts are permanent and de-anonymising, so they pass
     // through a confirmation step; the local PNG/SVG downloads do not.
@@ -132,8 +139,6 @@ export function ShareBadgeModal({
             }
             const W = 600 * PNG_SCALE
             const H = 800 * PNG_SCALE
-            const blob = new Blob([src], { type: 'image/svg+xml;charset=utf-8' })
-            const url = URL.createObjectURL(blob)
             const img = new Image()
             img.onload = () => {
                 try {
@@ -142,26 +147,26 @@ export function ShareBadgeModal({
                     canvas.height = H
                     const ctx = canvas.getContext('2d')
                     if (!ctx) {
-                        URL.revokeObjectURL(url)
                         reject(new Error('Your browser refused to render PNGs.'))
                         return
                     }
                     ctx.drawImage(img, 0, 0, W, H)
                     canvas.toBlob((png) => {
-                        URL.revokeObjectURL(url)
                         if (!png) reject(new Error("Couldn't encode PNG."))
                         else resolve(png)
                     }, 'image/png')
                 } catch (e) {
-                    URL.revokeObjectURL(url)
                     reject(e instanceof Error ? e : new Error('PNG export failed.'))
                 }
             }
             img.onerror = () => {
-                URL.revokeObjectURL(url)
                 reject(new Error('Browser refused to load the badge image.'))
             }
-            img.src = url
+            // data: URL, not a blob object URL: the page CSP allows
+            // `img-src 'self' data:` but not `blob:`, so a blob-backed
+            // <img> is blocked and the whole PNG/share pipeline dies with
+            // "refused to load". data: is already whitelisted.
+            img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(src)}`
         })
 
     const downloadPng = async () => {
@@ -199,7 +204,7 @@ export function ShareBadgeModal({
         try {
             const png = await renderPng()
             const filename = `${baseFilename}.png`
-            const text = buildShareText(badge.tree)
+            const text = buildShareText(badge.tree, certUrl)
             const file = new File([png], filename, { type: 'image/png' })
 
             // Web Share API with files: mobile + Safari + recent Edge.
@@ -266,7 +271,7 @@ export function ShareBadgeModal({
         }
         setDownloading('nostr')
         try {
-            const event = signNostrTextNote(key, buildShareText(badge.tree))
+            const event = signNostrTextNote(key, buildShareText(badge.tree, certUrl))
             const res = await api.broadcastNostrEvent(event)
             setStatus(
                 res.simulated
@@ -277,6 +282,38 @@ export function ShareBadgeModal({
             setError(e instanceof Error ? e.message : 'Could not share to Nostr.')
         } finally {
             setDownloading(null)
+        }
+    }
+
+    const certUrl = cert ? `${window.location.origin}/?cert=${cert.id}` : null
+
+    /**
+     * Ask the backend to certify this badge. The result is a permanent
+     * public record (display name, flight path, dates) behind an
+     * unguessable link, backed by a Nostr event signed with the server's
+     * key so anyone can verify it independently.
+     */
+    const getCertificate = async () => {
+        setError(null)
+        setStatus(null)
+        setDownloading('cert')
+        try {
+            setCert(await api.issueBadgeCertificate(badge.tree))
+        } catch (e) {
+            setError(e instanceof Error ? e.message : 'Could not create the certificate.')
+        } finally {
+            setDownloading(null)
+        }
+    }
+
+    const copyCertLink = async () => {
+        if (!certUrl) return
+        try {
+            await navigator.clipboard.writeText(certUrl)
+            setCertCopied(true)
+            setTimeout(() => setCertCopied(false), 2000)
+        } catch {
+            setError('Could not copy. Long-press the link to copy it manually.')
         }
     }
 
@@ -486,6 +523,74 @@ export function ShareBadgeModal({
                             >
                                 {downloading === 'share' ? 'Preparing share…' : 'Share on X'}
                             </button>
+                            {cert && certUrl ? (
+                                <div
+                                    style={{
+                                        background: 'rgba(16, 197, 126, 0.08)',
+                                        border: '1px solid rgba(16, 197, 126, 0.30)',
+                                        borderRadius: 'var(--radius-2)',
+                                        padding: '12px 14px',
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        gap: 8,
+                                    }}
+                                >
+                                    <div style={{ fontSize: 12, color: 'var(--text)', lineHeight: 1.5 }}>
+                                        <strong>Certificate ready.</strong> Anyone with this
+                                        link can confirm your badge is real. Shares from here
+                                        now include it.
+                                    </div>
+                                    <div style={{ display: 'flex', gap: 8 }}>
+                                        <input
+                                            readOnly
+                                            value={certUrl}
+                                            aria-label="Certificate verification link"
+                                            onFocus={(e) => e.currentTarget.select()}
+                                            style={{
+                                                flex: 1,
+                                                minWidth: 0,
+                                                fontFamily: 'ui-monospace, monospace',
+                                                fontSize: 11,
+                                                padding: '8px 10px',
+                                                borderRadius: 'var(--radius-2)',
+                                                border: '1px solid var(--border)',
+                                                background: 'var(--bg)',
+                                                color: 'var(--text)',
+                                            }}
+                                        />
+                                        <button
+                                            onClick={copyCertLink}
+                                            style={shareButton('secondary', false)}
+                                        >
+                                            {certCopied ? 'Copied' : 'Copy'}
+                                        </button>
+                                    </div>
+                                    <a
+                                        href={certUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        style={{
+                                            fontSize: 12,
+                                            fontWeight: 700,
+                                            color: 'var(--bitcoin, #C2410C)',
+                                            textDecoration: 'underline',
+                                            alignSelf: 'flex-start',
+                                        }}
+                                    >
+                                        View the certificate page
+                                    </a>
+                                </div>
+                            ) : (
+                                <button
+                                    onClick={getCertificate}
+                                    disabled={downloading !== null}
+                                    style={shareButton('secondary', downloading !== null)}
+                                >
+                                    {downloading === 'cert'
+                                        ? 'Creating certificate…'
+                                        : 'Get a verifiable certificate'}
+                                </button>
+                            )}
                             <div
                                 style={{
                                     display: 'grid',
@@ -517,7 +622,9 @@ export function ShareBadgeModal({
                                 }}
                             >
                                 Nostr uses the key you made earlier, so it stays yours.
-                                PNG and SVG just save the image to your device.
+                                PNG and SVG just save the image to your device. A
+                                certificate puts the name and date on this badge behind
+                                a public link, so only make one if you want that.
                             </div>
                             <button
                                 onClick={onClose}

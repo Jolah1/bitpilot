@@ -41,6 +41,10 @@ pub fn router(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .route("/me", get(get_self))
         .route("/me/completions", get(list_completions))
         .route("/me/badges", get(list_badges))
+        .route(
+            "/me/badges/:tree/certificate",
+            post(crate::routes::certificates::issue_certificate),
+        )
         .route("/me/pairing-code", post(create_pairing_code))
         .layer(from_fn_with_state(state, require_participant));
     public.merge(authed)

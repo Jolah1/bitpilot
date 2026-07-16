@@ -24,6 +24,9 @@ const ChallengeCreateView = lazy(() => import('./views/ChallengeCreateView'))
 // Token entry for a facilitator returning with a saved token (or on a new
 // device); unlocks the standalone dashboard screen below.
 const FacilitatorAccessView = lazy(() => import('./views/FacilitatorAccessView'))
+// Public badge certificate page, reached via a ?cert= deep link that the
+// learner shares as proof.
+const CertificateView = lazy(() => import('./views/CertificateView'))
 import { BrandMark } from './components/BrandMark'
 import { ThemeToggle } from './components/ThemeToggle'
 import { ContinueOnDeviceModal } from './components/ContinueOnDeviceModal'
@@ -64,6 +67,7 @@ type Screen =
     | 'create-challenge'
     | 'facilitator-access'
     | 'dashboard'
+    | 'certificate'
 
 /**
  * Sentinel session name for solo learners.
@@ -99,6 +103,7 @@ function rehydrate(): {
     restored: boolean
     deepLinkSessionId: string | null
     deepLinkChallengeId: string | null
+    deepLinkCertId: string | null
 } {
     const token = getAuthToken()
     const sid = getSessionId()
@@ -108,6 +113,7 @@ function rehydrate(): {
     // or a publicly announced community challenge).
     let deepLinkSessionId: string | null = null
     let deepLinkChallengeId: string | null = null
+    let deepLinkCertId: string | null = null
     try {
         const url = new URL(window.location.href)
         const candidate = url.searchParams.get('session')
@@ -120,14 +126,18 @@ function rehydrate(): {
         if (challenge && /^[0-9a-f-]{36}$/i.test(challenge)) {
             deepLinkChallengeId = challenge
         }
+        const cert = url.searchParams.get('cert')
+        if (cert && /^[0-9a-f-]{36}$/i.test(cert)) {
+            deepLinkCertId = cert
+        }
     } catch {
         // SSR or weird URL, ignore.
     }
 
     if (token && pid && sid) {
-        return { sessionId: sid, participantId: pid, restored: true, deepLinkSessionId, deepLinkChallengeId }
+        return { sessionId: sid, participantId: pid, restored: true, deepLinkSessionId, deepLinkChallengeId, deepLinkCertId }
     }
-    return { sessionId: null, participantId: null, restored: false, deepLinkSessionId, deepLinkChallengeId }
+    return { sessionId: null, participantId: null, restored: false, deepLinkSessionId, deepLinkChallengeId, deepLinkCertId }
 }
 
 export default function App() {
@@ -144,13 +154,17 @@ export default function App() {
     // is on every visit; if they want to resume, the landing offers a
     // "Continue your missions" pill that reads from `initial.restored`.
     const [screen, setScreen] = useState<Screen>(
-        initial.deepLinkChallengeId
-            ? 'challenge'
-            : initial.deepLinkSessionId
-              ? 'setup'
-              : 'landing',
+        initial.deepLinkCertId
+            ? 'certificate'
+            : initial.deepLinkChallengeId
+              ? 'challenge'
+              : initial.deepLinkSessionId
+                ? 'setup'
+                : 'landing',
     )
     const [challengeId, setChallengeId] = useState<string | null>(initial.deepLinkChallengeId)
+    // Public certificate page (?cert= deep link). Read-only, no auth.
+    const [certId] = useState<string | null>(initial.deepLinkCertId)
     // Standalone facilitator dashboard (token-based entry, no participant).
     const [dashboardSessionId, setDashboardSessionId] = useState<string | null>(null)
     // Session prefill for the token screen when arriving from a challenge page.
@@ -417,6 +431,27 @@ export default function App() {
                                 // one, the landing page otherwise.
                                 setScreen(facAccessSession && challengeId ? 'challenge' : 'landing')
                                 setFacAccessSession(null)
+                            }}
+                        />
+                    </Suspense>
+                )}
+                {screen === 'certificate' && certId && (
+                    <Suspense fallback={<ViewLoading />}>
+                        <CertificateView
+                            theme={theme}
+                            onToggleTheme={toggleTheme}
+                            certId={certId}
+                            onHome={() => {
+                                setScreen('landing')
+                                // Drop the ?cert= param so a refresh lands on
+                                // the page the user chose to be on.
+                                try {
+                                    const url = new URL(window.location.href)
+                                    url.searchParams.delete('cert')
+                                    window.history.replaceState({}, '', url.toString())
+                                } catch {
+                                    /* ignore */
+                                }
                             }}
                         />
                     </Suspense>
