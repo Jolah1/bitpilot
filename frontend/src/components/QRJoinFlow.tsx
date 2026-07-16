@@ -3,6 +3,33 @@ import QRCode from 'qrcode'
 import { chip, ghostButton } from '../lib/ui'
 
 /**
+ * Stamp the BitPilot compass mark in the middle of a rendered QR canvas:
+ * a white rounded pad first (so the logo never melts into dark modules),
+ * then the favicon drawn on top. Only safe together with error correction
+ * level H; the pad covers well under the 30% H can reconstruct.
+ */
+function drawCenterLogo(canvas: HTMLCanvasElement) {
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+    const img = new Image()
+    img.onload = () => {
+        const logo = Math.round(canvas.width * 0.2)
+        const pad = Math.round(logo * 0.16)
+        const box = logo + pad * 2
+        const x = (canvas.width - box) / 2
+        const y = (canvas.height - box) / 2
+        ctx.fillStyle = '#FFFFFF'
+        ctx.beginPath()
+        ctx.roundRect(x, y, box, box, Math.round(box * 0.22))
+        ctx.fill()
+        ctx.drawImage(img, x + pad, y + pad, logo, logo)
+    }
+    // Same-origin asset, allowed by the img-src 'self' CSP. If it ever
+    // fails to load, the QR simply stays logo-less and scannable.
+    img.src = '/favicon.svg'
+}
+
+/**
  * QR code + shareable link for a session.
  *
  * The join URL is `${origin}/?session=<id>`. The App component parses the
@@ -34,13 +61,18 @@ export function QRSessionCard({
             QRCode.toCanvas(node, joinUrl, {
                 width: 200,
                 margin: 1,
+                // H tolerates ~30% damage, which pays for the logo overlay
+                // below while staying comfortably scannable.
+                errorCorrectionLevel: 'H',
                 color: { dark: '#0A0A0B', light: '#FFFFFF' },
-            }).catch((err) => {
-                // We'd rather log + keep the page alive than crash on a
-                // bad join URL. The link below is still copyable.
-                // eslint-disable-next-line no-console
-                console.warn('QR render failed:', err)
             })
+                .then(() => drawCenterLogo(node))
+                .catch((err) => {
+                    // We'd rather log + keep the page alive than crash on a
+                    // bad join URL. The link below is still copyable.
+                    // eslint-disable-next-line no-console
+                    console.warn('QR render failed:', err)
+                })
         },
         [joinUrl],
     )

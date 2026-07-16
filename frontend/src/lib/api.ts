@@ -213,6 +213,26 @@ export interface ChallengeResults {
     results: ChallengeResultRow[]
 }
 
+export interface CreateChallengeRequest {
+    title: string
+    blurb?: string
+    missions: number[]
+    /** Unix seconds. */
+    starts_at: number
+    /** Unix seconds, must be after starts_at and in the future. */
+    ends_at: number
+}
+
+/**
+ * POST /api/challenges. The facilitator token belongs to the challenge's
+ * backing session and is returned exactly once; the UI must show it to the
+ * creator immediately because there is no way to fetch it again.
+ */
+export interface CreateChallengeResult {
+    challenge: ChallengeInfo
+    facilitator_token: string
+}
+
 // ── API surface ──────────────────────────────────────────────────────────
 
 export const api = {
@@ -224,6 +244,10 @@ export const api = {
     /** Public read-only leaderboard for one challenge. No auth. */
     getChallengeResults: (id: string) =>
         request<ChallengeResults>(`/challenges/${id}/results`),
+
+    /** Open like session creation; rate limiting is the abuse control. */
+    createChallenge: (body: CreateChallengeRequest) =>
+        request<CreateChallengeResult>('/challenges', { method: 'POST', body }),
 
     createSession: async (name: string): Promise<Session> => {
         const wire = await request<CreateSessionWire>('/sessions', {

@@ -109,7 +109,9 @@ No real funds are required to use the app.
 
 ## Running a weekly challenge
 
-A challenge is a themed public leaderboard over a mission subset and a time window. Create one with a single request (creation is open, like session creation; rate limiting controls abuse):
+A challenge is a themed public leaderboard over a mission subset and a time window. The easiest way to create one is the app itself: open the landing page, scroll to "Community challenges", and hit "Run a weekly challenge". The form offers the theme presets below, shows the share link, and displays the facilitator token once.
+
+Prefer scripting it? The same endpoint takes a single request (creation is open, like session creation; rate limiting controls abuse):
 
 ```bash
 curl -s -X POST https://<your-backend>/api/challenges \

@@ -1,8 +1,10 @@
 import { useRef, type CSSProperties } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { BrandMark } from '../components/BrandMark'
 import { ThemeToggle } from '../components/ThemeToggle'
 import type { Theme } from '../lib/theme'
 import { useRuntime } from '../lib/runtime'
+import { api, type ChallengeInfo } from '../lib/api'
 import { TREES } from '../lib/types'
 import { card, chip, ghostButton, primaryButton } from '../lib/ui'
 
@@ -37,6 +39,8 @@ export default function Landing({
     onPair,
     hasResumable,
     onContinue,
+    onOpenChallenge,
+    onCreateChallenge,
 }: {
     theme: Theme
     onToggleTheme: () => void
@@ -45,6 +49,10 @@ export default function Landing({
     onPair: () => void
     hasResumable: boolean
     onContinue: () => void
+    /** Open one community challenge's public page. */
+    onOpenChallenge: (id: string) => void
+    /** Open the challenge creation form. */
+    onCreateChallenge: () => void
 }) {
     return (
         <div
@@ -70,6 +78,7 @@ export default function Landing({
                 <YourJourney />
                 <WhyThisWorks />
                 <SafeByDesign />
+                <CommunityChallenges onOpen={onOpenChallenge} onCreate={onCreateChallenge} />
                 <WhoItsFor />
                 <FinalCTA
                     hasResumable={hasResumable}
@@ -916,6 +925,143 @@ function SafetyTile({ icon, label, sub }: { icon: string; label: string; sub: st
             >
                 {sub}
             </p>
+        </li>
+    )
+}
+
+// ─── Community challenges ────────────────────────────────────────────────────
+
+/**
+ * Front door for the weekly challenges (issue #58 follow-up). Reads the
+ * public list; failures and an empty backend simply render the section
+ * with just the pitch + create button, never an error, the landing page
+ * must work even when the API is down.
+ */
+function CommunityChallenges({
+    onOpen,
+    onCreate,
+}: {
+    onOpen: (id: string) => void
+    onCreate: () => void
+}) {
+    const { data } = useQuery({
+        queryKey: ['challenges'],
+        queryFn: api.listChallenges,
+        staleTime: 60_000,
+        retry: 0,
+    })
+    // Live first, then upcoming, then ended; cap at four cards so the
+    // section stays a teaser, the full list lives on each public page.
+    const rank = { live: 0, upcoming: 1, ended: 2 } as const
+    const shown = [...(data ?? [])]
+        .sort((a, b) => rank[a.status] - rank[b.status])
+        .slice(0, 4)
+
+    return (
+        <section
+            aria-labelledby="challenges-headline"
+            style={{
+                maxWidth: 1080,
+                margin: '0 auto',
+                padding: '0 clamp(1rem, 4vw, 1.5rem) clamp(2.5rem, 7vw, 4rem)',
+            }}
+        >
+            <SectionHeading
+                id="challenges-headline"
+                eyebrow="Community challenges"
+                title="Race a public leaderboard."
+            />
+            <p
+                style={{
+                    textAlign: 'center',
+                    fontSize: 14,
+                    color: 'var(--text-soft)',
+                    lineHeight: 1.6,
+                    maxWidth: 520,
+                    margin: '-8px auto 20px',
+                }}
+            >
+                A challenge is a handful of missions and a time window. Anyone
+                with the link can join; the leaderboard is public and updates
+                live.
+            </p>
+
+            {shown.length > 0 && (
+                <ul
+                    style={{
+                        listStyle: 'none',
+                        padding: 0,
+                        margin: '0 0 18px',
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))',
+                        gap: 12,
+                        maxWidth: 880,
+                        marginInline: 'auto',
+                    }}
+                >
+                    {shown.map((c) => (
+                        <ChallengeCard key={c.id} challenge={c} onOpen={onOpen} />
+                    ))}
+                </ul>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'center' }}>
+                <button
+                    style={{ ...ghostButton, padding: '12px 20px', fontSize: 14, minHeight: 44 }}
+                    onClick={onCreate}
+                >
+                    🏁 Run a weekly challenge
+                </button>
+            </div>
+        </section>
+    )
+}
+
+function ChallengeCard({
+    challenge: c,
+    onOpen,
+}: {
+    challenge: ChallengeInfo
+    onOpen: (id: string) => void
+}) {
+    const statusChip =
+        c.status === 'live'
+            ? { label: 'Live now', tone: 'green' as const }
+            : c.status === 'upcoming'
+              ? { label: 'Starts soon', tone: 'orange' as const }
+              : { label: 'Final results', tone: 'neutral' as const }
+    const fmt = (t: number) =>
+        new Date(t * 1000).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+    return (
+        <li>
+            <button
+                type="button"
+                onClick={() => onOpen(c.id)}
+                style={{
+                    ...card,
+                    width: '100%',
+                    textAlign: 'left',
+                    padding: 16,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 8,
+                    cursor: 'pointer',
+                    fontFamily: 'var(--font-sans)',
+                    color: 'var(--text)',
+                }}
+            >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <span style={{ ...chip(statusChip.tone), fontSize: 10 }}>{statusChip.label}</span>
+                    <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>
+                        {fmt(c.starts_at)} to {fmt(c.ends_at)}
+                    </span>
+                </div>
+                <span style={{ fontSize: 15, fontWeight: 700, letterSpacing: '-0.01em' }}>{c.title}</span>
+                <span style={{ fontSize: 12, color: 'var(--muted)' }}>
+                    {c.missions.length} missions · {c.participant_count}{' '}
+                    {c.participant_count === 1 ? 'pilot' : 'pilots'} joined
+                </span>
+            </button>
         </li>
     )
 }

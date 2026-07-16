@@ -28,6 +28,17 @@ npm run test:e2e          # all of them, with a fail-fast server check
 node e2e/badge-share.test.mjs   # or one at a time
 ```
 
+## Visual sweep (manual)
+
+`screenshot-sweep.mjs` captures the key screens (landing, onboarding steps,
+flight path picker, challenge page, challenge creation) at phone, tablet,
+and desktop widths in both themes, writing PNGs to `e2e/screenshots/`
+(gitignored). It is a review tool for UI work, not a CI gate:
+
+```bash
+node e2e/screenshot-sweep.mjs   # servers must be running, like the tests
+```
+
 ## How they stay fast
 
 Missions gate per tree, so each test seeds only the handful of prior

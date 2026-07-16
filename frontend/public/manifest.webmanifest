@@ -1,6 +1,7 @@
 {
-    "name": "BitPilot — Learn Bitcoin by Doing",
+    "name": "BitPilot: Learn Bitcoin by Doing",
     "short_name": "BitPilot",
+    "id": "/",
     "description": "Learn Bitcoin, Lightning, Nostr and eCash by actually using them. Hands-on missions, no jargon.",
     "start_url": "/",
     "scope": "/",
@@ -11,6 +12,30 @@
     "categories": ["education", "finance"],
     "lang": "en",
     "icons": [
+        {
+            "src": "/icon-192.png",
+            "type": "image/png",
+            "sizes": "192x192",
+            "purpose": "any"
+        },
+        {
+            "src": "/icon-512.png",
+            "type": "image/png",
+            "sizes": "512x512",
+            "purpose": "any"
+        },
+        {
+            "src": "/icon-maskable-192.png",
+            "type": "image/png",
+            "sizes": "192x192",
+            "purpose": "maskable"
+        },
+        {
+            "src": "/icon-maskable-512.png",
+            "type": "image/png",
+            "sizes": "512x512",
+            "purpose": "maskable"
+        },
         {
             "src": "/favicon.svg",
             "type": "image/svg+xml",

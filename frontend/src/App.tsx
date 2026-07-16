@@ -16,8 +16,11 @@ const Landing = lazy(() => import('./views/Landing'))
 // them so a fresh learner doesn't pay for ~30KB of code they may never open.
 const FacilitatorDashboard = lazy(() => import('./views/FacilitatorDashboard'))
 const SoloProgressView = lazy(() => import('./views/SoloProgressView'))
-// Public challenge leaderboard, reached only via a ?challenge= deep link.
+// Public challenge leaderboard, reached via a ?challenge= deep link or the
+// landing page's community challenges section.
 const ChallengeView = lazy(() => import('./views/ChallengeView'))
+// Challenge creation form, reached from the landing page.
+const ChallengeCreateView = lazy(() => import('./views/ChallengeCreateView'))
 import { BrandMark } from './components/BrandMark'
 import { ThemeToggle } from './components/ThemeToggle'
 import { ContinueOnDeviceModal } from './components/ContinueOnDeviceModal'
@@ -55,6 +58,7 @@ type Screen =
     | 'app'
     | 'pair'
     | 'challenge'
+    | 'create-challenge'
 
 /**
  * Sentinel session name for solo learners.
@@ -141,7 +145,7 @@ export default function App() {
               ? 'setup'
               : 'landing',
     )
-    const [challengeId] = useState<string | null>(initial.deepLinkChallengeId)
+    const [challengeId, setChallengeId] = useState<string | null>(initial.deepLinkChallengeId)
     const [sessionId, setSessionId] = useState<string | null>(initial.sessionId)
     const [participantId, setParticipantId] = useState<string | null>(initial.participantId)
     const [sessionName, setSessionName] = useState('')
@@ -260,6 +264,24 @@ export default function App() {
         setScreen('landing')
     }
 
+    /**
+     * Open a challenge's public page from inside the app (landing section,
+     * or right after creating one). Mirrors the ?challenge= deep link into
+     * the URL so a refresh or share of the address bar lands on the same
+     * page.
+     */
+    const openChallenge = (id: string) => {
+        setChallengeId(id)
+        setScreen('challenge')
+        try {
+            const url = new URL(window.location.href)
+            url.searchParams.set('challenge', id)
+            window.history.replaceState({}, '', url.toString())
+        } catch {
+            /* ignore */
+        }
+    }
+
     // Whether the landing page should show a "Continue your missions" pill.
     // We read live state, not just the initial mount, so a user who clicks
     // the logo mid-session still sees the resume option even though
@@ -290,6 +312,8 @@ export default function App() {
                             onPair={() => setScreen('pair')}
                             hasResumable={hasResumable}
                             onContinue={continueExisting}
+                            onOpenChallenge={openChallenge}
+                            onCreateChallenge={() => setScreen('create-challenge')}
                         />
                     </Suspense>
                 )}
@@ -350,13 +374,34 @@ export default function App() {
                         onPaired={onPaired}
                     />
                 )}
+                {screen === 'create-challenge' && (
+                    <Suspense fallback={<ViewLoading />}>
+                        <ChallengeCreateView
+                            theme={theme}
+                            onToggleTheme={toggleTheme}
+                            onBack={() => setScreen('landing')}
+                            onOpenChallenge={openChallenge}
+                        />
+                    </Suspense>
+                )}
                 {screen === 'challenge' && challengeId && (
                     <Suspense fallback={<ViewLoading />}>
                         <ChallengeView
                             challengeId={challengeId}
                             theme={theme}
                             onToggleTheme={toggleTheme}
-                            onBack={() => setScreen('landing')}
+                            onBack={() => {
+                                setScreen('landing')
+                                // Drop the ?challenge= param so a refresh
+                                // lands on the page the user chose to be on.
+                                try {
+                                    const url = new URL(window.location.href)
+                                    url.searchParams.delete('challenge')
+                                    window.history.replaceState({}, '', url.toString())
+                                } catch {
+                                    /* ignore */
+                                }
+                            }}
                             onJoin={(sid) => {
                                 // Same funnel as a ?session= deep link: the
                                 // setup screen joins the backing session.
