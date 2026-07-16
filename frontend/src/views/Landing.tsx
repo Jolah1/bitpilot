@@ -41,6 +41,7 @@ export default function Landing({
     onContinue,
     onOpenChallenge,
     onCreateChallenge,
+    onFacilitatorAccess,
 }: {
     theme: Theme
     onToggleTheme: () => void
@@ -53,6 +54,8 @@ export default function Landing({
     onOpenChallenge: (id: string) => void
     /** Open the challenge creation form. */
     onCreateChallenge: () => void
+    /** Token entry for a returning facilitator (dashboard on any device). */
+    onFacilitatorAccess: () => void
 }) {
     return (
         <div
@@ -87,7 +90,7 @@ export default function Landing({
                 />
             </main>
 
-            <SiteFooter />
+            <SiteFooter onFacilitatorAccess={onFacilitatorAccess} />
         </div>
     )
 }
@@ -1272,7 +1275,7 @@ function CheckDot() {
  * stack ("built with Rust, sqlx, ..."); visitors don't care, and it
  * pulled the eye away from the actual sign-off line.
  */
-function SiteFooter() {
+function SiteFooter({ onFacilitatorAccess }: { onFacilitatorAccess: () => void }) {
     return (
         <footer
             style={{
@@ -1375,6 +1378,23 @@ function SiteFooter() {
                             <a href="https://nostr.com" target="_blank" rel="noreferrer" style={footerLinkStyle}>
                                 What is Nostr?
                             </a>
+                        </li>
+                        <li>
+                            <button
+                                type="button"
+                                onClick={onFacilitatorAccess}
+                                style={{
+                                    ...footerLinkStyle,
+                                    background: 'transparent',
+                                    border: 'none',
+                                    padding: 0,
+                                    cursor: 'pointer',
+                                    fontFamily: 'inherit',
+                                    fontSize: 'inherit',
+                                }}
+                            >
+                                Facilitator dashboard (have a token?)
+                            </button>
                         </li>
                     </ul>
                 </div>

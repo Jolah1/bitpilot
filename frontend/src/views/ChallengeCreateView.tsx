@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { api, ApiError, type CreateChallengeResult } from '../lib/api'
+import { setFacilitatorToken } from '../lib/auth'
 import { missionById } from '../lib/types'
 import { BrandMark } from '../components/BrandMark'
 import { ThemeToggle } from '../components/ThemeToggle'
@@ -56,12 +57,15 @@ export default function ChallengeCreateView({
     onToggleTheme,
     onBack,
     onOpenChallenge,
+    onOpenDashboard,
 }: {
     theme: Theme
     onToggleTheme: () => void
     onBack: () => void
     /** Jump to the public challenge page that was just created. */
     onOpenChallenge: (id: string) => void
+    /** Jump straight to the live dashboard of the backing session. */
+    onOpenDashboard: (sessionId: string) => void
 }) {
     const [presetKey, setPresetKey] = useState<string>('lightning')
     const preset = PRESETS.find((p) => p.key === presetKey)
@@ -180,6 +184,13 @@ export default function ChallengeCreateView({
                                 copied={copied}
                                 onCopy={copy}
                                 onOpen={() => onOpenChallenge(created.challenge.id)}
+                                onOpenDashboard={() => {
+                                    // The token is in hand right now; stash it
+                                    // so the dashboard's authenticated polling
+                                    // works, then jump straight in.
+                                    setFacilitatorToken(created.facilitator_token)
+                                    onOpenDashboard(created.challenge.session_id)
+                                }}
                             />
                         ) : (
                             <>
@@ -366,6 +377,7 @@ function ChallengeCreated({
     copied,
     onCopy,
     onOpen,
+    onOpenDashboard,
 }: {
     title: string
     shareUrl: string
@@ -373,6 +385,7 @@ function ChallengeCreated({
     copied: 'link' | 'token' | null
     onCopy: (what: 'link' | 'token', value: string) => void
     onOpen: () => void
+    onOpenDashboard: () => void
 }) {
     return (
         <>
@@ -423,6 +436,12 @@ function ChallengeCreated({
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                 <button className="bp-press" style={{ ...primaryButton(false), flex: 1, minHeight: 46 }} onClick={onOpen}>
                     Open the challenge page
+                </button>
+                <button
+                    style={{ ...ghostButton, flex: 1, minHeight: 46, fontSize: 14, justifyContent: 'center' }}
+                    onClick={onOpenDashboard}
+                >
+                    Open live dashboard
                 </button>
             </div>
             <div style={{ textAlign: 'center' }}>

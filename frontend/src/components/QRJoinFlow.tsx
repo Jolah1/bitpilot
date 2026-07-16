@@ -1,33 +1,6 @@
-import { useCallback, useState } from 'react'
-import QRCode from 'qrcode'
+import { useState } from 'react'
+import { LogoQRCanvas } from './LogoQR'
 import { chip, ghostButton } from '../lib/ui'
-
-/**
- * Stamp the BitPilot compass mark in the middle of a rendered QR canvas:
- * a white rounded pad first (so the logo never melts into dark modules),
- * then the favicon drawn on top. Only safe together with error correction
- * level H; the pad covers well under the 30% H can reconstruct.
- */
-function drawCenterLogo(canvas: HTMLCanvasElement) {
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-    const img = new Image()
-    img.onload = () => {
-        const logo = Math.round(canvas.width * 0.2)
-        const pad = Math.round(logo * 0.16)
-        const box = logo + pad * 2
-        const x = (canvas.width - box) / 2
-        const y = (canvas.height - box) / 2
-        ctx.fillStyle = '#FFFFFF'
-        ctx.beginPath()
-        ctx.roundRect(x, y, box, box, Math.round(box * 0.22))
-        ctx.fill()
-        ctx.drawImage(img, x + pad, y + pad, logo, logo)
-    }
-    // Same-origin asset, allowed by the img-src 'self' CSP. If it ever
-    // fails to load, the QR simply stays logo-less and scannable.
-    img.src = '/favicon.svg'
-}
 
 /**
  * QR code + shareable link for a session.
@@ -51,31 +24,6 @@ export function QRSessionCard({
 }) {
     const joinUrl = `${window.location.origin}/?session=${sessionId}`
     const [copied, setCopied] = useState(false)
-
-    // Draw the QR as soon as the canvas element is in the DOM. React calls
-    // this with the node on mount and with null on unmount, so it doesn't
-    // matter what order the parent decides to mount us in.
-    const canvasRef = useCallback(
-        (node: HTMLCanvasElement | null) => {
-            if (!node) return
-            QRCode.toCanvas(node, joinUrl, {
-                width: 200,
-                margin: 1,
-                // H tolerates ~30% damage, which pays for the logo overlay
-                // below while staying comfortably scannable.
-                errorCorrectionLevel: 'H',
-                color: { dark: '#0A0A0B', light: '#FFFFFF' },
-            })
-                .then(() => drawCenterLogo(node))
-                .catch((err) => {
-                    // We'd rather log + keep the page alive than crash on a
-                    // bad join URL. The link below is still copyable.
-                    // eslint-disable-next-line no-console
-                    console.warn('QR render failed:', err)
-                })
-        },
-        [joinUrl],
-    )
 
     const copyLink = async () => {
         try {
@@ -107,7 +55,7 @@ export function QRSessionCard({
                 <span style={chip('orange')}>{sessionName}</span>
             </div>
             <div style={{ padding: 8, background: '#FFFFFF', borderRadius: 'var(--radius-2)' }}>
-                <canvas ref={canvasRef} style={{ display: 'block' }} aria-label="QR code with join link" />
+                <LogoQRCanvas value={joinUrl} size={200} ariaLabel="QR code with join link" />
             </div>
             <div
                 style={{
