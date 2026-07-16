@@ -45,6 +45,7 @@ logs/
 # ─── Test artefacts ───────────────────────────────────────────────────────────
 coverage/
 lcov.info
+frontend/e2e/screenshots/
 
 # ─── CI caches ────────────────────────────────────────────────────────────────
 .cache/

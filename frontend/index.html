@@ -4,7 +4,8 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#F6F5F0" />
+    <meta name="theme-color" content="#F6F5F0" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0C1A14" media="(prefers-color-scheme: dark)" />
     <meta name="description"
         content="Learn Bitcoin, Lightning, Nostr and eCash by actually using them. Hands-on, no jargon." />
     <meta name="color-scheme" content="light dark" />
@@ -25,9 +26,10 @@
             form-action 'self';
             object-src 'none'" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="apple-touch-icon" href="/favicon.svg" />
+    <!-- iOS ignores SVG here; a real 180px PNG or the install icon is blank. -->
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
-    <title>BitPilot — Learn Bitcoin, Lightning, Nostr and eCash by using them</title>
+    <title>BitPilot: Learn Bitcoin, Lightning, Nostr and eCash by using them</title>
 </head>
 
 <body>
