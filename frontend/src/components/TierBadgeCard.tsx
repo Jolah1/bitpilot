@@ -141,16 +141,41 @@ const THEMES: Record<Tree, Theme> = {
     },
 }
 
+/**
+ * The big wordmark on the card. Reads as a rank you earned (MONEY PILOT),
+ * not a curriculum unit (MONEY BASICS): the flight-path subject stays on
+ * the chip and the line under the wordmark.
+ */
 const RANK_LABEL: Record<Tree, string> = {
-    money: 'MONEY BASICS',
-    bitcoin: 'BITCOIN',
-    lightning: 'LIGHTNING',
-    nostr: 'NOSTR',
-    ecash: 'ECASH',
-    'self-custody': 'SELF-CUSTODY',
-    privacy: 'PRIVACY',
-    sovereignty: 'FULL INDEPENDENCE',
-    'open-source': 'OPEN SOURCE',
+    money: 'MONEY PILOT',
+    bitcoin: 'BITCOIN PILOT',
+    lightning: 'LIGHTNING PILOT',
+    nostr: 'NOSTR PILOT',
+    ecash: 'ECASH PILOT',
+    'self-custody': 'SELF-CUSTODY PILOT',
+    privacy: 'PRIVACY PILOT',
+    sovereignty: 'INDEPENDENCE PILOT',
+    'open-source': 'OPEN SOURCE PILOT',
+}
+
+/**
+ * Prose form of the rank for sentences ("You earned the Money Pilot
+ * badge"). Mirrored by `Tree::pilot_title()` on the backend so the
+ * certificate wording matches the UI.
+ */
+export function rankTitleFor(tree: Tree): string {
+    const titles: Record<Tree, string> = {
+        money: 'Money Pilot',
+        bitcoin: 'Bitcoin Pilot',
+        lightning: 'Lightning Pilot',
+        nostr: 'Nostr Pilot',
+        ecash: 'eCash Pilot',
+        'self-custody': 'Self-custody Pilot',
+        privacy: 'Privacy Pilot',
+        sovereignty: 'Independence Pilot',
+        'open-source': 'Open Source Pilot',
+    }
+    return titles[tree]
 }
 
 /**
@@ -256,9 +281,18 @@ export const TierBadgeCard = forwardRef<SVGSVGElement, TierBadgeCardProps>(
     function TierBadgeCard({ tree, participantName, earnedAt, badgeId, scale = 1, fluid = false }, ref) {
         const theme = THEMES[tree]
         const label = RANK_LABEL[tree]
+        // Long ranks ("SELF-CUSTODY PILOT") shrink to stay inside the card;
+        // solved from width ≈ chars*0.62*size + (chars-1)*spacing ≤ 560.
+        const rankSize = Math.min(
+            54,
+            Math.floor((560 - (label.length - 1) * 6) / (label.length * 0.62)),
+        )
         const dateStr = formatBadgeDate(earnedAt)
         const safeName = (participantName || 'BitPilot Learner').trim().slice(0, 28)
-        const ringTextId = `ring-${tree}`
+        // NOT `ring-${tree}`: that id belongs to the ring's linearGradient
+        // below, and a duplicate id makes textPath resolve to the gradient,
+        // silently dropping the curved brand text from exports.
+        const ringTextId = `ring-text-${tree}`
         // Circle path for ring text. Drawn clockwise starting at 9 o'clock
         // so the text reads naturally along the top arc.
         const ringTextPath =
@@ -276,8 +310,8 @@ export const TierBadgeCard = forwardRef<SVGSVGElement, TierBadgeCardProps>(
                 role="img"
                 aria-label={
                     earnedAt
-                        ? `${label} flight path badge for ${safeName}, earned ${dateStr}. Badge ID ${badgeId}.`
-                        : `${label} flight path badge for ${safeName}. Badge ID ${badgeId}.`
+                        ? `${label} badge for ${safeName}, earned ${dateStr}. Badge ID ${badgeId}.`
+                        : `${label} badge for ${safeName}. Badge ID ${badgeId}.`
                 }
             >
                 <defs>
@@ -412,7 +446,9 @@ export const TierBadgeCard = forwardRef<SVGSVGElement, TierBadgeCardProps>(
                     </text>
                 </g>
 
-                {/* ── Layer 4: subtitle eyebrow (above medallion) ─────────── */}
+                {/* ── Layer 4: achievement eyebrow (above medallion) ──────── */}
+                {/* The subject moved next to the wordmark below, so this
+                    states the achievement instead of repeating the path. */}
                 <text
                     x={CX}
                     y={148}
@@ -424,7 +460,7 @@ export const TierBadgeCard = forwardRef<SVGSVGElement, TierBadgeCardProps>(
                     letterSpacing="5"
                     opacity="0.85"
                 >
-                    {theme.subtitle.toUpperCase()}
+                    FLIGHT PATH COMPLETE
                 </text>
 
                 {/* ── Layer 5: medallion ──────────────────────────────────── */}
@@ -571,7 +607,7 @@ export const TierBadgeCard = forwardRef<SVGSVGElement, TierBadgeCardProps>(
                     opacity="0.45"
                 />
 
-                {/* ── Layer 6: rank wordmark ──────────────────────────────── */}
+                {/* ── Layer 6: rank wordmark + flight path line ───────────── */}
                 <text
                     x={CX}
                     y={580}
@@ -579,15 +615,28 @@ export const TierBadgeCard = forwardRef<SVGSVGElement, TierBadgeCardProps>(
                     fill="#FFFFFF"
                     fontFamily="ui-sans-serif, system-ui, -apple-system, sans-serif"
                     fontWeight="900"
-                    fontSize="54"
+                    fontSize={rankSize}
                     letterSpacing="6"
                 >
                     {label}
                 </text>
+                <text
+                    x={CX}
+                    y={608}
+                    textAnchor="middle"
+                    fill={theme.accentLight}
+                    fontFamily="ui-sans-serif, system-ui, sans-serif"
+                    fontWeight="700"
+                    fontSize="12"
+                    letterSpacing="3"
+                    opacity="0.85"
+                >
+                    {theme.subtitle.toUpperCase()} FLIGHT PATH
+                </text>
 
                 {/* ── Layer 7: participant + date strip ───────────────────── */}
                 {/* Accent rule with end caps */}
-                <g transform={`translate(${CX} 612)`}>
+                <g transform={`translate(${CX} 630)`}>
                     <line x1="-140" y1="0" x2="-12" y2="0" stroke={theme.accent} strokeWidth="1" opacity="0.7" />
                     <line x1="12" y1="0" x2="140" y2="0" stroke={theme.accent} strokeWidth="1" opacity="0.7" />
                     <circle cx="-152" cy="0" r="2" fill={theme.accent} opacity="0.7" />
@@ -596,7 +645,7 @@ export const TierBadgeCard = forwardRef<SVGSVGElement, TierBadgeCardProps>(
 
                 <text
                     x={CX}
-                    y={650}
+                    y={664}
                     textAnchor="middle"
                     fill={theme.accentLight}
                     fontFamily="ui-sans-serif, system-ui, sans-serif"
@@ -608,7 +657,7 @@ export const TierBadgeCard = forwardRef<SVGSVGElement, TierBadgeCardProps>(
                 </text>
                 <text
                     x={CX}
-                    y={676}
+                    y={688}
                     textAnchor="middle"
                     fill="rgba(255,255,255,0.65)"
                     fontFamily="ui-monospace, 'SF Mono', monospace"
@@ -622,7 +671,7 @@ export const TierBadgeCard = forwardRef<SVGSVGElement, TierBadgeCardProps>(
                 {/* ── Layer 8: achievement quote ──────────────────────────── */}
                 <text
                     x={CX}
-                    y={714}
+                    y={720}
                     textAnchor="middle"
                     fill="rgba(255,255,255,0.78)"
                     fontFamily="ui-sans-serif, system-ui, sans-serif"
@@ -634,7 +683,7 @@ export const TierBadgeCard = forwardRef<SVGSVGElement, TierBadgeCardProps>(
                 </text>
                 <text
                     x={CX}
-                    y={732}
+                    y={738}
                     textAnchor="middle"
                     fill="rgba(255,255,255,0.78)"
                     fontFamily="ui-sans-serif, system-ui, sans-serif"

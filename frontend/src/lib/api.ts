@@ -233,6 +233,31 @@ export interface CreateChallengeResult {
     facilitator_token: string
 }
 
+// ── Verifiable badge certificates ────────────────────────────────────────
+
+/**
+ * A permanent public record that a named learner earned one flight-path
+ * badge. `event` is a Nostr kind-8 (badge award) event signed by the
+ * server's key; anyone can check its BIP340 signature offline with
+ * standard Nostr tooling. `signature_valid` is the server re-checking the
+ * stored event on every read.
+ */
+export interface BadgeCertificate {
+    id: string
+    tree: string
+    tree_label: string
+    /** Prose rank for sentences, e.g. "Money Pilot". */
+    rank: string
+    participant_name: string
+    missions_completed: number
+    earned_at: number
+    issued_at: number
+    event: Record<string, unknown>
+    server_pubkey: string
+    server_npub: string
+    signature_valid: boolean
+}
+
 // ── API surface ──────────────────────────────────────────────────────────
 
 export const api = {
@@ -248,6 +273,20 @@ export const api = {
     /** Open like session creation; rate limiting is the abuse control. */
     createChallenge: (body: CreateChallengeRequest) =>
         request<CreateChallengeResult>('/challenges', { method: 'POST', body }),
+
+    /**
+     * Issue (or fetch the already-issued) certificate for one earned badge.
+     * Idempotent: one certificate per learner per flight path.
+     */
+    issueBadgeCertificate: (tree: string) =>
+        request<BadgeCertificate>(`/participants/me/badges/${tree}/certificate`, {
+            method: 'POST',
+            auth: 'participant',
+        }),
+
+    /** Public certificate lookup. No auth: the id is the capability. */
+    getCertificate: (id: string) =>
+        request<BadgeCertificate>(`/certificates/${id}`),
 
     createSession: async (name: string): Promise<Session> => {
         const wire = await request<CreateSessionWire>('/sessions', {

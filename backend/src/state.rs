@@ -16,6 +16,10 @@ pub struct AppState {
     pub lightning: LightningService,
     pub nostr: NostrService,
     pub ecash: EcashService,
+    /// Nostr keypair that signs badge certificates. Loaded once at boot
+    /// (see `load_or_create_cert_key`) so every certificate verifies
+    /// against the same server pubkey.
+    pub cert_keys: nostr_sdk::Keys,
 }
 
 impl AppState {
@@ -55,13 +59,50 @@ impl AppState {
         // hashed rows do not match the prefix and are skipped.
         backfill_token_hashes(&db).await?;
 
+        let cert_keys = load_or_create_cert_key(&db).await?;
+
         Ok(Self {
             db,
             lightning: LightningService::new(),
             nostr: NostrService::new(),
             ecash: EcashService::new(),
+            cert_keys,
         })
     }
+}
+
+/// Load the certificate signing key, generating and persisting one on
+/// first boot. `CERT_SIGNING_SECRET` (hex or nsec) overrides the DB row
+/// for deploys that manage the key externally — note that certificates
+/// signed by an older key still verify (verification reads the pubkey
+/// from the stored event, not from process state).
+async fn load_or_create_cert_key(db: &SqlitePool) -> anyhow::Result<nostr_sdk::Keys> {
+    if let Some(secret) = std::env::var("CERT_SIGNING_SECRET")
+        .ok()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+    {
+        return nostr_sdk::Keys::parse(&secret)
+            .map_err(|e| anyhow::anyhow!("CERT_SIGNING_SECRET is not a valid key: {e}"));
+    }
+
+    let row: Option<(String,)> =
+        sqlx::query_as("SELECT secret_hex FROM cert_signing_key WHERE id = 1")
+            .fetch_optional(db)
+            .await?;
+    if let Some((hex,)) = row {
+        return nostr_sdk::Keys::parse(&hex)
+            .map_err(|e| anyhow::anyhow!("stored certificate signing key is corrupt: {e}"));
+    }
+
+    let keys = nostr_sdk::Keys::generate();
+    sqlx::query("INSERT INTO cert_signing_key (id, secret_hex, created_at) VALUES (1, ?, ?)")
+        .bind(keys.secret_key().to_secret_hex())
+        .bind(crate::models::now() as i64)
+        .execute(db)
+        .await?;
+    tracing::info!(pubkey = %keys.public_key(), "generated certificate signing key");
+    Ok(keys)
 }
 
 /// Strip query params (which may contain a password) before logging a URL.

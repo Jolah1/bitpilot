@@ -1,3 +1,4 @@
+pub mod certificates;
 pub mod challenges;
 pub mod lightning;
 pub mod missions;

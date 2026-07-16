@@ -13,7 +13,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { Badge } from '../lib/types'
 import { TREES } from '../lib/types'
 import { useFocusTrap } from '../lib/useFocusTrap'
-import { TierBadgeCard, badgeIdFor } from './TierBadgeCard'
+import { TierBadgeCard, badgeIdFor, rankTitleFor } from './TierBadgeCard'
 import { ShareBadgeModal } from './ShareBadgeModal'
 
 const CONFETTI_COLORS = ['#FF5722', '#FFAB91', '#FFCCBC', '#FFFFFF']
@@ -219,7 +219,7 @@ export function BadgeCelebrationModal({
                         textShadow: '0 4px 24px rgba(255,87,34,0.45)',
                     }}
                 >
-                    You earned the {label} badge
+                    You earned the {rankTitleFor(badge.tree)} badge
                 </h1>
 
                 {/* The badge itself, swings gently. */}

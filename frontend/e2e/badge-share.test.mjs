@@ -25,7 +25,7 @@ try {
     const got = page.getByRole('button', { name: /You got it/i })
     if (await got.count()) await got.first().click({ force: true })
     await sleep(1200)
-    const finish = page.getByRole('button', { name: /Finish BitPilot|Next:/i })
+    const finish = page.getByRole('button', { name: /Finish Money Basics|Next:/i })
     if (await finish.count()) await finish.first().click({ force: true })
     await sleep(1800)
 
@@ -72,7 +72,56 @@ try {
             (await page.getByRole('button', { name: /^Cancel$/i }).count()) > 0,
             'the confirmation offers Cancel',
         )
+        const cancel = page.getByRole('button', { name: /^Cancel$/i })
+        if (await cancel.count()) await cancel.first().evaluate((el) => el.click())
+        await sleep(300)
     }
+
+    // PNG export regression: the rasterizer must load the SVG via a data:
+    // URL (blob: is blocked by the page CSP). A failure surfaces as an
+    // error alert in the modal.
+    const png = page.getByRole('button', { name: /PNG/i })
+    if (await png.count()) {
+        await png.first().evaluate((el) => el.click())
+        await sleep(1500)
+        report.assert(
+            (await page.getByText(/refused to load the badge image|export failed/i).count()) === 0,
+            'PNG export runs without the CSP blob error',
+        )
+    } else report.bad('PNG download button not found in the share modal')
+
+    // Verifiable certificate: issue one, then check the public page.
+    const certBtn = page.getByRole('button', { name: /verifiable certificate/i })
+    report.assert(await certBtn.count() > 0, 'the share modal offers a verifiable certificate')
+    await certBtn.first().evaluate((el) => el.click())
+    await sleep(1200)
+    report.assert(
+        (await page.getByText(/Certificate ready/i).count()) > 0,
+        'certificate issuance reports ready with a link',
+    )
+    const certUrl = await page
+        .locator('input[aria-label="Certificate verification link"]')
+        .inputValue()
+        .catch(() => '')
+    report.assert(/\?cert=[0-9a-f-]{36}$/i.test(certUrl), 'the certificate link carries a cert id')
+
+    // The public certificate page needs no auth and shows the verdict.
+    const verifyPage = await browser.newPage()
+    await verifyPage.goto(certUrl, { waitUntil: 'networkidle' })
+    await sleep(600)
+    report.assert(
+        (await verifyPage.getByText(/Verified certificate/i).count()) > 0,
+        'the certificate page reports a verified signature',
+    )
+    report.assert(
+        (await verifyPage.getByText(/E2E earned the Money Pilot badge/i).count()) > 0,
+        'the certificate page names the pilot and their rank',
+    )
+    report.assert(
+        (await verifyPage.getByText(/Verify it yourself/i).count()) > 0,
+        'the certificate page offers independent verification details',
+    )
+    await verifyPage.close()
 } finally {
     await browser.close()
 }

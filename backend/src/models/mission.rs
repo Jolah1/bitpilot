@@ -60,6 +60,46 @@ impl Tree {
         }
     }
 
+    /// Human display name, mirrored from the frontend `TREES` labels.
+    /// Used in certificate wording, where the backend has no access to
+    /// the frontend's metadata table.
+    pub fn label(self) -> &'static str {
+        match self {
+            Tree::Money       => "Money Basics",
+            Tree::Bitcoin     => "Bitcoin",
+            Tree::Lightning   => "Lightning",
+            Tree::Nostr       => "Nostr",
+            Tree::Ecash       => "eCash",
+            Tree::SelfCustody => "Self-custody",
+            Tree::Privacy     => "Privacy",
+            Tree::Sovereignty => "Full Independence",
+            Tree::OpenSource  => "Open Source",
+        }
+    }
+
+    /// Prose rank printed on certificates ("earned the Money Pilot badge").
+    /// Mirrored by `rankTitleFor` in the frontend so UI and certificate
+    /// wording match.
+    pub fn pilot_title(self) -> &'static str {
+        match self {
+            Tree::Money       => "Money Pilot",
+            Tree::Bitcoin     => "Bitcoin Pilot",
+            Tree::Lightning   => "Lightning Pilot",
+            Tree::Nostr       => "Nostr Pilot",
+            Tree::Ecash       => "eCash Pilot",
+            Tree::SelfCustody => "Self-custody Pilot",
+            Tree::Privacy     => "Privacy Pilot",
+            Tree::Sovereignty => "Independence Pilot",
+            Tree::OpenSource  => "Open Source Pilot",
+        }
+    }
+
+    /// Parse the kebab-case wire slug (the serde form, e.g. "self-custody")
+    /// back into a Tree. Goes through serde so the two can't drift.
+    pub fn from_slug(slug: &str) -> Option<Tree> {
+        serde_json::from_value(serde_json::Value::String(slug.to_string())).ok()
+    }
+
     /// Map a mission id (0..=Mission::LAST) to its skill tree.
     /// Derived from `missions()` so the two cannot drift.
     pub fn from_mission(number: u8) -> Tree {
