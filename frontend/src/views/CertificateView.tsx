@@ -153,7 +153,7 @@ export default function CertificateView({
 
                             <div style={{ ...card, padding: 'clamp(18px, 4vw, 26px)', display: 'flex', flexDirection: 'column', gap: 14 }}>
                                 <h1 style={{ fontSize: 'clamp(18px, 4.5vw, 22px)', fontWeight: 800, letterSpacing: '-0.02em', margin: 0 }}>
-                                    {cert.participant_name} earned the {cert.tree_label} badge
+                                    {cert.participant_name} earned the {cert.rank} badge
                                 </h1>
                                 <p style={{ fontSize: 13.5, color: 'var(--muted)', lineHeight: 1.6, margin: 0 }}>
                                     BitPilot checked every one of the {cert.missions_completed} missions

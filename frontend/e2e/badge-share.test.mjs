@@ -25,7 +25,7 @@ try {
     const got = page.getByRole('button', { name: /You got it/i })
     if (await got.count()) await got.first().click({ force: true })
     await sleep(1200)
-    const finish = page.getByRole('button', { name: /Finish BitPilot|Next:/i })
+    const finish = page.getByRole('button', { name: /Finish Money Basics|Next:/i })
     if (await finish.count()) await finish.first().click({ force: true })
     await sleep(1800)
 
@@ -114,8 +114,8 @@ try {
         'the certificate page reports a verified signature',
     )
     report.assert(
-        (await verifyPage.getByText(/E2E earned the Money Basics badge/i).count()) > 0,
-        'the certificate page names the pilot and flight path',
+        (await verifyPage.getByText(/E2E earned the Money Pilot badge/i).count()) > 0,
+        'the certificate page names the pilot and their rank',
     )
     report.assert(
         (await verifyPage.getByText(/Verify it yourself/i).count()) > 0,

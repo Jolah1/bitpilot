@@ -17,28 +17,20 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Badge } from '../lib/types'
 import { useFocusTrap } from '../lib/useFocusTrap'
-import { TierBadgeCard, badgeIdFor } from './TierBadgeCard'
+import { TierBadgeCard, badgeIdFor, rankTitleFor } from './TierBadgeCard'
 import { getNsec } from '../lib/auth'
 import { signNostrTextNote } from '../lib/crypto'
 import { api, type BadgeCertificate } from '../lib/api'
 
 const PNG_SCALE = 2 // 2x the 600x800 SVG => 1200x1600 PNG
 
-/** Tree label used in the share text. Title-cased, hyphens → spaces. */
-function treeLabelOf(tree: string): string {
-    return tree
-        .split('-')
-        .map((part) => part[0].toUpperCase() + part.slice(1))
-        .join('-')
-}
-
 // Public share caption. Deliberately omits the badge id: it used to embed a
 // fragment derivable from the participant, and a public post is the last
 // place that belongs. The certificate link is different: the learner
 // explicitly created it to be public proof, so once one exists it rides
 // along in shares.
-function buildShareText(tree: string, certUrl: string | null): string {
-    const base = `I just earned my ${treeLabelOf(tree)} badge on BitPilot, learning Bitcoin by doing.`
+function buildShareText(tree: Badge['tree'], certUrl: string | null): string {
+    const base = `I just earned my ${rankTitleFor(tree)} badge on BitPilot, learning Bitcoin by doing.`
     return certUrl ? `${base} Verify it: ${certUrl}` : base
 }
 

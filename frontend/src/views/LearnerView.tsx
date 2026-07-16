@@ -778,6 +778,7 @@ export default function LearnerView({ participantId }: { participantId: string }
                                     ? null
                                     : missionById(activeTree.missions[treeIdx + 1])?.name ?? null
                             }
+                            treeLabel={activeTree.label}
                         />
                     )}
                 </div>
@@ -1814,6 +1815,7 @@ function DoPanel({
     onReviewNext,
     resultRef,
     nextMissionName,
+    treeLabel,
 }: {
     mission: MissionDef
     tone: 'orange' | 'purple' | 'cyan'
@@ -1833,6 +1835,8 @@ function DoPanel({
     onReviewNext: () => void
     resultRef: React.RefObject<HTMLDivElement>
     nextMissionName: string | null
+    /** Flight path name for the last mission's finish button. */
+    treeLabel: string
 }) {
     // Decide what input UI to show. Each branch labels its own field so
     // the user understands what they're typing.
@@ -2013,7 +2017,7 @@ function DoPanel({
                         onClick={onNext}
                         disabled={hasSecret && !savedConfirmed}
                     >
-                        {isLast ? '🎉 Finish BitPilot' : `Next: ${nextMissionName}`}
+                        {isLast ? `🎉 Finish ${treeLabel}` : `Next: ${nextMissionName}`}
                     </button>
                     {hasSecret && !savedConfirmed && (
                         <p style={{ fontSize: 12, color: 'var(--muted)', textAlign: 'center', margin: 0 }}>

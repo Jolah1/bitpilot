@@ -698,6 +698,7 @@ fn badge_certificate_issue_and_public_verify() {
     let cert_id = cert["id"].as_str().unwrap().to_string();
     assert_eq!(cert["tree"], "money");
     assert_eq!(cert["tree_label"], "Money Basics");
+    assert_eq!(cert["rank"], "Money Pilot");
     assert_eq!(cert["participant_name"], "dana");
     assert_eq!(cert["missions_completed"], 8);
     assert_eq!(cert["signature_valid"], true);

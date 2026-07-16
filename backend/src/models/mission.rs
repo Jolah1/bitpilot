@@ -77,6 +77,23 @@ impl Tree {
         }
     }
 
+    /// Prose rank printed on certificates ("earned the Money Pilot badge").
+    /// Mirrored by `rankTitleFor` in the frontend so UI and certificate
+    /// wording match.
+    pub fn pilot_title(self) -> &'static str {
+        match self {
+            Tree::Money       => "Money Pilot",
+            Tree::Bitcoin     => "Bitcoin Pilot",
+            Tree::Lightning   => "Lightning Pilot",
+            Tree::Nostr       => "Nostr Pilot",
+            Tree::Ecash       => "eCash Pilot",
+            Tree::SelfCustody => "Self-custody Pilot",
+            Tree::Privacy     => "Privacy Pilot",
+            Tree::Sovereignty => "Independence Pilot",
+            Tree::OpenSource  => "Open Source Pilot",
+        }
+    }
+
     /// Parse the kebab-case wire slug (the serde form, e.g. "self-custody")
     /// back into a Tree. Goes through serde so the two can't drift.
     pub fn from_slug(slug: &str) -> Option<Tree> {
