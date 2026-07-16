@@ -21,6 +21,9 @@ const SoloProgressView = lazy(() => import('./views/SoloProgressView'))
 const ChallengeView = lazy(() => import('./views/ChallengeView'))
 // Challenge creation form, reached from the landing page.
 const ChallengeCreateView = lazy(() => import('./views/ChallengeCreateView'))
+// Token entry for a facilitator returning with a saved token (or on a new
+// device); unlocks the standalone dashboard screen below.
+const FacilitatorAccessView = lazy(() => import('./views/FacilitatorAccessView'))
 import { BrandMark } from './components/BrandMark'
 import { ThemeToggle } from './components/ThemeToggle'
 import { ContinueOnDeviceModal } from './components/ContinueOnDeviceModal'
@@ -59,6 +62,8 @@ type Screen =
     | 'pair'
     | 'challenge'
     | 'create-challenge'
+    | 'facilitator-access'
+    | 'dashboard'
 
 /**
  * Sentinel session name for solo learners.
@@ -146,6 +151,10 @@ export default function App() {
               : 'landing',
     )
     const [challengeId, setChallengeId] = useState<string | null>(initial.deepLinkChallengeId)
+    // Standalone facilitator dashboard (token-based entry, no participant).
+    const [dashboardSessionId, setDashboardSessionId] = useState<string | null>(null)
+    // Session prefill for the token screen when arriving from a challenge page.
+    const [facAccessSession, setFacAccessSession] = useState<string | null>(null)
     const [sessionId, setSessionId] = useState<string | null>(initial.sessionId)
     const [participantId, setParticipantId] = useState<string | null>(initial.participantId)
     const [sessionName, setSessionName] = useState('')
@@ -282,6 +291,12 @@ export default function App() {
         }
     }
 
+    /** Token-validated entry into the standalone dashboard screen. */
+    const openDashboard = (sid: string) => {
+        setDashboardSessionId(sid)
+        setScreen('dashboard')
+    }
+
     // Whether the landing page should show a "Continue your missions" pill.
     // We read live state, not just the initial mount, so a user who clicks
     // the logo mid-session still sees the resume option even though
@@ -314,6 +329,10 @@ export default function App() {
                             onContinue={continueExisting}
                             onOpenChallenge={openChallenge}
                             onCreateChallenge={() => setScreen('create-challenge')}
+                            onFacilitatorAccess={() => {
+                                setFacAccessSession(null)
+                                setScreen('facilitator-access')
+                            }}
                         />
                     </Suspense>
                 )}
@@ -381,8 +400,34 @@ export default function App() {
                             onToggleTheme={toggleTheme}
                             onBack={() => setScreen('landing')}
                             onOpenChallenge={openChallenge}
+                            onOpenDashboard={openDashboard}
                         />
                     </Suspense>
+                )}
+                {screen === 'facilitator-access' && (
+                    <Suspense fallback={<ViewLoading />}>
+                        <FacilitatorAccessView
+                            theme={theme}
+                            onToggleTheme={toggleTheme}
+                            initialSession={facAccessSession}
+                            onOpen={openDashboard}
+                            onBack={() => {
+                                // Return to wherever the entry link lived: the
+                                // challenge page when we were prefilled from
+                                // one, the landing page otherwise.
+                                setScreen(facAccessSession && challengeId ? 'challenge' : 'landing')
+                                setFacAccessSession(null)
+                            }}
+                        />
+                    </Suspense>
+                )}
+                {screen === 'dashboard' && dashboardSessionId && (
+                    <DashboardShell
+                        theme={theme}
+                        onToggleTheme={toggleTheme}
+                        onBack={() => setScreen('landing')}
+                        sessionId={dashboardSessionId}
+                    />
                 )}
                 {screen === 'challenge' && challengeId && (
                     <Suspense fallback={<ViewLoading />}>
@@ -409,6 +454,10 @@ export default function App() {
                                 setView('learner')
                                 setScreen('setup')
                             }}
+                            onFacilitatorAccess={(sid) => {
+                                setFacAccessSession(sid)
+                                setScreen('facilitator-access')
+                            }}
                         />
                     </Suspense>
                 )}
@@ -433,6 +482,60 @@ export default function App() {
                 )}
             </RuntimeProvider>
         </QueryClientProvider>
+    )
+}
+
+// ─── Standalone facilitator dashboard shell ──────────────────────────────────
+
+/**
+ * Hosts FacilitatorDashboard for token-based entry, where there is no
+ * participant and therefore no AppShell: just a slim bar (back, brand,
+ * theme) over the dashboard. The token itself was validated and stored by
+ * FacilitatorAccessView (or stashed by the challenge create flow) before
+ * this screen mounts.
+ */
+function DashboardShell({
+    theme,
+    onToggleTheme,
+    onBack,
+    sessionId,
+}: {
+    theme: Theme
+    onToggleTheme: () => void
+    onBack: () => void
+    sessionId: string
+}) {
+    return (
+        <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--bg)' }}>
+            <div
+                style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '12px 16px',
+                    borderBottom: '1px solid var(--border)',
+                    gap: 8,
+                }}
+            >
+                <button
+                    onClick={onBack}
+                    style={{ ...ghostButton, padding: '8px 14px', minHeight: 40 }}
+                    aria-label="Back to landing page"
+                >
+                    ← Back
+                </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <BrandMark size={26} />
+                    <span style={{ fontWeight: 800, letterSpacing: '-0.025em' }}>BitPilot</span>
+                </div>
+                <ThemeToggle theme={theme} onToggle={onToggleTheme} />
+            </div>
+            <div id="main-content" style={{ flex: 1 }}>
+                <Suspense fallback={<ViewLoading />}>
+                    <FacilitatorDashboard sessionId={sessionId} />
+                </Suspense>
+            </div>
+        </div>
     )
 }
 
