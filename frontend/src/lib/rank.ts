@@ -1,11 +1,12 @@
 /**
  * Overall learner rank, derived from which flight paths are earned.
  *
- * Ranks climb by curriculum depth, mirroring the per-path badge titles
- * (MONEY PILOT etc.): clear every Beginner path to make Pilot, add the
- * Intermediate paths for Captain, clear all nine for Commander. Everyone
- * starts as Cadet. Pure derivation from the badges list — no server
- * state, so the rank can never drift from the completions that earn it.
+ * Ranks climb by curriculum depth. Distinct from the per-path "Wings"
+ * awards (see TierBadgeCard): clear every Beginner path to make Pilot, add
+ * the Intermediate paths for Captain, clear all nine for Commander.
+ * Everyone starts as Cadet. Pure derivation from the badges list — no
+ * server state, so the rank can never drift from the completions that earn
+ * it.
  */
 import { TREES, type Badge, type Difficulty } from './types'
 

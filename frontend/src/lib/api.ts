@@ -246,7 +246,7 @@ export interface BadgeCertificate {
     id: string
     tree: string
     tree_label: string
-    /** Prose rank for sentences, e.g. "Money Pilot". */
+    /** Prose award for sentences, e.g. "Money Basics Wings". */
     rank: string
     participant_name: string
     missions_completed: number

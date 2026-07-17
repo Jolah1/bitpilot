@@ -46,6 +46,7 @@ import {
     deriveFirstSegwitAddress,
     generateBip39Mnemonic,
     generateNostrKeys,
+    isValidNsec,
     sha256Hex,
     signNostrFollow,
     signNostrProfile,
@@ -110,6 +111,11 @@ export default function LearnerView({ participantId }: { participantId: string }
 
     const [doInput, setDoInput] = useState('')
     const [doInputB, setDoInputB] = useState('') // secondary input (e.g. about/bio)
+    // Nostr identity recovery: shown on publish/profile/follow missions only
+    // when the browser has no stored nsec (cleared storage, or the identity
+    // was generated on another device). Lets the learner paste the nsec they
+    // saved from mission 14 so they aren't dead-ended after completing it.
+    const [nsecRecover, setNsecRecover] = useState('')
     const [doOutcome, setDoOutcome] = useState<DoOutcome | null>(null)
     const [doError, setDoError] = useState<string | null>(null)
     const [loading, setLoading] = useState(false)
@@ -207,6 +213,7 @@ export default function LearnerView({ participantId }: { participantId: string }
         setQuizResult(null)
         setDoInput('')
         setDoInputB('')
+        setNsecRecover('')
         setDoOutcome(null)
         setDoError(null)
     }
@@ -446,12 +453,21 @@ export default function LearnerView({ participantId }: { participantId: string }
                         setLoading(false)
                         return
                     }
-                    const nsec = getNsec()
+                    // Prefer the browser-stored key; fall back to an nsec the
+                    // learner pasted to recover an identity they made earlier.
+                    const nsec =
+                        getNsec() ?? (isValidNsec(nsecRecover) ? nsecRecover.trim() : null)
                     if (!nsec) {
-                        setDoError('Generate your Nostr identity first (mission 14).')
+                        setDoError(
+                            nsecRecover.trim()
+                                ? "That doesn't look like a valid nsec, it should start with nsec1…"
+                                : 'Paste the nsec you saved when you generated your Nostr identity, or make one first in the Nostr flight path.',
+                        )
                         setLoading(false)
                         return
                     }
+                    // Persist a recovered key so later Nostr missions stop asking.
+                    if (!getNsec()) setNsec(nsec)
                     // Sign in the browser → backend just relays. The nsec
                     // never leaves this scope.
                     const event = signNostrTextNote(nsec, doInput.trim())
@@ -474,12 +490,21 @@ export default function LearnerView({ participantId }: { participantId: string }
                         setLoading(false)
                         return
                     }
-                    const nsec = getNsec()
+                    // Prefer the browser-stored key; fall back to an nsec the
+                    // learner pasted to recover an identity they made earlier.
+                    const nsec =
+                        getNsec() ?? (isValidNsec(nsecRecover) ? nsecRecover.trim() : null)
                     if (!nsec) {
-                        setDoError('Generate your Nostr identity first (mission 14).')
+                        setDoError(
+                            nsecRecover.trim()
+                                ? "That doesn't look like a valid nsec, it should start with nsec1…"
+                                : 'Paste the nsec you saved when you generated your Nostr identity, or make one first in the Nostr flight path.',
+                        )
                         setLoading(false)
                         return
                     }
+                    // Persist a recovered key so later Nostr missions stop asking.
+                    if (!getNsec()) setNsec(nsec)
                     const about = doInputB.trim() || null
                     const event = signNostrProfile(nsec, doInput.trim(), about)
                     const r = await api.broadcastNostrEvent(event)
@@ -497,12 +522,21 @@ export default function LearnerView({ participantId }: { participantId: string }
                 }
 
                 case 'nostr-follow': {
-                    const nsec = getNsec()
+                    // Prefer the browser-stored key; fall back to an nsec the
+                    // learner pasted to recover an identity they made earlier.
+                    const nsec =
+                        getNsec() ?? (isValidNsec(nsecRecover) ? nsecRecover.trim() : null)
                     if (!nsec) {
-                        setDoError('Generate your Nostr identity first (mission 14).')
+                        setDoError(
+                            nsecRecover.trim()
+                                ? "That doesn't look like a valid nsec, it should start with nsec1…"
+                                : 'Paste the nsec you saved when you generated your Nostr identity, or make one first in the Nostr flight path.',
+                        )
                         setLoading(false)
                         return
                     }
+                    // Persist a recovered key so later Nostr missions stop asking.
+                    if (!getNsec()) setNsec(nsec)
                     // Pre-baked npubs to follow. Picking one for them is
                     // friendlier than asking a beginner to find an npub.
                     // fiatjaf is the inventor of Nostr. jb55 is Damus.
@@ -785,6 +819,8 @@ export default function LearnerView({ participantId }: { participantId: string }
                             setDoInput={setDoInput}
                             doInputB={doInputB}
                             setDoInputB={setDoInputB}
+                            nsecRecover={nsecRecover}
+                            setNsecRecover={setNsecRecover}
                             loading={loading}
                             outcome={doOutcome}
                             error={doError}
@@ -1826,6 +1862,8 @@ function DoPanel({
     setDoInput,
     doInputB,
     setDoInputB,
+    nsecRecover,
+    setNsecRecover,
     loading,
     outcome,
     error,
@@ -1844,6 +1882,8 @@ function DoPanel({
     setDoInput: (v: string) => void
     doInputB: string
     setDoInputB: (v: string) => void
+    nsecRecover: string
+    setNsecRecover: (v: string) => void
     loading: boolean
     outcome: DoOutcome | null
     error: string | null
@@ -1879,6 +1919,10 @@ function DoPanel({
         'nostr-profile',
         'nostr-follow',
     ].includes(mission.do.kind)
+    // Signing needs the nsec. If the browser has none (cleared storage, or
+    // the identity was made on another device), offer a recovery input so a
+    // learner who already finished the identity mission isn't stuck.
+    const needsNsec = needsPublishConfirm && !getNsec()
     const [confirming, setConfirming] = useState(false)
 
     // Reset both gates whenever we move to a different mission, so a prior
@@ -1923,6 +1967,31 @@ function DoPanel({
             </p>
 
             <TaskLinks links={mission.do.links} />
+
+            {!outcome && needsNsec && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <div style={callout('info')}>
+                        <strong>We can't find your Nostr key on this device.</strong>{' '}
+                        Paste the nsec you saved when you created your identity, and
+                        we'll sign with it. It's stored only in this browser, never sent
+                        to our server.
+                    </div>
+                    <label htmlFor={`do-nsec-${mission.id}`} style={labelStyle}>
+                        Your nsec (nsec1…)
+                    </label>
+                    <input
+                        id={`do-nsec-${mission.id}`}
+                        style={inputMono}
+                        value={nsecRecover}
+                        onChange={(e) => setNsecRecover(e.target.value)}
+                        placeholder="nsec1…"
+                        maxLength={70}
+                        autoComplete="off"
+                        autoCapitalize="none"
+                        spellCheck={false}
+                    />
+                </div>
+            )}
 
             {!outcome && ui.primary && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
