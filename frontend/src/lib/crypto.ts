@@ -64,6 +64,19 @@ export function generateNostrKeys(): NostrKeypair {
 }
 
 /**
+ * True when `s` is a well-formed bech32 `nsec1…` private key. Lets the UI
+ * validate a pasted nsec (identity recovery, when the locally stored key
+ * is gone) before trying to sign with it. Never throws.
+ */
+export function isValidNsec(s: string): boolean {
+    try {
+        return nip19.decode(s.trim()).type === 'nsec'
+    } catch {
+        return false
+    }
+}
+
+/**
  * Decode an nsec back into the 32-byte secret key. Throws on anything
  * that isn't a valid bech32 `nsec1…`. Used only inside this module to
  * feed `finalizeEvent`; callers should never see the raw bytes.

@@ -38,7 +38,7 @@ pub struct CertificateResponse {
     id: String,
     tree: Tree,
     tree_label: &'static str,
-    /// Prose rank for sentences, e.g. "Money Pilot".
+    /// Prose award for sentences, e.g. "Money Basics Wings".
     rank: &'static str,
     participant_name: String,
     missions_completed: i64,
@@ -180,7 +180,7 @@ impl CertRow {
             id: self.id,
             tree,
             tree_label: tree.label(),
-            rank: tree.pilot_title(),
+            rank: tree.wings_title(),
             participant_name: self.participant_name,
             missions_completed: self.missions_completed,
             earned_at: self.earned_at,
@@ -229,7 +229,7 @@ fn build_award_event(
         .map(|d| d.format("%Y-%m-%d").to_string())
         .unwrap_or_else(|| earned_at.to_string());
     let label = tree.label();
-    let rank = tree.pilot_title();
+    let rank = tree.wings_title();
     let content = format!(
         "BitPilot certifies that {name} completed all {missions} missions of the \
          {label} flight path, each verified server-side, and earned the {rank} \

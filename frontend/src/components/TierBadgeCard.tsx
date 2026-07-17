@@ -42,33 +42,52 @@ interface Theme {
     achievement: [string, string]
 }
 
-/**
- * One palette across all nine skill trees, navy field, bitcoin orange ring,
- * deep-orange highlights. Trees are peers (not ranked stages), so they share the
- * same visual family. What distinguishes them on the card is (a) the chip
- * text, (b) the subtitle eyebrow, and (c) the two-line achievement quote.
- */
-const PALETTE = {
-    bg1: '#1E3B2C',
-    bg2: '#0C1A14',
-    accent: '#FF5722',
-    accentLight: '#FFAB91',
-    accentDim: '#7A4A0E',
-    accent2: '#FFCCBC',
+/** The six colour fields every theme carries. */
+interface Palette {
+    bg1: string
+    bg2: string
+    accent: string
+    accentLight: string
+    accentDim: string
+    accent2: string
 }
 
+/**
+ * One palette per flight path so a wall of badges reads as nine distinct
+ * awards at a glance, not nine recolours of the same card. Hues are spread
+ * around the wheel (orange, gold, yellow, green, teal, cyan, blue, purple,
+ * red) and each sits on a dark ink base tinted toward its own hue. Every
+ * value stays a literal hex so the SVG rasterizes to PNG unchanged.
+ */
+const PALETTES: Record<Tree, Palette> = {
+    money:          { bg1: '#241511', bg2: '#0C0906', accent: '#FF6A2B', accentLight: '#FFC0A0', accentDim: '#7A3312', accent2: '#FFD8C4' },
+    bitcoin:        { bg1: '#221A0B', bg2: '#0B0804', accent: '#F7931A', accentLight: '#FBD48F', accentDim: '#7A4A0A', accent2: '#FCE4B4' },
+    lightning:      { bg1: '#211D09', bg2: '#0A0903', accent: '#FFCA28', accentLight: '#FFE6A0', accentDim: '#7E6008', accent2: '#FFF0BE' },
+    nostr:          { bg1: '#191230', bg2: '#08060F', accent: '#9B5DE5', accentLight: '#CDB0F5', accentDim: '#47297A', accent2: '#DECDF9' },
+    ecash:          { bg1: '#0A211F', bg2: '#030B0A', accent: '#17BEBB', accentLight: '#86E0DE', accentDim: '#0A5654', accent2: '#AEEBEA' },
+    'self-custody': { bg1: '#0D1930', bg2: '#05080F', accent: '#3B82F6', accentLight: '#A3C4FB', accentDim: '#1B3F7A', accent2: '#C6DBFC' },
+    privacy:        { bg1: '#0B2318', bg2: '#040B07', accent: '#2FB56A', accentLight: '#96E0B4', accentDim: '#135A34', accent2: '#BCEDD0' },
+    sovereignty:    { bg1: '#29100F', bg2: '#0E0505', accent: '#E5484D', accentLight: '#F5A3A5', accentDim: '#7A2124', accent2: '#FAC4C5' },
+    'open-source':  { bg1: '#0A1F28', bg2: '#030A0D', accent: '#06AEC9', accentLight: '#7FD8E8', accentDim: '#05566A', accent2: '#A8E6F0' },
+}
+
+/**
+ * Per-tree copy laid over each palette. What distinguishes trees beyond
+ * colour is (a) the chip text, (b) the subtitle eyebrow, and (c) the
+ * two-line achievement quote.
+ */
 const THEMES: Record<Tree, Theme> = {
     money: {
-        ...PALETTE,
+        ...PALETTES.money,
         subtitle: 'Money Basics',
-        chipText: 'FLIGHT PATH · MONEY',
+        chipText: 'FLIGHT PATH · MONEY BASICS',
         achievement: [
             'Learned what bitcoin is and',
             'why thinking in sats matters.',
         ],
     },
     bitcoin: {
-        ...PALETTE,
+        ...PALETTES.bitcoin,
         subtitle: 'Bitcoin Protocol',
         chipText: 'FLIGHT PATH · BITCOIN',
         achievement: [
@@ -77,7 +96,7 @@ const THEMES: Record<Tree, Theme> = {
         ],
     },
     lightning: {
-        ...PALETTE,
+        ...PALETTES.lightning,
         subtitle: 'Lightning Network',
         chipText: 'FLIGHT PATH · LIGHTNING',
         achievement: [
@@ -86,7 +105,7 @@ const THEMES: Record<Tree, Theme> = {
         ],
     },
     nostr: {
-        ...PALETTE,
+        ...PALETTES.nostr,
         subtitle: 'Nostr & Zaps',
         chipText: 'FLIGHT PATH · NOSTR',
         achievement: [
@@ -95,7 +114,7 @@ const THEMES: Record<Tree, Theme> = {
         ],
     },
     ecash: {
-        ...PALETTE,
+        ...PALETTES.ecash,
         subtitle: 'eCash & Mints',
         chipText: 'FLIGHT PATH · eCASH',
         achievement: [
@@ -104,7 +123,7 @@ const THEMES: Record<Tree, Theme> = {
         ],
     },
     'self-custody': {
-        ...PALETTE,
+        ...PALETTES['self-custody'],
         subtitle: 'Self-custody',
         chipText: 'FLIGHT PATH · SELF-CUSTODY',
         achievement: [
@@ -113,7 +132,7 @@ const THEMES: Record<Tree, Theme> = {
         ],
     },
     privacy: {
-        ...PALETTE,
+        ...PALETTES.privacy,
         subtitle: 'Privacy',
         chipText: 'FLIGHT PATH · PRIVACY',
         achievement: [
@@ -122,7 +141,7 @@ const THEMES: Record<Tree, Theme> = {
         ],
     },
     sovereignty: {
-        ...PALETTE,
+        ...PALETTES.sovereignty,
         subtitle: 'Full Independence',
         chipText: 'FLIGHT PATH · SOVEREIGNTY',
         achievement: [
@@ -131,7 +150,7 @@ const THEMES: Record<Tree, Theme> = {
         ],
     },
     'open-source': {
-        ...PALETTE,
+        ...PALETTES['open-source'],
         subtitle: 'Open Source',
         chipText: 'FLIGHT PATH · OPEN SOURCE',
         achievement: [
@@ -142,38 +161,40 @@ const THEMES: Record<Tree, Theme> = {
 }
 
 /**
- * The big wordmark on the card. Reads as a rank you earned (MONEY PILOT),
- * not a curriculum unit (MONEY BASICS): the flight-path subject stays on
- * the chip and the line under the wordmark.
+ * The big wordmark on the card. Each flight path earns its "Wings" (you
+ * earn your Bitcoin Wings), the per-path award. This is deliberately NOT
+ * "Pilot": "Pilot" is a tier on the overall rank ladder (Cadet, Pilot,
+ * Captain, Commander in rank.ts), and using it here too confused learners.
+ * Wings = subject mastery; the rank ladder = overall seniority.
  */
 const RANK_LABEL: Record<Tree, string> = {
-    money: 'MONEY PILOT',
-    bitcoin: 'BITCOIN PILOT',
-    lightning: 'LIGHTNING PILOT',
-    nostr: 'NOSTR PILOT',
-    ecash: 'ECASH PILOT',
-    'self-custody': 'SELF-CUSTODY PILOT',
-    privacy: 'PRIVACY PILOT',
-    sovereignty: 'INDEPENDENCE PILOT',
-    'open-source': 'OPEN SOURCE PILOT',
+    money: 'MONEY BASICS WINGS',
+    bitcoin: 'BITCOIN WINGS',
+    lightning: 'LIGHTNING WINGS',
+    nostr: 'NOSTR WINGS',
+    ecash: 'ECASH WINGS',
+    'self-custody': 'SELF-CUSTODY WINGS',
+    privacy: 'PRIVACY WINGS',
+    sovereignty: 'INDEPENDENCE WINGS',
+    'open-source': 'OPEN SOURCE WINGS',
 }
 
 /**
- * Prose form of the rank for sentences ("You earned the Money Pilot
- * badge"). Mirrored by `Tree::pilot_title()` on the backend so the
+ * Prose form of the award for sentences ("You earned the Money Basics Wings
+ * badge"). Mirrored by `Tree::wings_title()` on the backend so the
  * certificate wording matches the UI.
  */
 export function rankTitleFor(tree: Tree): string {
     const titles: Record<Tree, string> = {
-        money: 'Money Pilot',
-        bitcoin: 'Bitcoin Pilot',
-        lightning: 'Lightning Pilot',
-        nostr: 'Nostr Pilot',
-        ecash: 'eCash Pilot',
-        'self-custody': 'Self-custody Pilot',
-        privacy: 'Privacy Pilot',
-        sovereignty: 'Independence Pilot',
-        'open-source': 'Open Source Pilot',
+        money: 'Money Basics Wings',
+        bitcoin: 'Bitcoin Wings',
+        lightning: 'Lightning Wings',
+        nostr: 'Nostr Wings',
+        ecash: 'eCash Wings',
+        'self-custody': 'Self-custody Wings',
+        privacy: 'Privacy Wings',
+        sovereignty: 'Independence Wings',
+        'open-source': 'Open Source Wings',
     }
     return titles[tree]
 }
@@ -281,7 +302,15 @@ export const TierBadgeCard = forwardRef<SVGSVGElement, TierBadgeCardProps>(
     function TierBadgeCard({ tree, participantName, earnedAt, badgeId, scale = 1, fluid = false }, ref) {
         const theme = THEMES[tree]
         const label = RANK_LABEL[tree]
-        // Long ranks ("SELF-CUSTODY PILOT") shrink to stay inside the card;
+        // Chip auto-sizing. The old formula (chars * 7.2) ignored the 3px
+        // letter-spacing and the text's left inset, so longer labels spilled
+        // out of the pill. Size the text region from a per-glyph advance that
+        // includes the spacing, then pad for the leading dot and a trailing
+        // gutter. textLength on the <text> below locks it to exactly this.
+        const CHIP_TEXT_X = 26
+        const chipTextW = theme.chipText.length * 9.6
+        const chipW = CHIP_TEXT_X + chipTextW + 16
+        // Long labels ("SELF-CUSTODY WINGS") shrink to stay inside the card;
         // solved from width ≈ chars*0.74*size + (chars-1)*spacing ≤ 508
         // (0.74em per glyph measured at weight 900; 508 keeps clear of the
         // inner frame at x=22/578). Shrunk labels also get an exact
@@ -414,7 +443,7 @@ export const TierBadgeCard = forwardRef<SVGSVGElement, TierBadgeCardProps>(
                     <rect
                         x="0"
                         y="0"
-                        width={Math.max(150, theme.chipText.length * 7.2)}
+                        width={chipW}
                         height="28"
                         rx="14"
                         fill="rgba(0,0,0,0.35)"
@@ -423,14 +452,19 @@ export const TierBadgeCard = forwardRef<SVGSVGElement, TierBadgeCardProps>(
                         strokeWidth="1"
                     />
                     <circle cx="14" cy="14" r="4" fill={theme.accent} />
+                    {/* textLength pins the wordmark to the width the chip was
+                        sized for, so no OS font metric can push it past the
+                        pill's rounded end (long labels like SELF-CUSTODY). */}
                     <text
-                        x="26"
+                        x={CHIP_TEXT_X}
                         y="19"
                         fill={theme.accentLight}
                         fontFamily="ui-sans-serif, system-ui, sans-serif"
                         fontWeight="800"
                         fontSize="11"
                         letterSpacing="3"
+                        textLength={chipTextW}
+                        lengthAdjust="spacingAndGlyphs"
                     >
                         {theme.chipText}
                     </text>

@@ -114,8 +114,8 @@ try {
         'the certificate page reports a verified signature',
     )
     report.assert(
-        (await verifyPage.getByText(/E2E earned the Money Pilot badge/i).count()) > 0,
-        'the certificate page names the pilot and their rank',
+        (await verifyPage.getByText(/E2E earned the Money Basics Wings badge/i).count()) > 0,
+        'the certificate page names the pilot and their award',
     )
     report.assert(
         (await verifyPage.getByText(/Verify it yourself/i).count()) > 0,
@@ -137,9 +137,9 @@ try {
         'closing the celebration lands on the next flight path frontier mission',
     )
 
-    // Badge wordmark fit: BITCOIN PILOT (13 chars) used to overflow the
-    // 600px card. Earn the bitcoin badge via the API, open its share modal
-    // from the badge strip, and measure the rank <text> in the live SVG.
+    // Badge wordmark fit: the per-path award wordmark (e.g. BITCOIN WINGS)
+    // used to overflow the 600px card. Earn the bitcoin badge via the API,
+    // open its share modal from the badge strip, and measure the <text>.
     const bitcoinDone = await seedParticipant([6, 7, 8, 87, 88, 18, 19, 89, 40, 90, 48, 49])
     const fitPage = await openApp(browser, bitcoinDone)
     const tile = fitPage.getByRole('button', { name: /Bitcoin earned/i })
@@ -153,7 +153,7 @@ try {
         // Inner frame sits at x=22/578; the wordmark budget is 508px.
         report.assert(
             width > 0 && width <= 512,
-            `BITCOIN PILOT wordmark fits inside the card frame (${Math.round(width)}px <= 512px)`,
+            `BITCOIN WINGS wordmark fits inside the card frame (${Math.round(width)}px <= 512px)`,
         )
     }
     await fitPage.close()

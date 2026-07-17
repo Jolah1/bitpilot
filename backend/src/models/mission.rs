@@ -77,20 +77,22 @@ impl Tree {
         }
     }
 
-    /// Prose rank printed on certificates ("earned the Money Pilot badge").
-    /// Mirrored by `rankTitleFor` in the frontend so UI and certificate
-    /// wording match.
-    pub fn pilot_title(self) -> &'static str {
+    /// Prose award printed on certificates ("earned the Bitcoin Wings
+    /// badge"). Each flight path earns its "Wings"; this is deliberately
+    /// NOT "Pilot", which is a tier on the overall rank ladder (Cadet,
+    /// Pilot, Captain, Commander). Mirrored by `rankTitleFor` in the
+    /// frontend so UI and certificate wording match.
+    pub fn wings_title(self) -> &'static str {
         match self {
-            Tree::Money       => "Money Pilot",
-            Tree::Bitcoin     => "Bitcoin Pilot",
-            Tree::Lightning   => "Lightning Pilot",
-            Tree::Nostr       => "Nostr Pilot",
-            Tree::Ecash       => "eCash Pilot",
-            Tree::SelfCustody => "Self-custody Pilot",
-            Tree::Privacy     => "Privacy Pilot",
-            Tree::Sovereignty => "Independence Pilot",
-            Tree::OpenSource  => "Open Source Pilot",
+            Tree::Money       => "Money Basics Wings",
+            Tree::Bitcoin     => "Bitcoin Wings",
+            Tree::Lightning   => "Lightning Wings",
+            Tree::Nostr       => "Nostr Wings",
+            Tree::Ecash       => "eCash Wings",
+            Tree::SelfCustody => "Self-custody Wings",
+            Tree::Privacy     => "Privacy Wings",
+            Tree::Sovereignty => "Independence Wings",
+            Tree::OpenSource  => "Open Source Wings",
         }
     }
 
