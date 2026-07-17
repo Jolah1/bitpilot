@@ -10,6 +10,7 @@
 import { useEffect, useState } from 'react'
 import { TierProgressionMark } from '../components/TierProgressionMark'
 import { api } from '../lib/api'
+import { rich } from '../lib/rich'
 import {
     MISSIONS,
     MISSION_COUNT,
@@ -362,7 +363,7 @@ export default function SoloProgressView({
                             Mission #{currentMissionDef.id} · {currentMissionDef.name}
                         </p>
                         <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--muted)' }}>
-                            {currentMissionDef.tagline}
+                            {rich(currentMissionDef.tagline)}
                         </p>
                         {onResume && (
                             <button

@@ -25,9 +25,11 @@
             base-uri 'self';
             form-action 'self';
             object-src 'none'" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- ?v=2 on every icon: browsers cache favicons by URL and hold them
+         long past a redeploy, so a logo change must change the URL too. -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2" />
     <!-- iOS ignores SVG here; a real 180px PNG or the install icon is blank. -->
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=2" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <title>BitPilot: Learn Bitcoin, Lightning, Nostr and eCash by using them</title>
 </head>

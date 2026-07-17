@@ -282,11 +282,16 @@ export const TierBadgeCard = forwardRef<SVGSVGElement, TierBadgeCardProps>(
         const theme = THEMES[tree]
         const label = RANK_LABEL[tree]
         // Long ranks ("SELF-CUSTODY PILOT") shrink to stay inside the card;
-        // solved from width ≈ chars*0.62*size + (chars-1)*spacing ≤ 560.
+        // solved from width ≈ chars*0.74*size + (chars-1)*spacing ≤ 508
+        // (0.74em per glyph measured at weight 900; 508 keeps clear of the
+        // inner frame at x=22/578). Shrunk labels also get an exact
+        // textLength so no OS font metric can push them past the frame.
+        const RANK_MAX_W = 508
         const rankSize = Math.min(
             54,
-            Math.floor((560 - (label.length - 1) * 6) / (label.length * 0.62)),
+            Math.floor((RANK_MAX_W - (label.length - 1) * 6) / (label.length * 0.74)),
         )
+        const rankFitted = rankSize < 54
         const dateStr = formatBadgeDate(earnedAt)
         const safeName = (participantName || 'BitPilot Learner').trim().slice(0, 28)
         // NOT `ring-${tree}`: that id belongs to the ring's linearGradient
@@ -617,6 +622,9 @@ export const TierBadgeCard = forwardRef<SVGSVGElement, TierBadgeCardProps>(
                     fontWeight="900"
                     fontSize={rankSize}
                     letterSpacing="6"
+                    {...(rankFitted
+                        ? { textLength: RANK_MAX_W, lengthAdjust: 'spacingAndGlyphs' as const }
+                        : {})}
                 >
                     {label}
                 </text>

@@ -16,17 +16,28 @@ import crypto from 'node:crypto'
 export const API = process.env.BP_API ?? 'http://localhost:8080/api'
 export const APP = process.env.BP_APP ?? 'http://localhost:5173'
 
-/** POST JSON to the backend, optionally as an authenticated participant. */
+/**
+ * POST JSON to the backend, optionally as an authenticated participant.
+ * Retries on 429: the backend's per-IP token bucket (1/sec, burst 30 by
+ * default) is easily drained by seeding a whole tree, and a paced retry
+ * beats requiring every runner to relax RATE_LIMIT_* env vars.
+ */
 export async function apiPost(path, body, token) {
     const headers = { 'Content-Type': 'application/json' }
     if (token) headers['Authorization'] = `Bearer ${token}`
-    const res = await fetch(API + path, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(body),
-    })
-    if (!res.ok) throw new Error(`${path} -> ${res.status} ${await res.text()}`)
-    return res.json()
+    for (let attempt = 0; ; attempt++) {
+        const res = await fetch(API + path, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(body),
+        })
+        if (res.status === 429 && attempt < 30) {
+            await sleep(1100)
+            continue
+        }
+        if (!res.ok) throw new Error(`${path} -> ${res.status} ${await res.text()}`)
+        return res.json()
+    }
 }
 
 /**

@@ -285,7 +285,7 @@ export function BadgeCelebrationModal({
                         onClick={onClose}
                         style={ghost()}
                     >
-                        Continue mission
+                        Continue
                     </button>
                 </div>
                 <div
@@ -296,7 +296,7 @@ export function BadgeCelebrationModal({
                         marginTop: 2,
                     }}
                 >
-                    Tap outside, press Esc, or hit Continue to return to your next mission.
+                    Tap outside, press Esc, or hit Continue to head into your next flight path.
                 </div>
             </div>
 

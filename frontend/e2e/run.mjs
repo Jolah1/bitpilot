@@ -16,6 +16,7 @@ const suite = [
     ['secret-reveal.test.mjs', 'nostrid'],
     ['publish-confirm.test.mjs'],
     ['badge-share.test.mjs'],
+    ['mission-prose.test.mjs'],
     ['solo-rank.test.mjs'],
 ]
 
