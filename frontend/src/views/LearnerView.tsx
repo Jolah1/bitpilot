@@ -9,6 +9,7 @@ import {
     type CSSProperties,
 } from 'react'
 import { api, ApiError } from '../lib/api'
+import { rich } from '../lib/rich'
 import { GOALS, getSavedGoal, saveGoal, type Goal } from '../lib/goals'
 import { useIsTechReal } from '../lib/runtime'
 import {
@@ -287,6 +288,26 @@ export default function LearnerView({ participantId }: { participantId: string }
     const exitToTreePicker = () => {
         setActiveTreeKey(null)
         resetForNext()
+    }
+
+    /**
+     * Closing the badge celebration carries the learner straight into the
+     * next flight path with missions left, scanning curriculum order from
+     * the path just finished (wrapping), instead of stranding them on the
+     * completed final mission. Falls back to the path picker when every
+     * path is done.
+     */
+    const continueAfterBadge = (earnedTree: Tree) => {
+        setJustEarnedBadge(null)
+        const start = TREES.findIndex((t) => t.key === earnedTree)
+        for (let i = 1; i <= TREES.length; i++) {
+            const t = TREES[(start + i) % TREES.length]
+            if (currentPerTree[t.key] !== null) {
+                enterTree(t)
+                return
+            }
+        }
+        exitToTreePicker()
     }
 
     const handleQuizSubmit = () => {
@@ -629,7 +650,7 @@ export default function LearnerView({ participantId }: { participantId: string }
                     badge={justEarnedBadge}
                     participantId={participantId}
                     participantName={participantName}
-                    onClose={() => setJustEarnedBadge(null)}
+                    onClose={() => continueAfterBadge(justEarnedBadge.tree)}
                 />
             )}
 
@@ -1431,7 +1452,7 @@ function MissionHeader({ mission }: { mission: MissionDef }) {
                         lineHeight: 1.45,
                     }}
                 >
-                    {mission.tagline}
+                    {rich(mission.tagline)}
                 </p>
             </div>
         </header>
@@ -1569,11 +1590,11 @@ function LearnPanel({ mission, onAdvance }: { mission: MissionDef; onAdvance: ()
                         maxWidth: '68ch',
                     }}
                 >
-                    {para}
+                    {rich(para)}
                 </p>
             ))}
             <div style={{ ...callout('info'), maxWidth: '68ch' }}>
-                <strong style={{ marginRight: 6 }}>Tip:</strong> {mission.learn.tip}
+                <strong style={{ marginRight: 6 }}>Tip:</strong> {rich(mission.learn.tip)}
             </div>
             <button
                 className="bp-press"
@@ -1638,7 +1659,7 @@ function QuizPanel({
     return (
         <>
             <p style={{ fontSize: 16, fontWeight: 600, lineHeight: 1.4, margin: 0 }}>
-                {mission.quiz.question}
+                {rich(mission.quiz.question)}
             </p>
             <ul
                 role="radiogroup"
@@ -1718,7 +1739,7 @@ function QuizPanel({
                                 >
                                     {['A', 'B', 'C', 'D'][displayIdx]}
                                 </span>
-                                <span style={{ flex: 1, lineHeight: 1.45 }}>{opt.text}</span>
+                                <span style={{ flex: 1, lineHeight: 1.45 }}>{rich(opt.text)}</span>
                             </button>
                         </li>
                     )
@@ -1730,7 +1751,7 @@ function QuizPanel({
                     <div style={callout('danger')}>
                         <strong>Not quite.</strong>
                         {selected !== null && mission.quiz.options[selected].why && (
-                            <> {mission.quiz.options[selected].why}</>
+                            <> {rich(mission.quiz.options[selected].why!)}</>
                         )}
                         <div style={{ marginTop: 10 }}>
                             <button style={ghostButton} onClick={onRetry}>
@@ -1876,7 +1897,7 @@ function DoPanel({
         return (
             <>
                 <p style={{ fontSize: 14, color: 'var(--muted)', lineHeight: 1.6, margin: 0 }}>
-                    {mission.do.helper}
+                    {rich(mission.do.helper)}
                 </p>
                 <TaskLinks links={mission.do.links} />
                 <div style={callout('success')}>

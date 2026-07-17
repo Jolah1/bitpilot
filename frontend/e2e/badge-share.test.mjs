@@ -122,6 +122,41 @@ try {
         'the certificate page offers independent verification details',
     )
     await verifyPage.close()
+
+    // Closing the celebration must carry the learner into the next flight
+    // path with missions left (Bitcoin Protocol, frontier mission "Blocks
+    // and confirmations"), not strand them on the finished final mission.
+    const closeShare = page.getByRole('button', { name: /^Close$|Close share/i })
+    if (await closeShare.count()) await closeShare.first().evaluate((el) => el.click())
+    await sleep(500)
+    const closeCeleb = page.getByRole('button', { name: /Close celebration/i })
+    if (await closeCeleb.count()) await closeCeleb.first().evaluate((el) => el.click())
+    await sleep(1500)
+    report.assert(
+        (await page.getByText(/Blocks and confirmations/i).count()) > 0,
+        'closing the celebration lands on the next flight path frontier mission',
+    )
+
+    // Badge wordmark fit: BITCOIN PILOT (13 chars) used to overflow the
+    // 600px card. Earn the bitcoin badge via the API, open its share modal
+    // from the badge strip, and measure the rank <text> in the live SVG.
+    const bitcoinDone = await seedParticipant([6, 7, 8, 87, 88, 18, 19, 89, 40, 90, 48, 49])
+    const fitPage = await openApp(browser, bitcoinDone)
+    const tile = fitPage.getByRole('button', { name: /Bitcoin earned/i })
+    report.assert((await tile.count()) > 0, 'earned bitcoin badge shows in the badge strip')
+    if (await tile.count()) {
+        await tile.first().evaluate((el) => el.click())
+        await sleep(900)
+        const rankText = fitPage.locator('svg text[font-weight="900"][letter-spacing="6"]').first()
+        report.assert((await rankText.count()) > 0, 'share modal renders the badge rank wordmark')
+        const width = await rankText.evaluate((el) => el.getComputedTextLength())
+        // Inner frame sits at x=22/578; the wordmark budget is 508px.
+        report.assert(
+            width > 0 && width <= 512,
+            `BITCOIN PILOT wordmark fits inside the card frame (${Math.round(width)}px <= 512px)`,
+        )
+    }
+    await fitPage.close()
 } finally {
     await browser.close()
 }

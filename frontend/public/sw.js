@@ -15,8 +15,8 @@
  * Bump VERSION when the caching logic itself changes; asset churn does not
  * need a bump because hashed names never collide.
  */
-const VERSION = 'bitpilot-shell-v1'
-const SHELL = ['/', '/manifest.webmanifest', '/favicon.svg']
+const VERSION = 'bitpilot-shell-v2'
+const SHELL = ['/', '/manifest.webmanifest', '/favicon.svg?v=2']
 
 self.addEventListener('install', (event) => {
     event.waitUntil(
