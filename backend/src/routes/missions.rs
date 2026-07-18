@@ -423,7 +423,32 @@ async fn verify_signet_txid(txid: &str) -> Result<(), AppError> {
 /// Mainnet Esplora-compatible explorers, asked in order. Same resilience
 /// story as `SIGNET_EXPLORERS`: if the first is down or rate-limiting us,
 /// the second answers.
-const MAINNET_EXPLORERS: &[&str] = &["https://mempool.space/api", "https://blockstream.info/api"];
+const DEFAULT_MAINNET_EXPLORERS: &[&str] =
+    &["https://mempool.space/api", "https://blockstream.info/api"];
+
+/// Explorer bases to ask, honouring `BITPILOT_MAINNET_EXPLORERS` (a
+/// comma-separated list of Esplora-compatible API roots).
+///
+/// Two reasons this is configurable. A self-hoster running their own
+/// mempool instance should be able to point BitPilot at it rather than a
+/// third party, which is the whole argument of the Full Independence
+/// flight path. And the e2e suite points it at a local stub so the
+/// browser tests stay hermetic: otherwise seeding a learner past mission 6
+/// would need today's real block height, making CI depend on a third
+/// party's uptime.
+fn mainnet_explorers() -> Vec<String> {
+    match std::env::var("BITPILOT_MAINNET_EXPLORERS") {
+        Ok(raw) if !raw.trim().is_empty() => raw
+            .split(',')
+            .map(|s| s.trim().trim_end_matches('/').to_string())
+            .filter(|s| !s.is_empty())
+            .collect(),
+        _ => DEFAULT_MAINNET_EXPLORERS
+            .iter()
+            .map(|s| s.to_string())
+            .collect(),
+    }
+}
 
 /// The address that received the very first block reward in 2009. People
 /// have sent it tributes ever since, which is exactly why it is the
@@ -467,7 +492,7 @@ async fn fetch_from_explorer(path: &str) -> Result<String, AppError> {
         .map_err(|e| AppError::Internal(anyhow::anyhow!("http client: {e}")))?;
 
     let mut last_err = String::from("no explorer answered");
-    for base in MAINNET_EXPLORERS {
+    for base in mainnet_explorers() {
         match client.get(format!("{base}{path}")).send().await {
             Ok(res) if res.status().is_success() => match res.text().await {
                 Ok(body) => return Ok(body),
@@ -475,11 +500,11 @@ async fn fetch_from_explorer(path: &str) -> Result<String, AppError> {
             },
             Ok(res) => {
                 last_err = format!("explorer returned HTTP {}", res.status().as_u16());
-                tracing::warn!(explorer = base, status = res.status().as_u16(), "explorer error");
+                tracing::warn!(explorer = %base, status = res.status().as_u16(), "explorer error");
             }
             Err(e) => {
                 last_err = format!("could not reach explorer: {e}");
-                tracing::warn!(explorer = base, error = %e, "explorer request failed");
+                tracing::warn!(explorer = %base, error = %e, "explorer request failed");
             }
         }
     }
