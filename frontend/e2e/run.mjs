@@ -14,6 +14,7 @@ const here = dirname(fileURLToPath(import.meta.url))
 const suite = [
     ['secret-reveal.test.mjs', 'seed'],
     ['secret-reveal.test.mjs', 'nostrid'],
+    ['sign-event.test.mjs'],
     ['publish-confirm.test.mjs'],
     ['badge-share.test.mjs'],
     ['passphrase-fork.test.mjs'],

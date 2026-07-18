@@ -308,7 +308,7 @@ impl Mission {
             // Listed explicitly so adding a mission doesn't silently fall
             // through to a default that bypasses verification.
             0 | 1 | 2 | 3 | 4 | 5 | 7 | 8 | 9 | 10 => DoKind::Knowledge,
-            12 | 13 | 15 | 16 | 17 | 18 | 19 | 20 => DoKind::Knowledge,
+            12 | 13 | 15 | 16 | 18 | 19 | 20 => DoKind::Knowledge,
             21 | 22 | 25 | 28 | 29 => DoKind::Knowledge,
             31 | 32 | 35 | 37 | 38 | 39 | 40 => DoKind::Knowledge,
             43 | 44 | 45 | 46 | 47 | 48 | 49 | 50 => DoKind::Knowledge,
@@ -330,6 +330,9 @@ impl Mission {
             // public explorer; the verifier re-reads it and compares.
             // 92 derives the same path twice, with and without a BIP39
             // passphrase, and submits the two resulting addresses.
+            // 17 signs an event locally so the learner can read its
+            // anatomy. It is never broadcast; 26 does that later.
+            17 => DoKind::SignEvent,
             92 => DoKind::PassphraseFork,
             6 => DoKind::ChainTip,
             51 => DoKind::AddressReuse,
@@ -394,8 +397,9 @@ mod tests {
         assert_eq!(Mission::do_kind(6), DoKind::ChainTip);
         assert_eq!(Mission::do_kind(51), DoKind::AddressReuse);
         assert_eq!(Mission::do_kind(92), DoKind::PassphraseFork);
+        assert_eq!(Mission::do_kind(17), DoKind::SignEvent);
         // Neighbours in the same knowledge runs must be unaffected.
-        for n in [5u8, 7, 52, 91, 93] {
+        for n in [5u8, 7, 52, 91, 93, 16, 18] {
             assert_eq!(Mission::do_kind(n), DoKind::Knowledge, "mission {n}");
         }
     }
@@ -440,6 +444,7 @@ pub enum DoKind {
     ChainTip,
     AddressReuse,
     PassphraseFork,
+    SignEvent,
     SeedWords,
     DeriveAddress,
     GithubPr,
