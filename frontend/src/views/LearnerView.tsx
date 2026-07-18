@@ -17,6 +17,7 @@ import {
     TREES,
     missionById,
     type Badge,
+    type DoKind,
     type MissionDef,
     type Tree,
     type TreeMeta,
@@ -122,6 +123,10 @@ export default function LearnerView({ participantId }: { participantId: string }
 
     const [completedMissions, setCompletedMissions] = useState<number[]>([])
     const [badges, setBadges] = useState<Badge[]>([])
+    // Proof archive, keyed by mission. Lets a revisited mission show the
+    // artifact it produced so the learner can copy an address or an npub
+    // again without hunting for it.
+    const [proofs, setProofs] = useState<Record<number, string>>({})
     // Tree key of the most recently unlocked badge that we haven't yet
     // shown a celebration for. `null` once dismissed. Persists across
     // the (missionIdx, phase) state churn that resets per-mission UI.
@@ -184,10 +189,15 @@ export default function LearnerView({ participantId }: { participantId: string }
         let cancelled = false
         ;(async () => {
             try {
-                const [p, b] = await Promise.all([api.getParticipant(), api.getMyBadges()])
+                const [p, b, done] = await Promise.all([
+                    api.getParticipant(),
+                    api.getMyBadges(),
+                    api.getMyCompletions().catch(() => []),
+                ])
                 if (cancelled) return
                 setCompletedMissions(p.completed_missions ?? [])
                 setBadges(b)
+                setProofs(Object.fromEntries(done.map((c) => [c.mission, c.proof])))
                 setParticipantName(p.name ?? '')
                 if (p.current_per_tree) {
                     setCurrentPerTree(mergePerTreeMap(p.current_per_tree))
@@ -777,6 +787,10 @@ export default function LearnerView({ participantId }: { participantId: string }
             // Only credit the mission after the action succeeded.
             await api.completeMission(mission.id, proof)
             setDoOutcome(outcome)
+            // Keep the local archive in step, so navigating back to this
+            // mission later in the same session shows what was submitted
+            // without waiting for a reload.
+            setProofs((prev) => ({ ...prev, [mission.id]: proof }))
             // Mark complete *now*, not when the user clicks Next. Without
             // this, navigating away with Previous and returning with Next
             // would re-show the action button and let the user re-fire
@@ -897,6 +911,7 @@ export default function LearnerView({ participantId }: { participantId: string }
                     phase={phase}
                     onChange={(p) => setPhase(p)}
                     quizPassed={quizResult === 'correct'}
+                    unlocked={isReviewing}
                 />
 
                 <div
@@ -951,6 +966,7 @@ export default function LearnerView({ participantId }: { participantId: string }
                             onNext={goNextMission}
                             isLast={isLast}
                             isReviewing={isReviewing}
+                            archivedProof={proofs[mission.id] ?? ''}
                             onReviewNext={goNextReview}
                             resultRef={resultRef}
                             nextMissionName={
@@ -1425,6 +1441,147 @@ function navButtonStyle(enabled: boolean): CSSProperties {
 }
 
 /**
+ * What to call the artifact a mission produced, when the learner comes
+ * back to copy it.
+ *
+ * `null` means "don't show this one". Two reasons a proof is hidden: it
+ * carries no information worth copying (a knowledge mission's
+ * "acknowledged"), or it is deliberately kept out of the learner view.
+ * Mission 11 is the second case: its proof is a sha256 commitment of the
+ * seed phrase, and showing commitment plumbing to learners was removed on
+ * purpose. The seed itself lives in this browser, never on our server.
+ */
+function archiveLabelFor(kind: DoKind): string | null {
+    switch (kind) {
+        case 'nostr-identity':
+            return 'Your Nostr public key'
+        case 'derive-address':
+            return 'The address you derived'
+        case 'passphrase-fork':
+            return 'The two addresses you derived'
+        case 'onchain-signet':
+            return 'Your transaction ID'
+        case 'nostr-publish':
+        case 'nostr-profile':
+        case 'nostr-follow':
+        case 'nostr-zap':
+            return 'The event ID'
+        case 'sign-event':
+            return 'The event you signed'
+        case 'ecash-claim':
+        case 'ecash-spend':
+            return 'Your eCash token'
+        case 'invoice':
+            return 'Your invoice'
+        case 'pay':
+            return 'The payment'
+        case 'github-pr':
+            return 'Your merged pull request'
+        case 'paste-value':
+            return 'What you wrote'
+        case 'chain-tip':
+            return 'The block height you reported'
+        case 'address-reuse':
+            return 'The transaction count you reported'
+        case 'knowledge':
+        case 'seed-words':
+            return null
+        default:
+            return null
+    }
+}
+
+/**
+ * Pretty-print an archived proof for reading. Most are one opaque string
+ * and pass straight through; the two composite kinds are split so the
+ * learner sees two labelled addresses rather than one run-on line, and a
+ * signed event is indented back into readable JSON.
+ */
+function formatArchivedProof(kind: DoKind, proof: string): string {
+    if (kind === 'passphrase-fork') {
+        const [plain, withPass] = proof.split(/\s+/)
+        return withPass
+            ? `without passphrase:\n${plain}\n\nwith passphrase:\n${withPass}`
+            : proof
+    }
+    if (kind === 'sign-event') {
+        try {
+            return JSON.stringify(JSON.parse(proof), null, 2)
+        } catch {
+            return proof
+        }
+    }
+    return proof
+}
+
+/** The archive block on a completed mission: read it back, copy it out. */
+function ArchivedProof({ kind, proof }: { kind: DoKind; proof: string }) {
+    const label = archiveLabelFor(kind)
+    const [copied, setCopied] = useState(false)
+    if (!label || !proof.trim()) return null
+
+    const copy = async () => {
+        try {
+            await navigator.clipboard.writeText(proof)
+            setCopied(true)
+            setTimeout(() => setCopied(false), 2000)
+        } catch {
+            // Clipboard can be blocked (insecure context, iframe perms).
+            // The value stays selectable in the block below.
+        }
+    }
+
+    return (
+        <div style={{ marginTop: 12 }}>
+            <div
+                style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 8,
+                    marginBottom: 6,
+                }}
+            >
+                <span style={{ fontSize: 13, color: 'var(--muted)' }}>{label}</span>
+                <button
+                    className="bp-press"
+                    onClick={copy}
+                    aria-label={copied ? 'Copied' : `Copy ${label.toLowerCase()}`}
+                    style={{
+                        background: 'transparent',
+                        border: '1px solid var(--border)',
+                        borderRadius: 'var(--radius-1)',
+                        color: 'var(--fg)',
+                        cursor: 'pointer',
+                        fontSize: 12,
+                        padding: '4px 10px',
+                    }}
+                >
+                    {copied ? '✓ Copied' : 'Copy'}
+                </button>
+            </div>
+            <pre
+                style={{
+                    background: 'var(--surface-2, rgba(127,127,127,0.10))',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius-1)',
+                    fontSize: 12,
+                    lineHeight: 1.5,
+                    margin: 0,
+                    maxHeight: 240,
+                    overflow: 'auto',
+                    padding: 10,
+                    whiteSpace: 'pre-wrap',
+                    wordBreak: 'break-all',
+                }}
+            >
+                {formatArchivedProof(kind, proof)}
+            </pre>
+        </div>
+    )
+}
+
+/**
  * Nine tree-badge medallions, one per flight path. Filled = earned (the
  * learner finished every mission in the tree); outlined = in progress,
  * with a "n/m" counter showing progress toward the unlock.
@@ -1622,10 +1779,19 @@ function PhaseTabs({
     phase,
     onChange,
     quizPassed,
+    unlocked = false,
 }: {
     phase: Phase
     onChange: (p: Phase) => void
     quizPassed: boolean
+    /**
+     * Free navigation between all three steps. Set on missions the learner
+     * has already completed: the gating exists to stop someone skipping
+     * ahead to the Do step, and there is nothing left to skip. Without it,
+     * coming back for an address you derived means re-reading the lesson
+     * and re-passing the quiz to reach the step that holds it.
+     */
+    unlocked?: boolean
 }) {
     const order: Phase[] = ['learn', 'quiz', 'do']
     const labels: Record<Phase, string> = { learn: 'Read', quiz: 'Quiz', do: 'Do it' }
@@ -1646,7 +1812,7 @@ function PhaseTabs({
                 const isPast =
                     (p === 'learn' && (phase === 'quiz' || phase === 'do')) ||
                     (p === 'quiz' && phase === 'do' && quizPassed)
-                const clickable = isActive || isPast
+                const clickable = isActive || isPast || unlocked
                 return (
                     <button
                         key={p}
@@ -1994,6 +2160,7 @@ function DoPanel({
     onNext,
     isLast,
     isReviewing,
+    archivedProof,
     onReviewNext,
     resultRef,
     nextMissionName,
@@ -2015,6 +2182,12 @@ function DoPanel({
     isLast: boolean
     /** True when the learner is revisiting a previously-completed mission. */
     isReviewing: boolean
+    /**
+     * What was submitted for this mission, when revisiting it. Lets the
+     * learner copy an address or an npub back out without redoing
+     * anything. Empty for missions with nothing worth keeping.
+     */
+    archivedProof: string
     /** Walks to mission +1 from review mode (does NOT mark anything complete). */
     onReviewNext: () => void
     resultRef: React.RefObject<HTMLDivElement>
@@ -2079,6 +2252,9 @@ function DoPanel({
                     Use Previous/Next above to navigate, or jump back to your current
                     mission below.
                 </div>
+                {archivedProof && (
+                    <ArchivedProof kind={mission.do.kind} proof={archivedProof} />
+                )}
                 <button
                     className="bp-press"
                     style={{ ...primaryButton(), width: '100%' }}
