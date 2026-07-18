@@ -246,7 +246,7 @@ async fn verify_proof(
         DoKind::NostrZap => verify_nostr_event(state, participant_id, proof).await,
 
         // Mission 42: signet on-chain — proof is a 64-hex txid. We ask
-        // mempool.space/signet whether the tx exists.
+        // Mutinynet, then mempool.space/signet, whether the tx exists.
         DoKind::OnchainSignet => verify_signet_txid(proof).await,
 
         // Mission 105: open-source graduation — proof is the learner's

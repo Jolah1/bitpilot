@@ -160,7 +160,7 @@ export type DoKind =
     | 'nostr-profile'     /* update profile metadata (kind 0) */
     | 'nostr-follow'      /* publish a contact list (kind 3) with a chosen npub */
     | 'nostr-zap'         /* receive (or simulate) a zap receipt */
-    | 'onchain-signet'    /* paste a signet txid; verifier asks mempool.space */
+    | 'onchain-signet'    /* paste a signet txid; verifier asks Mutinynet, then signet */
     | 'seed-words'        /* generate BIP39 mnemonic client-side; quiz on a word */
     | 'derive-address'    /* derive an address from the mnemonic and submit */
     | 'paste-value'       /* generic "type or paste this thing" reflection input */
