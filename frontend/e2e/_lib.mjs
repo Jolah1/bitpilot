@@ -12,6 +12,11 @@
  * completions are ever needed.
  */
 import crypto from 'node:crypto'
+import {
+    ensureExplorerStub,
+    STUB_GENESIS_TX_COUNT,
+    STUB_TIP_HEIGHT,
+} from './_explorer_stub.mjs'
 
 export const API = process.env.BP_API ?? 'http://localhost:8080/api'
 export const APP = process.env.BP_APP ?? 'http://localhost:5173'
@@ -45,14 +50,23 @@ export async function apiPost(path, body, token) {
  * backend/src/routes/missions.rs:verify_proof. Only covers the kinds these
  * smoke tests need to seed past.
  */
+export { ensureExplorerStub }
+
 export function proofFor(mission) {
     if (mission === 14) return 'npub1' + 'q'.repeat(50) // NostrIdentity: format-checked only
     if (mission === 11) return crypto.createHash('sha256').update('seed').digest('hex') // SeedWords: 64 hex
+    // ChainTip / AddressReuse: verified against a live explorer, so these
+    // only pass when the backend is pointed at the stub. See
+    // _explorer_stub.mjs and the BITPILOT_MAINNET_EXPLORERS note in
+    // README.md.
+    if (mission === 6) return String(STUB_TIP_HEIGHT)
+    if (mission === 51) return String(STUB_GENESIS_TX_COUNT)
     return 'acknowledged' // Knowledge
 }
 
 /** Create a session, join it, and complete `prior` missions in order. */
 export async function seedParticipant(priorMissions = []) {
+    await ensureExplorerStub()
     const s = await apiPost('/sessions', { name: 'E2E Smoke' })
     const sid = s.session.id
     const j = await apiPost('/participants', { name: 'E2E', session_id: sid })

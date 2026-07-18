@@ -33,6 +33,11 @@ try {
     process.exit(2)
 }
 
+// NOTE: the explorer stub for missions 6 and 51 is started inside each
+// test process (see _lib.mjs), not here. spawnSync below blocks this
+// process's event loop for the whole child run, so a server started here
+// would never accept a connection.
+
 let failed = 0
 for (const [file, ...args] of suite) {
     console.log(`\n=== ${file} ${args.join(' ')} ===`)

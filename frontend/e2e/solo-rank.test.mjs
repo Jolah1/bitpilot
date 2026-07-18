@@ -5,7 +5,16 @@
  *
  *   node e2e/solo-rank.test.mjs
  */
-import { API, APP, apiPost, launch, makeReporter, sleep } from './_lib.mjs'
+import {
+    API,
+    APP,
+    apiPost,
+    ensureExplorerStub,
+    launch,
+    makeReporter,
+    proofFor,
+    sleep,
+} from './_lib.mjs'
 
 const report = makeReporter('solo-rank')
 
@@ -15,10 +24,11 @@ const report = makeReporter('solo-rank')
  * the app needs it to read the session name that flags the run as solo.
  */
 async function seedSolo(missions) {
+    await ensureExplorerStub()
     const s = await apiPost('/sessions', { name: '__solo__' })
     const j = await apiPost('/participants', { name: 'Riko', session_id: s.session.id })
     for (const m of missions) {
-        await apiPost('/missions/complete', { mission: m, proof: 'acknowledged' }, j.auth_token)
+        await apiPost('/missions/complete', { mission: m, proof: proofFor(m) }, j.auth_token)
     }
     return {
         sid: s.session.id,

@@ -15,7 +15,19 @@ on what the learner actually sees.
 
 ## Requirements
 
-- **Backend** running on `:8080` (`cd backend && cargo run`)
+- **Backend** running on `:8080`, pointed at the explorer stub:
+
+  ```
+  cd backend && BITPILOT_MAINNET_EXPLORERS=http://127.0.0.1:8099/api cargo run
+  ```
+
+  Missions 6 and 51 verify a learner's answer against a live block
+  explorer (the current block height, and the genesis address's
+  transaction count). Seeding a participant past them would otherwise
+  need today's real chain data, so `_explorer_stub.mjs` serves fixed
+  values and `proofFor` submits them. Without that env var the backend
+  asks the real explorers and seeding fails with "that is not the current
+  tip".
 - **Frontend** running on `:5173` (`cd frontend && npm run dev`)
 - **Google Chrome** installed (the tests use `playwright-core` with the
   system Chrome, so no browser is downloaded)

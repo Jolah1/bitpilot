@@ -129,6 +129,12 @@ jobs:
                   RATE_LIMIT_PER_SEC: '100'
                   RATE_LIMIT_BURST: '1000'
                   DATABASE_URL: 'sqlite://ci-e2e.db?mode=rwc'
+                  # Missions 6 and 51 verify a learner's answer against a
+                  # live block explorer. Point them at the e2e stub
+                  # (frontend/e2e/_explorer_stub.mjs) so the browser tests
+                  # stay hermetic instead of depending on a third party's
+                  # uptime and today's block height.
+                  BITPILOT_MAINNET_EXPLORERS: 'http://127.0.0.1:8099/api'
               run: |
                   ./target/release/bitpilot > backend.log 2>&1 &
                   echo "BACKEND_PID=$!" >> "$GITHUB_ENV"
