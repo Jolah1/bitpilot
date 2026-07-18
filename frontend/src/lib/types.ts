@@ -2044,15 +2044,27 @@ export const MISSIONS: MissionDef[] = [
         learn: {
             heading: 'What happens to your sats when you don\'t come home?',
             body:
-                "Every self-custodial Bitcoiner faces this quietly: what happens if I die? If the seed lives only in your head, the sats die with you. If it lives in one hidden place, only the person who finds that place inherits.\n\nA reasonable plan looks like:\n\n• A 2-of-3 multisig where you hold one key, a trusted family member holds one, and a lawyer or bank vault holds a third. Losing any one key doesn't lose the coins; needing any two to move them prevents any single party going rogue.\n• A short, plain-language letter with your executor: \"there is bitcoin, here is roughly how much, here is the wallet type, here is the person who has the recovery guidance.\" No seed words in the letter itself.\n• A trial run, actually walk one heir through recovering a small amount so the process is real, not theoretical.\n\nThe worst version is the seed on a note in a shoebox. The next worst is nobody knowing the sats even exist. Both are avoidable in an afternoon.",
+                "Every self-custodial Bitcoiner faces this quietly: what happens if I die? If the seed lives only in your head, the sats die with you. If it lives in one hidden place, only the person who finds that place inherits.\n\nA reasonable plan looks like:\n\n• A 2-of-3 multisig where you hold one key, a trusted family member holds one, and a lawyer or bank vault holds a third. Losing any one key doesn't lose the coins; needing any two to move them prevents any single party going rogue.\n• A short, plain-language letter with your executor: \"there is bitcoin, here is roughly how much, here is the wallet type, here is the person who has the recovery guidance.\" No seed words in the letter itself.\n• A trial run, actually walk one heir through recovering a small amount so the process is real, not theoretical.\n\nThe worst version is the seed on a note in a shoebox. The next worst is nobody knowing the sats even exist. Both are avoidable in an afternoon.\n\n**Tools that do this for you**\n\nBuilding the above by hand is work, so a category of non-custodial inheritance services has grown up to automate it. GhostKey (ghostkeyapp.com) is one. Bitkey, from Block, is another, and Unchained sells a similar service alongside its multisig vaults.\n\nThe shape is roughly the same across all of them: you name a beneficiary while you are alive, your ability to spend is split or encrypted so that nobody, including the company, can move your coins on their own, and a claim by your heir only succeeds after a waiting period during which you can cancel it. That delay is the load-bearing part. It is what stops someone from simply declaring you dead and walking off with the money.\n\nDo not take any of that on trust, including from us. Before you hand a service your inheritance plan, make it answer four questions in writing:\n\n• If this company disappears tomorrow, can my heir still recover the coins? A genuinely non-custodial design says yes.\n• What exactly does my heir receive, and what do they need of their own to use it?\n• How long is the waiting period, how am I told a claim has started, and how do I cancel one?\n• Can I test the whole thing today with a small amount?\n\nA service that cannot answer the first question plainly is a custodian wearing different words.",
             tip: 'Untested inheritance plans usually don\'t work. Rehearse yours on a small amount before you need it.',
         },
         quiz: {
-            question: 'Which inheritance setup avoids "the coins die with the holder" without giving any single heir full control?',
+            question:
+                'A service like GhostKey offers to pass your coins to your heir without you handing over your seed. Which answer would tell you it is genuinely non-custodial?',
             options: [
-                { text: 'A single seed hidden in one location', correct: false, why: 'Fine until the location is unknown or lost.' },
-                { text: 'A multisig with keys split across you, family, and a neutral party', correct: true },
-                { text: 'Telling one family member the whole seed', correct: false, why: 'One-of-one trust with none of the benefits of self-custody.' },
+                {
+                    text: 'If the company shut down tomorrow, your heir could still recover the coins',
+                    correct: true,
+                },
+                {
+                    text: 'The company holds a key but promises never to use it on its own',
+                    correct: false,
+                    why: 'A promise is not a mechanism. That is custody with extra steps, and it fails exactly when the company does.',
+                },
+                {
+                    text: 'Your heir can claim instantly, with no waiting period',
+                    correct: false,
+                    why: 'The delay is a feature, not friction. Without it, anyone who can declare you dead can take the coins while you are alive to object.',
+                },
             ],
         },
     }),
