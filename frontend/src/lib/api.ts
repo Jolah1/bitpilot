@@ -177,6 +177,14 @@ export interface CompleteMissionResponse {
     next_mission: number | null
 }
 
+/** One row of the proof archive: what was submitted, and when. */
+export interface CompletionRecord {
+    mission: number
+    proof: string
+    /** Unix seconds. */
+    completed_at: number
+}
+
 export interface RuntimeInfo {
     /** True when Lightning is talking to a real LN node (LNbits). */
     lightning_real: boolean
@@ -349,6 +357,16 @@ export const api = {
     /** Skill-tree badges, derived server-side from the completion ledger. */
     getMyBadges: () =>
         request<Badge[]>('/participants/me/badges', { auth: 'participant' }),
+
+    /**
+     * Proof archive: what the learner submitted for each mission they've
+     * finished. Lets a revisited mission show the artifact it produced
+     * (an address, an npub, a txid) so they can copy it again later.
+     */
+    getMyCompletions: () =>
+        request<CompletionRecord[]>('/participants/me/completions', {
+            auth: 'participant',
+        }),
 
     completeMission: (mission: number, proof: string) =>
         request<CompleteMissionResponse>('/missions/complete', {
