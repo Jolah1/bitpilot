@@ -61,6 +61,10 @@ export function proofFor(mission) {
     // README.md.
     if (mission === 6) return String(STUB_TIP_HEIGHT)
     if (mission === 51) return String(STUB_GENESIS_TX_COUNT)
+    // PassphraseFork: two well-formed segwit addresses that differ, which
+    // is the property the verifier checks. Real ones are derived in the
+    // browser from the learner's own seed and never reach the server.
+    if (mission === 92) return `bc1q${'a'.repeat(38)} bc1q${'b'.repeat(38)}`
     return 'acknowledged' // Knowledge
 }
 

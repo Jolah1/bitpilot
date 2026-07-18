@@ -319,7 +319,7 @@ impl Mission {
             79 | 80 | 81 | 82 | 83 => DoKind::Knowledge,
             84 | 85 | 86 => DoKind::Knowledge,
             87 | 88 | 89 | 90 => DoKind::Knowledge,
-            91 | 92 | 93 | 94 | 95 | 96 => DoKind::Knowledge,
+            91 | 93 | 94 | 95 | 96 => DoKind::Knowledge,
             97 | 98 | 99 => DoKind::Knowledge,
             // 102/103 render a paste-value input on the frontend; server-side
             // any non-empty reflection counts, same as knowledge missions.
@@ -328,6 +328,9 @@ impl Mission {
             // Action missions:
             // 6 and 51 both ask the learner to read one live number off a
             // public explorer; the verifier re-reads it and compares.
+            // 92 derives the same path twice, with and without a BIP39
+            // passphrase, and submits the two resulting addresses.
+            92 => DoKind::PassphraseFork,
             6 => DoKind::ChainTip,
             51 => DoKind::AddressReuse,
             11 => DoKind::SeedWords,
@@ -390,8 +393,9 @@ mod tests {
     fn live_lookup_missions_are_not_shadowed_by_knowledge_arms() {
         assert_eq!(Mission::do_kind(6), DoKind::ChainTip);
         assert_eq!(Mission::do_kind(51), DoKind::AddressReuse);
+        assert_eq!(Mission::do_kind(92), DoKind::PassphraseFork);
         // Neighbours in the same knowledge runs must be unaffected.
-        for n in [5u8, 7, 52] {
+        for n in [5u8, 7, 52, 91, 93] {
             assert_eq!(Mission::do_kind(n), DoKind::Knowledge, "mission {n}");
         }
     }
@@ -435,6 +439,7 @@ pub enum DoKind {
     OnchainSignet,
     ChainTip,
     AddressReuse,
+    PassphraseFork,
     SeedWords,
     DeriveAddress,
     GithubPr,

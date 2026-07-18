@@ -195,8 +195,12 @@ export function generateBip39Mnemonic(): string {
  * to produce a bech32-correct address. The cost is ~50KB of JS; the win is
  * pedagogical accuracy.
  */
-export function deriveFirstSegwitAddress(mnemonic: string): string {
-    const seed = mnemonicToSeedSync(mnemonic)
+export function deriveFirstSegwitAddress(mnemonic: string, passphrase = ''): string {
+    // BIP39's optional passphrase is mixed into the seed itself, not used
+    // to unlock anything, so a different passphrase is a different wallet
+    // rather than the same wallet behind a password. Mission 92 has the
+    // learner derive with and without one to see exactly that.
+    const seed = mnemonicToSeedSync(mnemonic, passphrase)
     const master = HDKey.fromMasterSeed(seed)
     const child = master.derive("m/84'/0'/0'/0/0")
     if (!child.publicKey) {
