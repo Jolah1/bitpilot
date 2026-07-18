@@ -372,22 +372,26 @@ fn cannot_complete_same_mission_twice() {
 fn can_jump_across_trees_via_per_tree_gate() {
     // The per-tree gate lets a learner start any tree without finishing
     // earlier missions in other trees. Money's first mission is 0,
-    // Bitcoin's first is 6 — completing 6 with no prior completions
+    // Nostr's first is 13 — completing 13 with no prior completions
     // should succeed even though `current_mission` started at 0.
+    //
+    // Nostr rather than Bitcoin because Bitcoin's first mission (6) is a
+    // live chain-tip lookup, and a unit test must not depend on the
+    // network or on today's block height.
     let h = Harness::start();
     let s = create_session(&h.base, "tree-jump");
     let j = join_session(&h.base, "ivy", &s.id);
 
-    // Bitcoin tree: mission 6 is the first lesson. No prior completions.
-    let r = complete(&h.base, &j.auth_token, 6, "acknowledged");
-    assert_eq!(r.status(), 200, "first mission of Bitcoin tree should be open");
+    // Nostr tree: mission 13 is the first lesson. No prior completions.
+    let r = complete(&h.base, &j.auth_token, 13, "acknowledged");
+    assert_eq!(r.status(), 200, "first mission of Nostr tree should be open");
 
     let v: Value = r.json().unwrap();
-    // Next within Bitcoin is mission 7.
-    assert_eq!(v["next_mission"], 7);
+    // Next within Nostr is mission 14.
+    assert_eq!(v["next_mission"], 14);
     // Money tree pointer untouched.
     assert_eq!(v["participant"]["current_per_tree"]["money"], 0);
-    assert_eq!(v["participant"]["current_per_tree"]["bitcoin"], 7);
+    assert_eq!(v["participant"]["current_per_tree"]["nostr"], 14);
 }
 
 #[test]
@@ -525,8 +529,10 @@ fn proof_archive_lists_completions_in_order() {
 
     // Do the first mission of four different trees — the per-tree gate
     // lets us jump across trees freely, so this covers the ordering assert
-    // without depending on any particular tree layout.
-    let ids = [0u8, 3, 6, 13];
+    // without depending on any particular tree layout. All four are
+    // knowledge missions; Bitcoin's first (6) is deliberately excluded
+    // because it now verifies against a live block explorer.
+    let ids = [0u8, 3, 13, 21];
     for m in ids {
         complete(&h.base, &j.auth_token, m, "acknowledged");
     }
@@ -1044,3 +1050,4 @@ fn challenge_completions_outside_the_window_do_not_count() {
     assert_eq!(v["results"][0]["cleared"], 0);
     assert_eq!(v["results"][0]["last_clear"], Value::Null);
 }
+

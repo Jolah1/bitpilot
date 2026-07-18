@@ -620,6 +620,38 @@ export default function LearnerView({ participantId }: { participantId: string }
                     break
                 }
 
+                // Missions 6 and 51 both ask the learner to read one number
+                // off a public explorer. The backend re-reads the same number
+                // at verify time and compares with a tolerance, so we only
+                // need to check the shape here.
+                case 'chain-tip':
+                case 'address-reuse': {
+                    const digits = doInput.trim().replace(/[\s,]/g, '')
+                    if (!/^\d+$/.test(digits)) {
+                        setDoError(
+                            mission.do.kind === 'chain-tip'
+                                ? 'Enter the block height as a plain number, digits only.'
+                                : 'Enter the transaction count as a plain number, digits only.',
+                        )
+                        setLoading(false)
+                        return
+                    }
+                    proof = digits
+                    outcome = {
+                        summary:
+                            mission.do.kind === 'chain-tip'
+                                ? 'That matches the tip of the chain right now. Check again in ten minutes and it will have moved.'
+                                : 'That matches the live count. Every one of those payments is public, forever.',
+                        details: [
+                            mission.do.kind === 'chain-tip'
+                                ? { label: 'block height', value: digits }
+                                : { label: 'transactions on that address', value: digits },
+                        ],
+                        simulated: false,
+                    }
+                    break
+                }
+
                 // Generic reflection input: missions 102/103 log the docs
                 // fix / issue restatement the learner will act on in 105.
                 case 'paste-value': {
@@ -2227,6 +2259,24 @@ function uiForKind(kind: MissionDef['do']['kind']): DoUi {
                     label: 'Your transaction ID',
                     placeholder: 'Paste the long ID your test transaction produced',
                     maxLength: 64,
+                    mono: true,
+                },
+            }
+        case 'chain-tip':
+            return {
+                primary: {
+                    label: 'Current block height',
+                    placeholder: 'the height of the most recent block',
+                    maxLength: 12,
+                    mono: true,
+                },
+            }
+        case 'address-reuse':
+            return {
+                primary: {
+                    label: 'Transactions on that address',
+                    placeholder: 'how many transactions the explorer shows',
+                    maxLength: 12,
                     mono: true,
                 },
             }

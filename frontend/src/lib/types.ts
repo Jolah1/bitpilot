@@ -161,6 +161,8 @@ export type DoKind =
     | 'nostr-follow'      /* publish a contact list (kind 3) with a chosen npub */
     | 'nostr-zap'         /* receive (or simulate) a zap receipt */
     | 'onchain-signet'    /* paste a signet txid; verifier asks Mutinynet, then signet */
+    | 'chain-tip'         /* read the live block height off an explorer and report it */
+    | 'address-reuse'     /* report the tx count of an address we supply, never the learner's */
     | 'seed-words'        /* generate BIP39 mnemonic client-side; quiz on a word */
     | 'derive-address'    /* derive an address from the mnemonic and submit */
     | 'paste-value'       /* generic "type or paste this thing" reflection input */
@@ -399,17 +401,18 @@ export const MISSIONS: MissionDef[] = [
             ],
         },
     }),
-    knowledge({
+    {
         id: 6,
         emoji: '🧱',
         topic: 'Bitcoin',
         tech: 'bitcoin',
         name: 'Blocks and confirmations',
         tagline: 'Why people say "1 confirmation" or "6 confirmations"',
+        simulated: false,
         learn: {
             heading: 'A block is a batch of transactions',
             body:
-                "Every ~10 minutes a miner wins the right to publish the next block, which bundles up recently broadcast transactions. Once your transaction is in a block, it has '1 confirmation'.\n\nFor small amounts, 1 confirmation is enough. For large amounts (think: buying a house), people wait for 6 confirmations, about an hour, because reorganising the chain that far back is astronomically expensive.\n\nThis is why on-chain Bitcoin is bad for buying coffee: 10-60 minutes is silly for $3. It's great for settlement of larger value, where waiting an hour buys you decades of mathematical certainty.",
+                "Every ~10 minutes a miner wins the right to publish the next block, which bundles up recently broadcast transactions. Once your transaction is in a block, it has '1 confirmation'.\n\nFor small amounts, 1 confirmation is enough. For large amounts (think: buying a house), people wait for 6 confirmations, about an hour, because reorganising the chain that far back is astronomically expensive.\n\nThis is why on-chain Bitcoin is bad for buying coffee: 10-60 minutes is silly for $3. It's great for settlement of larger value, where waiting an hour buys you decades of mathematical certainty.\n\nNone of this is theory you have to take on faith. The chain is public, and anyone can read its current height right now. That is what you are about to do: go look at the tip of the chain yourself, and notice that the number will have moved by the time you next check.",
             tip: 'For day-to-day spending, use Lightning. The Lightning flight path covers that.',
         },
         quiz: {
@@ -420,7 +423,18 @@ export const MISSIONS: MissionDef[] = [
                 { text: 'Because the bank requires it', correct: false, why: 'No bank involved.' },
             ],
         },
-    }),
+        do: {
+            kind: 'chain-tip',
+            actionLabel: 'Check my block height',
+            helper: "Open a block explorer, find the most recent block, and type its height here. We ask the chain what the tip is right now and compare, so a stale or guessed number will not pass.",
+            placeholder: 'current block height',
+            maxLength: 12,
+            links: [
+                { label: 'mempool.space', href: 'https://mempool.space' },
+                { label: 'blockstream.info', href: 'https://blockstream.info' },
+            ],
+        },
+    },
     knowledge({
         id: 7,
         emoji: '🧾',
@@ -1495,17 +1509,18 @@ export const MISSIONS: MissionDef[] = [
         actionLabel: 'Finish BitPilot 🎉',
         helper: 'You finished. We hope this was worth the time.',
     }),
-    knowledge({
+    {
         id: 51,
         emoji: '🔁',
         topic: 'Privacy',
         tech: 'bitcoin',
         name: 'Address reuse, in detail',
         tagline: 'One reused address can unravel your whole wallet',
+        simulated: false,
         learn: {
             heading: 'Why "fresh address every time" matters',
             body:
-                "When you receive a payment to address A and later spend from A, the chain shows the world: \"these coins belong to the same wallet.\" If you then receive to address B and combine A+B in a transaction, B is now publicly linked to A. Repeat this a few times and a chain-analysis firm can cluster every address you've ever used into a single ball of yarn.\n\nModern wallets give you a fresh address for every receive, use it. The cost is zero, the benefit is real. Your xpub still tracks them all internally; only the outside world is forced to guess.\n\nWhere reuse is unavoidable (donation pages, exchange deposits), accept that the address is a public identity tied to you.",
+                "When you receive a payment to address A and later spend from A, the chain shows the world: \"these coins belong to the same wallet.\" If you then receive to address B and combine A+B in a transaction, B is now publicly linked to A. Repeat this a few times and a chain-analysis firm can cluster every address you've ever used into a single ball of yarn.\n\nModern wallets give you a fresh address for every receive, use it. The cost is zero, the benefit is real. Your xpub still tracks them all internally; only the outside world is forced to guess.\n\nWhere reuse is unavoidable (donation pages, exchange deposits), accept that the address is a public identity tied to you.\n\nThe most famous reused address in Bitcoin is the one that received the very first block reward in 2009:\n\n1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa\n\nPeople have been sending it small tributes ever since. Go and look at it. Every one of those payments is visible to you, a stranger, forever, with no permission asked and no way for anyone involved to take it back. That is what a reused address gives away.",
             tip: 'Treat addresses like single-use envelopes. Cheap to print, hard to take back.',
         },
         quiz: {
@@ -1516,7 +1531,24 @@ export const MISSIONS: MissionDef[] = [
                 { text: 'It triggers higher fees', correct: false },
             ],
         },
-    }),
+        do: {
+            kind: 'address-reuse',
+            actionLabel: 'Report what I found',
+            helper: "Open the genesis address in a block explorer and type how many transactions it has. We check the live count, so you have to actually look. Note that we are asking about an address we chose, never one of yours: this flight path will never ask you to paste your own address.",
+            placeholder: 'number of transactions',
+            maxLength: 12,
+            links: [
+                {
+                    label: 'The genesis address on mempool.space',
+                    href: 'https://mempool.space/address/1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa',
+                },
+                {
+                    label: 'Same address on blockstream.info',
+                    href: 'https://blockstream.info/address/1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa',
+                },
+            ],
+        },
+    },
     knowledge({
         id: 52,
         emoji: '🔎',
