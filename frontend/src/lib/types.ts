@@ -1293,25 +1293,25 @@ export const MISSIONS: MissionDef[] = [
         learn: {
             heading: 'Get signet sats, send some, paste the txid',
             body:
-                "Time to actually use a Bitcoin network. We'll point you at a signet faucet (free, anyone can use it) where you can claim test sats. Send a tiny amount to any signet address. Then paste the transaction id (txid) here, and the backend will verify it exists on signet by asking mempool.space.\n\nSignet faucets to try:\n• https://signet.bc-2.jp/\n• https://signetfaucet.com\n\nYou'll need a signet-capable wallet. Sparrow, Electrum, or Mutiny work. Spending 5 minutes on this teaches you more than 5 hours of reading.",
-            tip: "Save the txid before pasting, and click through to mempool.space/signet/tx/<id> to see it confirm.",
+                "Time to actually use a Bitcoin network. We'll point you at a faucet (free, anyone can use it) where you can claim test sats. Send a tiny amount to any address on the same network. Then paste the transaction id (txid) here, and the backend will verify it exists by asking a public block explorer.\n\nStart with Mutinynet, a signet with 30-second blocks, so you watch your transaction confirm in under a minute instead of ten:\n• Faucet: https://faucet.mutinynet.com\n• Explorer: https://mutinynet.com\n\nClassic signet works too if you already use it (https://signet.bc-2.jp/), and we check both. Just don't mix them: Mutinynet and default signet are separate chains, so sats from one faucet cannot be sent to an address on the other.\n\nYou'll need a wallet pointed at your chosen network. Sparrow and Electrum both let you set a custom Esplora/signet server. Spending 5 minutes on this teaches you more than 5 hours of reading.",
+            tip: "Save the txid before pasting, and click through to the explorer to watch it confirm.",
         },
         quiz: {
             question: 'What proves to BitPilot that your signet transaction is real?',
             options: [
                 { text: 'You scout\'s honour', correct: false },
-                { text: 'mempool.space/signet/api confirms the txid exists', correct: true },
+                { text: 'A public block explorer confirms the txid exists', correct: true },
                 { text: 'Your wallet sends a screenshot', correct: false },
             ],
         },
         do: {
             kind: 'onchain-signet',
             actionLabel: 'Verify my signet txid',
-            helper: "Paste your 64-character hex txid. We'll ask mempool.space/signet whether it's real.",
+            helper: "Paste your 64-character hex txid. We'll ask Mutinynet and signet explorers whether it's real.",
             links: [
+                { label: 'Mutinynet faucet', href: 'https://faucet.mutinynet.com' },
+                { label: 'Mutinynet explorer', href: 'https://mutinynet.com' },
                 { label: 'Signet faucet (bc-2.jp)', href: 'https://signet.bc-2.jp/' },
-                { label: 'Signet faucet (signetfaucet.com)', href: 'https://signetfaucet.com' },
-                { label: 'Signet block explorer', href: 'https://mempool.space/signet' },
             ],
             placeholder: '64-character hex transaction id',
             maxLength: 64,

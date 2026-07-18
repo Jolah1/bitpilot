@@ -337,12 +337,26 @@ async fn verify_nostr_event(
     Ok(())
 }
 
-/// Verify a signet transaction id exists by asking mempool.space.
+/// Esplora-compatible explorers we accept a signet txid from, in the order
+/// we ask them.
+///
+/// Two networks, because "signet" in practice means two incompatible
+/// chains. Mutinynet is a custom signet (30-second blocks) whose faucet is
+/// the one that reliably stays up, so we ask it first; default signet is
+/// still accepted for learners who used a classic faucet. A txid only ever
+/// exists on one of them, so asking both is the difference between the
+/// mission working and the mission rejecting a real transaction.
+const SIGNET_EXPLORERS: &[(&str, &str)] = &[
+    ("Mutinynet", "https://mutinynet.com/api/tx"),
+    ("mempool.space", "https://mempool.space/signet/api/tx"),
+];
+
+/// Verify a signet transaction id exists by asking a block explorer.
 ///
 /// We don't try to check the amount or destination — the pedagogical goal
 /// is "you broadcast a real transaction to a real Bitcoin network and we
-/// can independently see it." If mempool.space returns 200 OK for
-/// /api/tx/<txid>, the tx exists.
+/// can independently see it." If any explorer in `SIGNET_EXPLORERS`
+/// returns 200 OK for /tx/<txid>, the tx exists.
 async fn verify_signet_txid(txid: &str) -> Result<(), AppError> {
     // Be strict about shape: 64 lowercase hex chars. Anything else is
     // either a typo or a probe.
@@ -353,9 +367,8 @@ async fn verify_signet_txid(txid: &str) -> Result<(), AppError> {
         ));
     }
 
-    // mempool.space has a public signet API. 5 sec timeout — if it's slow
-    // we fail the verification rather than hanging the request.
-    let url = format!("https://mempool.space/signet/api/tx/{txid_clean}");
+    // 5 sec timeout per explorer — if one is slow we move on rather than
+    // hanging the request.
     let client = match reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(5))
         .user_agent("bitpilot/0.1")
@@ -365,21 +378,37 @@ async fn verify_signet_txid(txid: &str) -> Result<(), AppError> {
         Err(e) => return Err(AppError::Internal(anyhow::anyhow!("http client: {e}"))),
     };
 
-    let res = client.get(&url).send().await.map_err(|e| {
-        // Network errors are 502 — we can't reach the verifier. Treat as
-        // "try again later" not "your txid is wrong".
-        tracing::warn!(error = %e, "mempool.space request failed");
-        AppError::Lightning(format!("could not reach mempool.space: {e}"))
-    })?;
+    // A 404 from one explorer only means "not on that chain", so it is not
+    // an answer on its own. We keep the last non-404 problem to report if
+    // every explorer fails to give us a verdict.
+    let mut last_problem: Option<String> = None;
 
-    match res.status().as_u16() {
-        200 => Ok(()),
-        404 => Err(AppError::BadRequest(
-            "transaction not found on signet — wait for it to propagate, or check the txid".into(),
+    for (name, base) in SIGNET_EXPLORERS {
+        let res = match client.get(format!("{base}/{txid_clean}")).send().await {
+            Ok(r) => r,
+            Err(e) => {
+                tracing::warn!(explorer = name, error = %e, "signet explorer request failed");
+                last_problem = Some(format!("could not reach {name}: {e}"));
+                continue;
+            }
+        };
+        match res.status().as_u16() {
+            200 => return Ok(()),
+            404 => continue,
+            other => {
+                tracing::warn!(explorer = name, status = other, "signet explorer error status");
+                last_problem = Some(format!("{name} returned HTTP {other}"));
+            }
+        }
+    }
+
+    // Every explorer we could reach said 404 — that is a real verdict.
+    match last_problem {
+        None => Err(AppError::BadRequest(
+            "transaction not found on Mutinynet or signet — wait for it to propagate, or check the txid"
+                .into(),
         )),
-        other => Err(AppError::Lightning(format!(
-            "mempool.space returned HTTP {other}"
-        ))),
+        Some(problem) => Err(AppError::Lightning(problem)),
     }
 }
 
