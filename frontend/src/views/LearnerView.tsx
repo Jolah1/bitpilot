@@ -599,11 +599,19 @@ export default function LearnerView({ participantId }: { participantId: string }
                     }
                     proof = doInput.trim().toLowerCase()
                     outcome = {
-                        summary: 'Your signet transaction is real, confirmed via mempool.space.',
+                        summary:
+                            'Your transaction is real, confirmed by a public block explorer.',
                         details: [
                             { label: 'transaction ID', value: proof },
+                            // We accept both chains, and the txid alone doesn't
+                            // say which one it landed on, so offer both links.
+                            // Only the explorer for your network will find it.
                             {
-                                label: 'view on mempool',
+                                label: 'view on Mutinynet',
+                                value: `mutinynet.com/tx/${proof}`,
+                            },
+                            {
+                                label: 'view on signet',
                                 value: `mempool.space/signet/tx/${proof}`,
                             },
                         ],

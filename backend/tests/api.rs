@@ -481,7 +481,7 @@ fn mission_14_requires_bech32_npub() {
 }
 
 #[test]
-fn mission_42_requires_64_hex_txid_and_hits_real_mempool_space() {
+fn mission_42_requires_64_hex_txid_before_any_explorer_lookup() {
     let h = Harness::start();
     let s = create_session(&h.base, "tx-test");
     let j = join_session(&h.base, "iris", &s.id);
@@ -493,7 +493,7 @@ fn mission_42_requires_64_hex_txid_and_hits_real_mempool_space() {
     //
     // To actually exercise the shape check we'd need to walk to mission
     // 42, which is slow. Instead we test the lighter validation paths
-    // here and trust the mempool.space lookup is well-typed.
+    // here and trust the explorer lookup is well-typed.
 
     // Wrong length.
     let r = complete(&h.base, &j.auth_token, 42, "abc");
