@@ -249,6 +249,14 @@ async fn verify_proof(
         // Mutinynet, then mempool.space/signet, whether the tx exists.
         DoKind::OnchainSignet => verify_signet_txid(proof).await,
 
+        // Mission 6: the learner reads the current block height off a public
+        // explorer. We read it too and allow a few blocks of slack.
+        DoKind::ChainTip => verify_chain_tip(proof).await,
+
+        // Mission 51: the learner reports how many transactions the genesis
+        // address has. Same idea, wider slack because tributes trickle in.
+        DoKind::AddressReuse => verify_address_reuse(proof).await,
+
         // Mission 105: open-source graduation — proof is the learner's
         // GitHub username plus a PR URL. We ask the GitHub API whether
         // that PR is really merged and really authored by that account.
@@ -412,6 +420,138 @@ async fn verify_signet_txid(txid: &str) -> Result<(), AppError> {
     }
 }
 
+/// Mainnet Esplora-compatible explorers, asked in order. Same resilience
+/// story as `SIGNET_EXPLORERS`: if the first is down or rate-limiting us,
+/// the second answers.
+const MAINNET_EXPLORERS: &[&str] = &["https://mempool.space/api", "https://blockstream.info/api"];
+
+/// The address that received the very first block reward in 2009. People
+/// have sent it tributes ever since, which is exactly why it is the
+/// teaching example for address reuse: tens of thousands of payments, all
+/// permanently public. We supply it so the learner never has to expose an
+/// address of their own.
+const GENESIS_ADDRESS: &str = "1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa";
+
+/// Parse a learner-typed count. We accept digit groupings like "63,746"
+/// and surrounding whitespace because that is how explorers display them.
+fn parse_reported_number(proof: &str) -> Result<u64, AppError> {
+    let cleaned: String = proof
+        .chars()
+        .filter(|c| !c.is_whitespace() && *c != ',')
+        .collect();
+    if cleaned.is_empty() || !cleaned.chars().all(|c| c.is_ascii_digit()) {
+        return Err(AppError::BadRequest(
+            "enter the number as plain digits".into(),
+        ));
+    }
+    cleaned
+        .parse::<u64>()
+        .map_err(|_| AppError::BadRequest("that number is out of range".into()))
+}
+
+/// Whether a learner's reported number is close enough to the live one.
+///
+/// Split out from the verifiers so the tolerance rule is unit-testable
+/// without reaching the network, which the fetch half unavoidably needs.
+fn is_close_enough(reported: u64, actual: u64, slack: u64) -> bool {
+    reported.abs_diff(actual) <= slack
+}
+
+/// GET one JSON-ish value from the first mainnet explorer that answers.
+/// Returns the raw body so the caller can parse whatever shape it wants.
+async fn fetch_from_explorer(path: &str) -> Result<String, AppError> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(5))
+        .user_agent("bitpilot/0.1")
+        .build()
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("http client: {e}")))?;
+
+    let mut last_err = String::from("no explorer answered");
+    for base in MAINNET_EXPLORERS {
+        match client.get(format!("{base}{path}")).send().await {
+            Ok(res) if res.status().is_success() => match res.text().await {
+                Ok(body) => return Ok(body),
+                Err(e) => last_err = format!("could not read response: {e}"),
+            },
+            Ok(res) => {
+                last_err = format!("explorer returned HTTP {}", res.status().as_u16());
+                tracing::warn!(explorer = base, status = res.status().as_u16(), "explorer error");
+            }
+            Err(e) => {
+                last_err = format!("could not reach explorer: {e}");
+                tracing::warn!(explorer = base, error = %e, "explorer request failed");
+            }
+        }
+    }
+    // Every explorer failed. This is our problem, not the learner's, so it
+    // must not read as "your answer was wrong".
+    Err(AppError::Lightning(last_err))
+}
+
+/// Mission 6: the learner reports the current block height.
+///
+/// We fetch the tip ourselves at verify time rather than pinning an
+/// expected value, so the answer is different every ten minutes and cannot
+/// be copied from a friend or a walkthrough. Blocks can arrive while the
+/// learner is typing, and explorers lag each other slightly, so we accept a
+/// small window either side.
+async fn verify_chain_tip(proof: &str) -> Result<(), AppError> {
+    const SLACK: u64 = 3;
+    let reported = parse_reported_number(proof)?;
+    let body = fetch_from_explorer("/blocks/tip/height").await?;
+    let actual: u64 = body
+        .trim()
+        .parse()
+        .map_err(|_| AppError::Internal(anyhow::anyhow!("explorer sent a non-numeric tip")))?;
+
+    if is_close_enough(reported, actual, SLACK) {
+        Ok(())
+    } else {
+        Err(AppError::BadRequest(format!(
+            "that is not the current tip. The chain is at {actual} right now, so check the latest block on the explorer and try again"
+        )))
+    }
+}
+
+/// Mission 51: the learner reports the transaction count of the genesis
+/// address.
+///
+/// Same live-comparison trick as the chain tip. The slack is wider because
+/// the address keeps receiving small tributes, and a learner who reads the
+/// count and then takes a few minutes over the quiz should not be punished
+/// for someone else's transaction landing in between.
+async fn verify_address_reuse(proof: &str) -> Result<(), AppError> {
+    const SLACK: u64 = 25;
+    let reported = parse_reported_number(proof)?;
+    let body = fetch_from_explorer(&format!("/address/{GENESIS_ADDRESS}")).await?;
+    let parsed: serde_json::Value = serde_json::from_str(&body)
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("explorer sent invalid JSON: {e}")))?;
+
+    // Esplora splits counts into confirmed (chain_stats) and unconfirmed
+    // (mempool_stats). Explorers show the sum, so compare against the sum.
+    let count = |key: &str| -> u64 {
+        parsed
+            .get(key)
+            .and_then(|v| v.get("tx_count"))
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0)
+    };
+    let actual = count("chain_stats") + count("mempool_stats");
+    if actual == 0 {
+        return Err(AppError::Internal(anyhow::anyhow!(
+            "explorer reported no transactions for the genesis address"
+        )));
+    }
+
+    if is_close_enough(reported, actual, SLACK) {
+        Ok(())
+    } else {
+        Err(AppError::BadRequest(
+            "that does not match what the chain says. Open the address on the explorer and look for its transaction count".into(),
+        ))
+    }
+}
+
 /// Parsed form of the mission-105 proof: "<github-username> <pr-url>"
 /// (either order; we pick the URL out by the github.com marker).
 #[derive(Debug, PartialEq)]
@@ -553,6 +693,41 @@ async fn verify_github_pr(proof: &str) -> Result<(), AppError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn reported_numbers_tolerate_explorer_formatting() {
+        // Explorers print grouped digits, and learners copy them verbatim.
+        assert_eq!(parse_reported_number("63,746").unwrap(), 63_746);
+        assert_eq!(parse_reported_number("  958535 ").unwrap(), 958_535);
+        assert_eq!(parse_reported_number("1").unwrap(), 1);
+    }
+
+    #[test]
+    fn reported_numbers_reject_non_digits() {
+        for bad in ["", "  ", "lots", "63.746", "-5", "12a"] {
+            assert!(
+                parse_reported_number(bad).is_err(),
+                "should have rejected {bad:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn tolerance_allows_drift_but_not_guessing() {
+        // Mission 6: blocks can arrive while the learner types, and
+        // explorers lag each other, so a few blocks either way is fine.
+        assert!(is_close_enough(958_535, 958_535, 3));
+        assert!(is_close_enough(958_532, 958_535, 3));
+        assert!(is_close_enough(958_538, 958_535, 3));
+        assert!(!is_close_enough(958_531, 958_535, 3));
+        // A guess is nowhere near, which is the point: you have to look.
+        assert!(!is_close_enough(12_345, 958_535, 3));
+        assert!(!is_close_enough(0, 958_535, 3));
+
+        // Mission 51: wider window, tributes trickle into the address.
+        assert!(is_close_enough(63_746, 63_760, 25));
+        assert!(!is_close_enough(60_000, 63_746, 25));
+    }
 
     #[test]
     fn pr_proof_parses_username_and_url_in_either_order() {

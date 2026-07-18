@@ -307,12 +307,12 @@ impl Mission {
             // Knowledge-only missions (the majority by count) — pure quiz.
             // Listed explicitly so adding a mission doesn't silently fall
             // through to a default that bypasses verification.
-            0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 => DoKind::Knowledge,
+            0 | 1 | 2 | 3 | 4 | 5 | 7 | 8 | 9 | 10 => DoKind::Knowledge,
             12 | 13 | 15 | 16 | 17 | 18 | 19 | 20 => DoKind::Knowledge,
             21 | 22 | 25 | 28 | 29 => DoKind::Knowledge,
             31 | 32 | 35 | 37 | 38 | 39 | 40 => DoKind::Knowledge,
             43 | 44 | 45 | 46 | 47 | 48 | 49 | 50 => DoKind::Knowledge,
-            51 | 52 | 53 | 54 | 55 | 56 | 57 => DoKind::Knowledge,
+            52 | 53 | 54 | 55 | 56 | 57 => DoKind::Knowledge,
             58 | 59 | 60 | 61 | 62 | 63 | 64 | 65 | 66 => DoKind::Knowledge,
             67 | 68 | 69 | 70 | 71 | 72 | 73 | 74 | 75 | 76 => DoKind::Knowledge,
             77 | 78 => DoKind::Knowledge,
@@ -326,6 +326,10 @@ impl Mission {
             100 | 101 | 102 | 103 | 104 => DoKind::Knowledge,
 
             // Action missions:
+            // 6 and 51 both ask the learner to read one live number off a
+            // public explorer; the verifier re-reads it and compares.
+            6 => DoKind::ChainTip,
+            51 => DoKind::AddressReuse,
             11 => DoKind::SeedWords,
             14 => DoKind::NostrIdentity,
             23 => DoKind::Invoice,
@@ -375,6 +379,43 @@ mod tests {
             }
         }
     }
+
+    /// Missions 6 and 51 are the live-explorer lookups that put the Bitcoin
+    /// and Privacy flight paths over the "at least one hands-on mission"
+    /// bar. Catch-all `Knowledge` arms sit *above* them in `do_kind`'s
+    /// match, and Rust takes the first arm that matches, so folding either
+    /// number back into one of those runs would silently downgrade the
+    /// mission to "any non-empty string passes" with no compile error.
+    #[test]
+    fn live_lookup_missions_are_not_shadowed_by_knowledge_arms() {
+        assert_eq!(Mission::do_kind(6), DoKind::ChainTip);
+        assert_eq!(Mission::do_kind(51), DoKind::AddressReuse);
+        // Neighbours in the same knowledge runs must be unaffected.
+        for n in [5u8, 7, 52] {
+            assert_eq!(Mission::do_kind(n), DoKind::Knowledge, "mission {n}");
+        }
+    }
+
+    /// The bar itself: every flight path carries at least one mission with a
+    /// real action, except Money Basics, which is deliberately exempt
+    /// because it is the conceptual opening path.
+    #[test]
+    fn every_tree_has_a_hands_on_mission_except_money() {
+        for &tree in Tree::ALL {
+            let hands_on = tree
+                .missions()
+                .iter()
+                .filter(|&&m| Mission::do_kind(m) != DoKind::Knowledge)
+                .count();
+            if tree == Tree::Money {
+                continue;
+            }
+            assert!(
+                hands_on >= 1,
+                "{tree:?} has no hands-on mission; every path except Money Basics needs one"
+            );
+        }
+    }
 }
 
 /// Mission action kinds the verifier knows about. Kept narrow and explicit so
@@ -392,6 +433,8 @@ pub enum DoKind {
     NostrFollow,
     NostrZap,
     OnchainSignet,
+    ChainTip,
+    AddressReuse,
     SeedWords,
     DeriveAddress,
     GithubPr,
