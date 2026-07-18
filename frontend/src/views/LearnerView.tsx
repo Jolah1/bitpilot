@@ -1551,7 +1551,7 @@ function ArchivedProof({ kind, proof }: { kind: DoKind; proof: string }) {
                         background: 'transparent',
                         border: '1px solid var(--border)',
                         borderRadius: 'var(--radius-1)',
-                        color: 'var(--fg)',
+                        color: 'var(--text)',
                         cursor: 'pointer',
                         fontSize: 12,
                         padding: '4px 10px',
@@ -1562,7 +1562,7 @@ function ArchivedProof({ kind, proof }: { kind: DoKind; proof: string }) {
             </div>
             <pre
                 style={{
-                    background: 'var(--surface-2, rgba(127,127,127,0.10))',
+                    background: 'var(--surface2)',
                     border: '1px solid var(--border)',
                     borderRadius: 'var(--radius-1)',
                     fontSize: 12,

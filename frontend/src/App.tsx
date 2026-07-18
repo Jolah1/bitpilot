@@ -7,6 +7,10 @@ import {
 } from 'react'
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
 import LearnerView from './views/LearnerView'
+import {
+    ViewErrorBoundary,
+    clearChunkReloadFlag,
+} from './components/ViewErrorBoundary'
 // The marketing landing page is the biggest single chunk of JSX in the app
 // (~1100 lines of section markup) but a returning learner who arrives via a
 // `?session=` deep link, a PWA launch, or a stored login never sees it.
@@ -201,6 +205,18 @@ export default function App() {
         saveTheme(theme)
     }, [theme])
 
+    // Release the one-reload guard, but only after the app has stayed up
+    // for a while. Clearing it on mount would let a chunk that is
+    // permanently missing (a genuinely broken deploy, not a stale tab)
+    // reload forever, since each reload would restore its own retry. A
+    // crash loop fails long before this fires, so the guard survives to
+    // show the error panel instead, while a tab that recovered cleanly
+    // regains its retry for the next deploy.
+    useEffect(() => {
+        const t = setTimeout(clearChunkReloadFlag, 30_000)
+        return () => clearTimeout(t)
+    }, [])
+
     const toggleTheme = () => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))
 
     const start = async () => {
@@ -323,6 +339,11 @@ export default function App() {
                 <a href="#main-content" className="skip-link">
                     Skip to content
                 </a>
+                {/* Every view but the learner is lazy loaded, so a tab left
+                    open across a deploy can ask for a chunk the server no
+                    longer has. Without this the whole app unmounts to a
+                    white page with nothing telling the user to reload. */}
+                <ViewErrorBoundary>
                 {screen === 'landing' && (
                     <Suspense fallback={<ViewLoading />}>
                         <Landing
@@ -515,6 +536,7 @@ export default function App() {
                         sessionId={sessionId}
                     />
                 )}
+                </ViewErrorBoundary>
             </RuntimeProvider>
         </QueryClientProvider>
     )

@@ -15,7 +15,7 @@
  * Bump VERSION when the caching logic itself changes; asset churn does not
  * need a bump because hashed names never collide.
  */
-const VERSION = 'bitpilot-shell-v2'
+const VERSION = 'bitpilot-shell-v3'
 const SHELL = ['/', '/manifest.webmanifest', '/favicon.svg?v=2']
 
 self.addEventListener('install', (event) => {
@@ -60,14 +60,22 @@ self.addEventListener('fetch', (event) => {
     }
 
     // Hashed immutable assets: cache first.
+    //
+    // Only successful responses are stored. A tab left open across a deploy
+    // asks for chunk names the server no longer has, and the SPA rewrite
+    // answers those with index.html rather than a 404. Caching that would
+    // pin an HTML body under a .js URL for the life of the cache, so the
+    // failure would survive the reload that is supposed to fix it.
     if (url.pathname.startsWith('/assets/')) {
         event.respondWith(
             caches.match(req).then(
                 (hit) =>
                     hit ??
                     fetch(req).then((res) => {
-                        const copy = res.clone()
-                        caches.open(VERSION).then((cache) => cache.put(req, copy))
+                        if (res.ok) {
+                            const copy = res.clone()
+                            caches.open(VERSION).then((cache) => cache.put(req, copy))
+                        }
                         return res
                     }),
             ),
@@ -81,8 +89,10 @@ self.addEventListener('fetch', (event) => {
         caches.match(req).then((hit) => {
             const refresh = fetch(req)
                 .then((res) => {
-                    const copy = res.clone()
-                    caches.open(VERSION).then((cache) => cache.put(req, copy))
+                    if (res.ok) {
+                        const copy = res.clone()
+                        caches.open(VERSION).then((cache) => cache.put(req, copy))
+                    }
                     return res
                 })
                 .catch(() => hit)
