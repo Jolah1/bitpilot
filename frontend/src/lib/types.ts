@@ -166,6 +166,7 @@ export type DoKind =
     | 'seed-words'        /* generate BIP39 mnemonic client-side; quiz on a word */
     | 'derive-address'    /* derive an address from the mnemonic and submit */
     | 'passphrase-fork'   /* derive with and without a BIP39 passphrase, compare */
+    | 'sign-event'        /* sign a Nostr event locally and read its anatomy, no relay */
     | 'paste-value'       /* generic "type or paste this thing" reflection input */
     | 'github-pr'         /* mission 105: backend asks the GitHub API if the PR is merged and yours */
 
@@ -673,17 +674,18 @@ export const MISSIONS: MissionDef[] = [
             ],
         },
     }),
-    knowledge({
+    {
         id: 17,
         emoji: '🧬',
         topic: 'Nostr',
         tech: 'nostr',
+        simulated: false,
         name: 'Events, everything is one',
         tagline: 'Posts, profiles, follows: all the same shape',
         learn: {
             heading: 'A Nostr event has 5 fields',
             body:
-                "Everything on Nostr is an 'event': a JSON object with five fields, id, pubkey, kind, content, signature. The 'kind' number says what type of thing it is.\n\nKind 1: a short text note (a tweet, basically).\nKind 0: profile metadata (name, about, picture).\nKind 3: contact list (your follows).\nKind 7: a reaction (like/dislike).\nKind 9735: a zap receipt (zaps come later on this flight path).\n\nThat's the whole protocol. Add new kinds, build new apps, same plumbing.",
+                "Everything on Nostr is an 'event': a JSON object with five fields, id, pubkey, kind, content, signature. The 'kind' number says what type of thing it is.\n\nKind 1: a short text note (a tweet, basically).\nKind 0: profile metadata (name, about, picture).\nKind 3: contact list (your follows).\nKind 7: a reaction (like/dislike).\nKind 9735: a zap receipt (zaps come later on this flight path).\n\nThat's the whole protocol. Add new kinds, build new apps, same plumbing.\n\nTwo of those five fields are not written by you, they are computed. The **id** is a hash of the event's own contents, so changing a single character of the text changes the id. The **sig** is that id signed by your private key. Together they mean anyone can check, without asking a server, that this exact text came from this exact key and has not been altered since.\n\nRather than take that on faith, you are about to sign one and look inside it. Nothing gets published: this event is for reading. Publishing comes later on this flight path.",
             tip: "Every post, follow, reaction, and zap is a JSON object you cryptographically signed.",
         },
         quiz: {
@@ -694,7 +696,15 @@ export const MISSIONS: MissionDef[] = [
                 { text: 'Kind 9735', correct: false, why: 'Kind 9735 is a zap receipt, coming soon.' },
             ],
         },
-    }),
+        do: {
+            kind: 'sign-event',
+            actionLabel: 'Sign an event and open it up',
+            helper:
+                "Write anything. We sign it with your key in this browser and show you the raw event, field by field. It is not published anywhere, and your private key never leaves this device. Our server checks the signature and confirms the key is the one you registered.",
+            placeholder: 'anything at all, this is not published',
+            maxLength: 200,
+        },
+    },
     knowledge({
         id: 18,
         emoji: '🌐',

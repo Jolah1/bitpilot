@@ -447,6 +447,51 @@ export default function LearnerView({ participantId }: { participantId: string }
                     break
                 }
 
+                // Mission 17: sign an event locally and read its anatomy.
+                // Deliberately never broadcast, that is mission 26. The
+                // whole signed event is submitted so the server can check
+                // the id-is-the-hash and signature claims the lesson makes.
+                case 'sign-event': {
+                    if (!doInput.trim()) {
+                        setDoError('Write something for the event to carry.')
+                        setLoading(false)
+                        return
+                    }
+                    // Prefer the browser-stored key; fall back to an nsec the
+                    // learner pasted to recover an identity they made earlier.
+                    const nsec =
+                        getNsec() ?? (isValidNsec(nsecRecover) ? nsecRecover.trim() : null)
+                    if (!nsec) {
+                        setDoError(
+                            nsecRecover.trim()
+                                ? "That doesn't look like a valid nsec, it should start with nsec1…"
+                                : 'Paste the nsec you saved when you generated your Nostr identity, or make one first in the Nostr flight path.',
+                        )
+                        setLoading(false)
+                        return
+                    }
+                    if (!getNsec()) setNsec(nsec)
+                    const signed = signNostrTextNote(nsec, doInput.trim())
+                    proof = JSON.stringify(signed)
+                    outcome = {
+                        summary:
+                            'Signed with your key, in this browser, and not published anywhere. This is what every note, profile and follow on Nostr looks like underneath.',
+                        details: [
+                            { label: 'kind', value: `${signed.kind} (short text note)` },
+                            { label: 'content', value: signed.content },
+                            { label: 'pubkey (who signed it)', value: signed.pubkey },
+                            { label: 'id (hash of this event)', value: signed.id },
+                            { label: 'sig (that id, signed)', value: signed.sig },
+                            {
+                                label: 'try this',
+                                value: 'Run it again with one character changed. The content moves by one letter, and the id and sig change completely.',
+                            },
+                        ],
+                        simulated: false,
+                    }
+                    break
+                }
+
                 case 'nostr-publish': {
                     if (!doInput.trim()) {
                         setDoError("Your note can't be empty.")
@@ -2000,7 +2045,14 @@ function DoPanel({
     // Signing needs the nsec. If the browser has none (cleared storage, or
     // the identity was made on another device), offer a recovery input so a
     // learner who already finished the identity mission isn't stuck.
-    const needsNsec = needsPublishConfirm && !getNsec()
+    //
+    // Not the same set as the confirmation above: mission 17 signs an event
+    // to read it and never publishes, so it needs the key but must not get
+    // a "this is public and permanent" warning about something nobody will
+    // ever see.
+    const needsSigningKey =
+        needsPublishConfirm || mission.do.kind === 'sign-event'
+    const needsNsec = needsSigningKey && !getNsec()
     const [confirming, setConfirming] = useState(false)
 
     // Reset both gates whenever we move to a different mission, so a prior
@@ -2269,6 +2321,15 @@ function uiForKind(kind: MissionDef['do']['kind']): DoUi {
             return { primary: { label: 'Lightning address', placeholder: 'demo@ln.tips', maxLength: 80, mono: true } }
         case 'ecash-spend':
             return { primary: { label: 'eCash token', placeholder: 'cashuB…', maxLength: 400, mono: true } }
+        case 'sign-event':
+            return {
+                primary: {
+                    label: 'Text for your event',
+                    type: 'textarea',
+                    placeholder: 'anything, this one is not published',
+                    maxLength: 200,
+                },
+            }
         case 'nostr-publish':
             return {
                 primary: {

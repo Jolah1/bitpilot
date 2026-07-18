@@ -45,6 +45,26 @@ impl NostrService {
         &self.relays
     }
 
+    /// Parse and cryptographically check a signed event, without touching
+    /// the network.
+    ///
+    /// `Event::verify` does two things worth naming, because mission 17 is
+    /// built on both: it recomputes the canonical hash and checks the
+    /// event's `id` really is that hash, and it checks the BIP340
+    /// signature against the embedded pubkey. So a learner cannot hand-edit
+    /// any field, and cannot claim someone else's key.
+    ///
+    /// Offline by design: mission 17 has the learner sign an event to look
+    /// inside it, not to publish it, so this must not reach a relay.
+    pub fn verify_signed_event(event_json: serde_json::Value) -> Result<Event, AppError> {
+        let event: Event = serde_json::from_value(event_json)
+            .map_err(|e| AppError::BadRequest(format!("malformed nostr event: {e}")))?;
+        event
+            .verify()
+            .map_err(|e| AppError::BadRequest(format!("invalid nostr event signature: {e}")))?;
+        Ok(event)
+    }
+
     /// Broadcast an already-signed event to all configured relays.
     ///
     /// The event must:
@@ -59,11 +79,7 @@ impl NostrService {
         &self,
         event_json: serde_json::Value,
     ) -> Result<Event, AppError> {
-        let event: Event = serde_json::from_value(event_json)
-            .map_err(|e| AppError::BadRequest(format!("malformed nostr event: {e}")))?;
-        event
-            .verify()
-            .map_err(|e| AppError::BadRequest(format!("invalid nostr event signature: {e}")))?;
+        let event = Self::verify_signed_event(event_json)?;
 
         // The Client wants *some* signer to construct, but we never call
         // any signing path here — `send_event` takes the event as-is.

@@ -12,6 +12,7 @@
  * completions are ever needed.
  */
 import crypto from 'node:crypto'
+import { finalizeEvent, getPublicKey, nip19 } from 'nostr-tools'
 import {
     ensureExplorerStub,
     STUB_GENESIS_TX_COUNT,
@@ -52,8 +53,24 @@ export async function apiPost(path, body, token) {
  */
 export { ensureExplorerStub }
 
+/** Deterministic Nostr identity for seeding. Test-only, never a real key. */
+const E2E_SK = new Uint8Array(32).fill(7)
+export const E2E_NPUB = nip19.npubEncode(getPublicKey(E2E_SK))
+
 export function proofFor(mission) {
-    if (mission === 14) return 'npub1' + 'q'.repeat(50) // NostrIdentity: format-checked only
+    // NostrIdentity (14) and SignEvent (17) are linked: mission 17's
+    // verifier checks the event's signature AND that its pubkey matches the
+    // npub registered at 14. So seeding needs one real keypair, not a
+    // placeholder npub. Fixed secret key keeps runs deterministic.
+    if (mission === 14) return E2E_NPUB
+    if (mission === 17) {
+        return JSON.stringify(
+            finalizeEvent(
+                { kind: 1, tags: [], content: 'e2e seed event', created_at: 1750000000 },
+                E2E_SK,
+            ),
+        )
+    }
     if (mission === 11) return crypto.createHash('sha256').update('seed').digest('hex') // SeedWords: 64 hex
     // ChainTip / AddressReuse: verified against a live explorer, so these
     // only pass when the backend is pointed at the stub. See

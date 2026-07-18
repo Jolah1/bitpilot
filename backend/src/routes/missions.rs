@@ -245,6 +245,11 @@ async fn verify_proof(
         // so the same verifier works.
         DoKind::NostrZap => verify_nostr_event(state, participant_id, proof).await,
 
+        // Mission 17: a locally signed event, submitted whole so the
+        // learner can see its anatomy. We check the cryptography and that
+        // the key is theirs. Nothing is broadcast.
+        DoKind::SignEvent => verify_signed_own_event(state, participant_id, proof).await,
+
         // Mission 42: signet on-chain — proof is a 64-hex txid. We ask
         // Mutinynet, then mempool.space/signet, whether the tx exists.
         DoKind::OnchainSignet => verify_signet_txid(proof).await,
@@ -478,6 +483,46 @@ fn parse_reported_number(proof: &str) -> Result<u64, AppError> {
     cleaned
         .parse::<u64>()
         .map_err(|_| AppError::BadRequest("that number is out of range".into()))
+}
+
+/// Mission 17: the learner signs an event in the browser and submits the
+/// whole thing, so the lesson can show them what an event actually is.
+///
+/// Two checks, and they are the lesson. `verify_signed_event` recomputes
+/// the canonical hash and confirms the `id` field really is that hash, then
+/// checks the BIP340 signature against the embedded pubkey, so no field can
+/// be hand-edited. Then we compare that pubkey to the npub they registered
+/// in mission 14, so it has to be their own key and not one copied from a
+/// friend or lifted off a relay.
+///
+/// Deliberately no network: this event is for reading, not publishing.
+/// Mission 26 is where broadcasting happens.
+async fn verify_signed_own_event(
+    state: &AppState,
+    participant_id: &str,
+    proof: &str,
+) -> Result<(), AppError> {
+    let json: serde_json::Value = serde_json::from_str(proof)
+        .map_err(|e| AppError::BadRequest(format!("proof must be the signed event JSON: {e}")))?;
+    let event = crate::services::nostr_service::NostrService::verify_signed_event(json)?;
+
+    let row: Option<(Option<String>,)> =
+        sqlx::query_as("SELECT nostr_pubkey FROM participants WHERE id = ?")
+            .bind(participant_id)
+            .fetch_optional(&state.db)
+            .await?;
+    let stored_npub = row.and_then(|(npub,)| npub).ok_or_else(|| {
+        AppError::BadRequest("generate your Nostr identity first (mission 14)".into())
+    })?;
+    let stored_pk = nostr_sdk::PublicKey::parse(&stored_npub)
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("stored npub is malformed: {e}")))?;
+
+    if event.pubkey != stored_pk {
+        return Err(AppError::BadRequest(
+            "that event was signed by a different key than the identity you registered".into(),
+        ));
+    }
+    Ok(())
 }
 
 /// True for the bech32 segwit addresses this curriculum derives.
