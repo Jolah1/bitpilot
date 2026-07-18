@@ -291,6 +291,12 @@ async fn verify_proof(
             }
             Ok(())
         }
+
+        // Mission 92: two addresses derived from one seed, the second with
+        // a BIP39 passphrase. The passphrase is as sensitive as the seed
+        // and stays in the browser; we only ever see the public addresses.
+        // The lesson is that they differ, so that is what we check.
+        DoKind::PassphraseFork => verify_passphrase_fork(proof),
     }
 }
 
@@ -472,6 +478,40 @@ fn parse_reported_number(proof: &str) -> Result<u64, AppError> {
     cleaned
         .parse::<u64>()
         .map_err(|_| AppError::BadRequest("that number is out of range".into()))
+}
+
+/// True for the bech32 segwit addresses this curriculum derives.
+fn looks_like_segwit_address(s: &str) -> bool {
+    let lower = s.to_lowercase();
+    lower.starts_with("bc1") || lower.starts_with("tb1") || lower.starts_with("bcrt1")
+}
+
+/// Mission 92: "<address-without-passphrase> <address-with-passphrase>".
+///
+/// We cannot re-derive these without the seed and passphrase, and we
+/// deliberately never receive either. What we can check is the property
+/// the mission teaches: one seed plus a passphrase yields a *different*
+/// wallet. Two well-formed addresses that differ is exactly that claim.
+fn verify_passphrase_fork(proof: &str) -> Result<(), AppError> {
+    let parts: Vec<&str> = proof.split_whitespace().collect();
+    if parts.len() != 2 {
+        return Err(AppError::BadRequest(
+            "proof must be two addresses: without the passphrase, then with it".into(),
+        ));
+    }
+    if !parts.iter().all(|p| looks_like_segwit_address(p)) {
+        return Err(AppError::BadRequest(
+            "both proofs must be bech32 segwit addresses (bc1.../tb1.../bcrt1...)".into(),
+        ));
+    }
+    if parts[0].eq_ignore_ascii_case(parts[1]) {
+        // Either an empty passphrase or a client that derived once and
+        // sent it twice. Both miss the entire point of the mission.
+        return Err(AppError::BadRequest(
+            "those are the same address, so the passphrase changed nothing. Derive again with a passphrase".into(),
+        ));
+    }
+    Ok(())
 }
 
 /// Whether a learner's reported number is close enough to the live one.
@@ -718,6 +758,37 @@ async fn verify_github_pr(proof: &str) -> Result<(), AppError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn passphrase_fork_requires_two_different_addresses() {
+        // The happy path: one seed, two wallets.
+        assert!(verify_passphrase_fork("bc1qaaa bc1qbbb").is_ok());
+        assert!(verify_passphrase_fork("  tb1qaaa   tb1qbbb  ").is_ok());
+    }
+
+    #[test]
+    fn passphrase_fork_rejects_a_wallet_that_did_not_fork() {
+        // An empty passphrase, or a client deriving once and sending it
+        // twice, misses the whole point of the mission.
+        assert!(verify_passphrase_fork("bc1qaaa bc1qaaa").is_err());
+        assert!(verify_passphrase_fork("bc1qAAA bc1qaaa").is_err());
+    }
+
+    #[test]
+    fn passphrase_fork_rejects_malformed_proofs() {
+        for bad in [
+            "",
+            "bc1qaaa",                 // only one address
+            "bc1qaaa bc1qbbb bc1qccc", // three
+            "notanaddress bc1qbbb",    // first not bech32
+            "bc1qaaa 1A1zP1eP5QGefi", // second is legacy, not bech32
+        ] {
+            assert!(
+                verify_passphrase_fork(bad).is_err(),
+                "should have rejected {bad:?}"
+            );
+        }
+    }
 
     #[test]
     fn reported_numbers_tolerate_explorer_formatting() {

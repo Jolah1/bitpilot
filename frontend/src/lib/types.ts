@@ -165,6 +165,7 @@ export type DoKind =
     | 'address-reuse'     /* report the tx count of an address we supply, never the learner's */
     | 'seed-words'        /* generate BIP39 mnemonic client-side; quiz on a word */
     | 'derive-address'    /* derive an address from the mnemonic and submit */
+    | 'passphrase-fork'   /* derive with and without a BIP39 passphrase, compare */
     | 'paste-value'       /* generic "type or paste this thing" reflection input */
     | 'github-pr'         /* mission 105: backend asks the GitHub API if the PR is merged and yours */
 
@@ -2429,11 +2430,12 @@ export const MISSIONS: MissionDef[] = [
             ],
         },
     }),
-    knowledge({
+    {
         id: 92,
         emoji: '🎭',
         topic: 'Self-custody',
         tech: 'bitcoin',
+        simulated: true,
         name: 'The 25th word (passphrase)',
         tagline: 'Under pressure, Alice opens a decoy wallet. The real one needs a word only she knows.',
         learn: {
@@ -2450,7 +2452,15 @@ export const MISSIONS: MissionDef[] = [
                 { text: 'It replaces the need for a hardware wallet', correct: false, why: 'It complements it.' },
             ],
         },
-    }),
+        do: {
+            kind: 'passphrase-fork',
+            actionLabel: 'Derive both wallets',
+            helper:
+                "Type any passphrase. We derive your first address twice from the same 12 words, once without it and once with it, so you can see them come out completely different. Your passphrase is used in this browser and never sent to our server, exactly like your seed words. Try running it again with one letter changed.",
+            placeholder: 'any passphrase, for example my-first-house-street',
+            maxLength: 100,
+        },
+    },
     knowledge({
         id: 93,
         emoji: '📄',

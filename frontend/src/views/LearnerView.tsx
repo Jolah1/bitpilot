@@ -591,6 +591,44 @@ export default function LearnerView({ participantId }: { participantId: string }
                     break
                 }
 
+                // Mission 92: derive the same path twice from one seed, with
+                // and without a passphrase, so the learner sees that a
+                // passphrase makes a different wallet rather than locking
+                // the same one. Both derivations happen here; the
+                // passphrase itself is as sensitive as the seed and never
+                // leaves the browser. Only the two public addresses go up.
+                case 'passphrase-fork': {
+                    const seed = getSeedPhrase()
+                    if (!seed) {
+                        setDoError('Generate your seed phrase first (mission 11).')
+                        setLoading(false)
+                        return
+                    }
+                    const passphrase = doInput.trim()
+                    if (!passphrase) {
+                        setDoError('Type a passphrase to derive the second wallet.')
+                        setLoading(false)
+                        return
+                    }
+                    const plain = deriveFirstSegwitAddress(seed)
+                    const withPass = deriveFirstSegwitAddress(seed, passphrase)
+                    proof = `${plain} ${withPass}`
+                    outcome = {
+                        summary:
+                            'Same 12 words, same derivation path, two completely different wallets. Whoever finds your seed backup reaches only the first one.',
+                        details: [
+                            { label: 'without a passphrase', value: plain },
+                            { label: 'with your passphrase', value: withPass },
+                            {
+                                label: 'why it matters',
+                                value: 'Change one letter and you get a third wallet, with no way back to this one.',
+                            },
+                        ],
+                        simulated: true,
+                    }
+                    break
+                }
+
                 case 'onchain-signet': {
                     if (!doInput.trim()) {
                         setDoError('Paste your signet transaction id (64 hex characters).')
@@ -2259,6 +2297,15 @@ function uiForKind(kind: MissionDef['do']['kind']): DoUi {
                     label: 'Your transaction ID',
                     placeholder: 'Paste the long ID your test transaction produced',
                     maxLength: 64,
+                    mono: true,
+                },
+            }
+        case 'passphrase-fork':
+            return {
+                primary: {
+                    label: 'Your passphrase',
+                    placeholder: 'anything memorable, this is a practice run',
+                    maxLength: 100,
                     mono: true,
                 },
             }
