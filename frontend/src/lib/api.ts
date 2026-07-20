@@ -29,12 +29,6 @@ import {
     setSessionId,
 } from './auth'
 import type { Badge, Participant, Session } from './types'
-import {
-    getJourneyPreferences,
-    getSavedJourneyId,
-    type JourneyId,
-    type JourneyPreferences,
-} from './journeys'
 
 const BASE = '/api'
 
@@ -121,31 +115,6 @@ interface RedeemPairingWire {
 export interface SessionResponse {
     session: Session
     participant_count: number
-    journey_id: JourneyId | null
-    guidance: JourneyPreferences['guidance'] | null
-    session_minutes: number | null
-    practice_mode: JourneyPreferences['practiceMode'] | null
-}
-
-export interface SessionAnalytics {
-    participants: number
-    outcome_ready: number
-    used_outside: number
-    not_yet_used_outside: number
-    average_seconds_to_first_action: number | null
-    median_seconds_to_first_action: number | null
-    median_seconds_to_outcome: number | null
-    funnel: Array<{
-        mission: number
-        title: string
-        reached: number
-        completed: number
-        completion_percent: number
-    }>
-    blockers: Array<{
-        reason: NonNullable<Participant['blocker_reason']>
-        count: number
-    }>
 }
 
 export interface InvoiceResponse {
@@ -328,16 +297,9 @@ export const api = {
         request<BadgeCertificate>(`/certificates/${id}`),
 
     createSession: async (name: string): Promise<Session> => {
-        const preferences = getJourneyPreferences()
         const wire = await request<CreateSessionWire>('/sessions', {
             method: 'POST',
-            body: {
-                name,
-                journey_id: getSavedJourneyId(),
-                guidance: preferences.guidance,
-                session_minutes: preferences.sessionMinutes,
-                practice_mode: preferences.practiceMode,
-            },
+            body: { name },
         })
         // Stash the facilitator token transparently. The UI gets back just
         // the Session, exactly as the UI session expected.
@@ -351,23 +313,10 @@ export const api = {
     listParticipants: (sessionId: string) =>
         request<Participant[]>(`/sessions/${sessionId}/participants`, { auth: 'facilitator' }),
 
-    getSessionAnalytics: (sessionId: string) =>
-        request<SessionAnalytics>(`/sessions/${sessionId}/analytics`, {
-            auth: 'facilitator',
-        }),
-
     joinSession: async (name: string, sessionId: string): Promise<Participant> => {
-        const preferences = getJourneyPreferences()
         const wire = await request<JoinSessionWire>('/participants', {
             method: 'POST',
-            body: {
-                name,
-                session_id: sessionId,
-                journey_id: getSavedJourneyId(),
-                guidance: preferences.guidance,
-                session_minutes: preferences.sessionMinutes,
-                practice_mode: preferences.practiceMode,
-            },
+            body: { name, session_id: sessionId },
         })
         setAuthToken(wire.auth_token)
         return wire.participant
@@ -376,35 +325,6 @@ export const api = {
     /** Authenticated self-fetch. */
     getParticipant: () =>
         request<Participant>('/participants/me', { auth: 'participant' }),
-
-    updateJourneyProfile: (
-        journeyId: JourneyId | null,
-        preferences: JourneyPreferences,
-    ) =>
-        request<Participant>('/participants/me/profile', {
-            method: 'PATCH',
-            auth: 'participant',
-            body: {
-                journey_id: journeyId,
-                guidance: preferences.guidance,
-                session_minutes: preferences.sessionMinutes,
-                practice_mode: preferences.practiceMode,
-            },
-        }),
-
-    updateOutcomeFeedback: (usedOutside: boolean) =>
-        request<Participant>('/participants/me/outcome-feedback', {
-            method: 'PATCH',
-            auth: 'participant',
-            body: { used_outside: usedOutside },
-        }),
-
-    updateBlocker: (reason: Participant['blocker_reason'], comment = '') =>
-        request<Participant>('/participants/me/blocker', {
-            method: 'PATCH',
-            auth: 'participant',
-            body: { reason, comment },
-        }),
 
     /**
      * Device A: mint a one-time code to continue on another device. Redeeming
@@ -520,11 +440,10 @@ export const api = {
 
 export async function fetchSessionProgress(
     sessionId: string,
-): Promise<{ session: Session; sessionProfile: SessionResponse; participants: Participant[]; analytics: SessionAnalytics }> {
-    const [sessionData, participants, analytics] = await Promise.all([
+): Promise<{ session: Session; participants: Participant[] }> {
+    const [sessionData, participants] = await Promise.all([
         api.getSession(sessionId),
         api.listParticipants(sessionId),
-        api.getSessionAnalytics(sessionId),
     ])
-    return { session: sessionData.session, sessionProfile: sessionData, participants, analytics }
+    return { session: sessionData.session, participants }
 }

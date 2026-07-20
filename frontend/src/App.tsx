@@ -45,14 +45,7 @@ import {
     setSessionId as persistSessionId,
 } from './lib/auth'
 import { RuntimeProvider } from './lib/runtime'
-import {
-    JOURNEYS,
-    getJourneyPreferences,
-    saveJourney,
-    saveJourneyPreferences,
-    type JourneyPreferences,
-    type JourneyId,
-} from './lib/journeys'
+import { GOALS, saveGoal, type Goal } from './lib/goals'
 import {
     card,
     ghostButton,
@@ -69,7 +62,7 @@ type View = 'learner' | 'facilitator'
 type Screen =
     | 'landing'
     | 'mode' // solo vs workshop, first onboarding step
-    | 'goal' // practical outcome picker, second onboarding step (solo only)
+    | 'goal' // curious / builder / privacy, second onboarding step (solo only)
     | 'setup'
     | 'session-not-found'
     | 'app'
@@ -389,7 +382,7 @@ export default function App() {
                         }}
                         onWorkshop={() => {
                             setView('facilitator')
-                            setScreen('goal')
+                            setScreen('setup')
                         }}
                     />
                 )}
@@ -398,9 +391,8 @@ export default function App() {
                         theme={theme}
                         onToggleTheme={toggleTheme}
                         onBack={() => setScreen('mode')}
-                        facilitator={view === 'facilitator'}
-                        onPick={(journey) => {
-                            saveJourney(journey)
+                        onPick={(g) => {
+                            saveGoal(g)
                             setScreen('setup')
                         }}
                     />
@@ -413,7 +405,9 @@ export default function App() {
                             setScreen(
                                 joinSessionId
                                     ? 'landing'
-                                    : 'goal',
+                                    : view === 'learner'
+                                      ? 'goal'
+                                      : 'mode',
                             )
                         }
                         participantName={participantName}
@@ -753,17 +747,17 @@ function ChooseMode({
                             margin: 0,
                         }}
                     >
-                        How will you use BitPilot?
+                        How do you want to learn?
                     </h1>
                 </div>
                 <p style={{ fontSize: 13.5, color: 'var(--muted)', lineHeight: 1.55, margin: 0 }}>
-                    Solve a task by yourself or guide a group through one together.
+                    Both are free and cover the same missions. You can switch later.
                 </p>
             </header>
             <StepOption
                 icon="🧑‍🚀"
-                title="Complete a task myself"
-                body="Choose a practical outcome. Progress saves in this browser, and you can change tasks later."
+                title="Learn solo"
+                body="Go at your own pace. Progress saves in this browser, and every badge is earnable on your own."
                 onClick={onSolo}
             />
             <StepOption
@@ -780,26 +774,22 @@ function ChooseMode({
     )
 }
 
-/** Onboarding step 2 (solo only): choose a useful outcome, or explore. */
+/** Onboarding step 2 (solo only): pick a learning goal, or skip. */
 function ChooseGoal({
     theme,
     onToggleTheme,
     onBack,
     onPick,
-    facilitator = false,
 }: {
     theme: Theme
     onToggleTheme: () => void
     onBack: () => void
-    onPick: (journey: JourneyId | null) => void
-    facilitator?: boolean
+    onPick: (goal: Goal | null) => void
 }) {
-    const [preferences, setPreferences] = useState<JourneyPreferences>(
-        () => getJourneyPreferences(),
-    )
-    const updatePreferences = (next: JourneyPreferences) => {
-        setPreferences(next)
-        saveJourneyPreferences(next)
+    const icons: Record<Goal, string> = {
+        curious: '🌱',
+        builder: '🔧',
+        privacy: '🕵️',
     }
     return (
         <StepShell theme={theme} onToggleTheme={onToggleTheme} onBack={onBack}>
@@ -814,63 +804,21 @@ function ChooseGoal({
                             margin: 0,
                         }}
                     >
-                        {facilitator
-                            ? 'What should this workshop help people do?'
-                            : 'What do you need Bitcoin to help you do?'}
+                        What brings you here?
                     </h1>
                 </div>
                 <p style={{ fontSize: 13.5, color: 'var(--muted)', lineHeight: 1.55, margin: 0 }}>
-                    {facilitator
-                        ? 'Everyone who joins will get this same practical route. Choose the pace and practice mode below.'
-                        : 'Choose one useful result. We will explain each Bitcoin idea when you need it.'}
+                    This orders your flight paths so the next best step is always
+                    on top. Nothing gets locked, and you can change it any time.
                 </p>
             </header>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <PreferenceButtons
-                    label="Guidance"
-                    value={preferences.guidance}
-                    options={[
-                        ['guided', 'Guide me step by step'],
-                        ['self-directed', 'Give me a checklist'],
-                    ]}
-                    onChange={(guidance) =>
-                        updatePreferences({ ...preferences, guidance })
-                    }
-                />
-                <PreferenceButtons
-                    label="Time available now"
-                    value={String(preferences.sessionMinutes)}
-                    options={[
-                        ['15', '15 min'],
-                        ['30', '30 min'],
-                        ['60', '60 min'],
-                    ]}
-                    onChange={(minutes) =>
-                        updatePreferences({
-                            ...preferences,
-                            sessionMinutes: Number(minutes),
-                        })
-                    }
-                />
-                <PreferenceButtons
-                    label="Practice environment"
-                    value={preferences.practiceMode}
-                    options={[
-                        ['simulation', 'Simulation'],
-                        ['test-network', 'Test network'],
-                    ]}
-                    onChange={(practiceMode) =>
-                        updatePreferences({ ...preferences, practiceMode })
-                    }
-                />
-            </div>
-            {JOURNEYS.map((journey) => (
+            {(Object.keys(GOALS) as Goal[]).map((g) => (
                 <StepOption
-                    key={journey.id}
-                    icon={journey.icon}
-                    title={journey.title}
-                    body={`${journey.audience} · about ${journey.minutes} min. ${journey.promise}`}
-                    onClick={() => onPick(journey.id)}
+                    key={g}
+                    icon={icons[g]}
+                    title={GOALS[g].label}
+                    body={GOALS[g].blurb}
+                    onClick={() => onPick(g)}
                 />
             ))}
             <button
@@ -884,56 +832,9 @@ function ChooseGoal({
                     justifyContent: 'center',
                 }}
             >
-                {facilitator ? 'Run an unrestricted workshop' : 'Explore the complete mission library'}
+                Just exploring, show me everything
             </button>
         </StepShell>
-    )
-}
-
-function PreferenceButtons<T extends string>({
-    label,
-    value,
-    options,
-    onChange,
-}: {
-    label: string
-    value: T
-    options: [T, string][]
-    onChange: (value: T) => void
-}) {
-    return (
-        <div>
-            <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 6 }}>{label}</div>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                {options.map(([option, text]) => {
-                    const active = value === option
-                    return (
-                        <button
-                            key={option}
-                            type="button"
-                            aria-pressed={active}
-                            onClick={() => onChange(option)}
-                            style={{
-                                padding: '7px 10px',
-                                borderRadius: 'var(--radius-pill)',
-                                border: active
-                                    ? '1px solid var(--bitcoin)'
-                                    : '1px solid var(--border)',
-                                background: active
-                                    ? 'rgba(255, 87, 34, 0.1)'
-                                    : 'transparent',
-                                color: active ? 'var(--bitcoin)' : 'var(--text-soft)',
-                                fontFamily: 'var(--font-sans)',
-                                fontSize: 11.5,
-                                cursor: 'pointer',
-                            }}
-                        >
-                            {text}
-                        </button>
-                    )
-                })}
-            </div>
-        </div>
     )
 }
 

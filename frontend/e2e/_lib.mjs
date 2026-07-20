@@ -169,7 +169,7 @@ export async function openApp(browser, creds, identity = {}) {
 
 /** From the learner view, open a tree's current mission by label. */
 export async function enterTree(page, treeLabel) {
-    const back = page.getByRole('button', { name: /Back to flight paths|← Flight paths|← My task/i })
+    const back = page.getByRole('button', { name: /^Flight paths|← Flight paths/i })
     if (await back.count()) {
         await back.first().click({ force: true })
         await sleep(400)
@@ -177,12 +177,7 @@ export async function enterTree(page, treeLabel) {
     // Scope to the picker section: the badge strip above it renders its own
     // buttons named after the same trees, and it pops in asynchronously once
     // badges load, so an unscoped `.first()` match is a race on slow runners.
-    const picker = page.locator('[aria-label="Choose a practical Bitcoin outcome"]')
-    const explore = picker.getByRole('button', { name: /Explore the complete mission library/i })
-    if (await explore.count()) {
-        await explore.first().click({ force: true })
-        await sleep(250)
-    }
+    const picker = page.locator('[aria-label="Pick a flight path to learn"]')
     const card = picker.getByRole('button', { name: new RegExp(treeLabel, 'i') })
     // Click, then confirm we actually left the picker (the mission nav's
     // back button appears). Retry a few times to ride out hydration races.
@@ -216,12 +211,8 @@ export async function passLearnAndQuiz(page, correct, report) {
     await sleep(400)
     const escaped = correct.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
     const opt = page.getByRole('radio', { name: new RegExp(escaped, 'i') })
-    for (let i = 0; i < 12 && !(await opt.count()); i++) await sleep(250)
     if (await opt.count()) await opt.first().click({ force: true })
-    else {
-        const question = await page.locator('[role="radiogroup"]').textContent().catch(() => '')
-        report.bad(`correct quiz option not found${question ? ` (quiz: ${question.slice(0, 100)})` : ''}`)
-    }
+    else report.bad('correct quiz option not found')
     const submit = page.getByRole('button', { name: /submit answer/i })
     if (await submit.count()) await submit.first().click({ force: true })
     await sleep(1400)

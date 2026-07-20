@@ -4,8 +4,7 @@ import { isSoloSessionName } from '../App'
 import { BrandMark } from '../components/BrandMark'
 import { QRSessionCard } from '../components/QRJoinFlow'
 import { MISSION_COUNT, TREES, treeFor, type Participant } from '../lib/types'
-import { fetchSessionProgress, type SessionAnalytics } from '../lib/api'
-import { journeyById, journeyProgress } from '../lib/journeys'
+import { fetchSessionProgress } from '../lib/api'
 import { card, chip, ghostButton, treeColor } from '../lib/ui'
 
 /**
@@ -14,12 +13,7 @@ import { card, chip, ghostButton, treeColor } from '../lib/ui'
  * timestamp, so the signal is accurate and survives a dashboard reload.
  */
 const STUCK_MS = 4 * 60 * 1000
-const isFinished = (p: Participant) => {
-    const journey = journeyById(p.journey_id)
-    return journey
-        ? journeyProgress(journey, p.completed_missions).complete
-        : p.completed_missions.length === MISSION_COUNT
-}
+const isFinished = (p: Participant) => p.completed_missions.length === MISSION_COUNT
 
 /**
  * Facilitator dashboard. Polls /api/sessions/:id every 3s, shows a per-tree
@@ -50,8 +44,6 @@ export default function FacilitatorDashboard({ sessionId }: { sessionId: string 
 
     const session = progress?.session
     const participants: Participant[] = progress?.participants ?? []
-    const analytics = progress?.analytics
-    const workshopJourney = journeyById(progress?.sessionProfile.journey_id ?? null)
 
     // How long a learner has been idle: server-recorded last activity (join or
     // a mission completion) to now. Finished learners never count. `last_active`
@@ -62,15 +54,13 @@ export default function FacilitatorDashboard({ sessionId }: { sessionId: string 
         if (isFinished(p)) return 0
         return Date.now() - p.last_active * 1000
     }
-    const needsHand = participants.filter(
-        (p) => p.blocker_reason !== null || stuckMsFor(p) >= STUCK_MS,
-    ).length
+    const needsHand = participants.filter((p) => stuckMsFor(p) >= STUCK_MS).length
 
     // Surface the people who need attention: stuck longest first, then whoever
     // has the least progress, with finished learners settling to the bottom.
     const ranked = [...participants].sort((a, b) => {
-        const sa = a.blocker_reason !== null || stuckMsFor(a) >= STUCK_MS,
-            sb = b.blocker_reason !== null || stuckMsFor(b) >= STUCK_MS
+        const sa = stuckMsFor(a) >= STUCK_MS,
+            sb = stuckMsFor(b) >= STUCK_MS
         const ta = isFinished(a) ? 2 : sa ? 0 : 1
         const tb = isFinished(b) ? 2 : sb ? 0 : 1
         if (ta !== tb) return ta - tb
@@ -84,19 +74,13 @@ export default function FacilitatorDashboard({ sessionId }: { sessionId: string 
     // than leaking the raw "__solo__" string into the header or QR card.
     const isSolo = isSoloSessionName(session?.name)
     const displayName = isSolo ? 'Solo run' : session?.name
-    const completed = participants.filter(isFinished).length
+    const completed = participants.filter((p) => p.completed_missions.length === MISSION_COUNT).length
     const avgProgress =
         participants.length > 0
             ? Math.round(
-                  participants.reduce((sum, participant) => {
-                      const journey = journeyById(participant.journey_id)
-                      return (
-                          sum +
-                          (journey
-                              ? journeyProgress(journey, participant.completed_missions).percent
-                              : (participant.completed_missions.length / MISSION_COUNT) * 100)
-                      )
-                  }, 0) / participants.length,
+                  (participants.reduce((s, p) => s + p.completed_missions.length, 0) /
+                      (participants.length * MISSION_COUNT)) *
+                      100,
               )
             : 0
 
@@ -192,21 +176,6 @@ export default function FacilitatorDashboard({ sessionId }: { sessionId: string 
                 </div>
             )}
 
-            {workshopJourney && (
-                <section style={{ ...card, padding: 14 }} aria-label="Workshop outcome">
-                    <div style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                        Workshop outcome
-                    </div>
-                    <strong style={{ display: 'block', marginTop: 4 }}>{workshopJourney.title}</strong>
-                    <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--muted)', lineHeight: 1.5 }}>
-                        This session’s QR and join link automatically assign the journey.
-                        {' '}{progress?.sessionProfile.guidance === 'self-directed' ? 'Checklist' : 'Guided'}
-                        {' · '}{progress?.sessionProfile.session_minutes ?? 30} min
-                        {' · '}{progress?.sessionProfile.practice_mode === 'test-network' ? 'Test network' : 'Simulation'}
-                    </p>
-                </section>
-            )}
-
             {/* Stats */}
             <section
                 aria-label="Session statistics"
@@ -217,42 +186,10 @@ export default function FacilitatorDashboard({ sessionId }: { sessionId: string 
                 }}
             >
                 <Stat label="Participants" value={participants.length} />
-                <Stat label="Outcomes ready" value={completed} accent />
-                <Stat label="Avg. outcome" value={`${avgProgress}%`} />
+                <Stat label="Finished" value={completed} accent />
+                <Stat label="Avg. progress" value={`${avgProgress}%`} />
                 <Stat label="Needs a hand" value={needsHand} alert={needsHand > 0} />
             </section>
-
-            {analytics && (
-                <section aria-label="Pilot outcome analytics" style={{ ...card, padding: 14 }}>
-                    <h2 style={{ margin: '0 0 10px', fontSize: 13 }}>Practical outcome signals</h2>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>
-                        <SmallSignal label="Outcome ready" value={`${analytics.outcome_ready}/${analytics.participants}`} />
-                        <SmallSignal
-                            label="Typical first action"
-                            value={
-                                analytics.median_seconds_to_first_action === null
-                                    ? 'Waiting'
-                                    : formatDuration(analytics.median_seconds_to_first_action)
-                            }
-                        />
-                        <SmallSignal
-                            label="Typical completion"
-                            value={
-                                analytics.median_seconds_to_outcome === null
-                                    ? 'Waiting'
-                                    : formatDuration(analytics.median_seconds_to_outcome)
-                            }
-                        />
-                        <SmallSignal label="Used outside BitPilot" value={analytics.used_outside} />
-                        <SmallSignal label="Not yet used outside" value={analytics.not_yet_used_outside} />
-                    </div>
-                    <p style={{ margin: '10px 0 0', fontSize: 11, color: 'var(--muted)', lineHeight: 1.5 }}>
-                        Aggregate workshop signals only. Individual feedback answers are not displayed.
-                    </p>
-                </section>
-            )}
-
-            {analytics && analytics.funnel.length > 0 && <PilotReport analytics={analytics} />}
 
             {/* Tree legend */}
             <section
@@ -355,106 +292,6 @@ export default function FacilitatorDashboard({ sessionId }: { sessionId: string 
             )}
         </main>
     )
-}
-
-function formatDuration(seconds: number): string {
-    if (seconds < 60) return '< 1 min'
-    const minutes = Math.round(seconds / 60)
-    if (minutes < 60) return `${minutes} min`
-    const hours = Math.floor(minutes / 60)
-    const remainder = minutes % 60
-    return remainder === 0 ? `${hours} hr` : `${hours} hr ${remainder} min`
-}
-
-function PilotReport({ analytics }: { analytics: SessionAnalytics }) {
-    const biggestDrop = analytics.funnel.reduce<(typeof analytics.funnel)[number] | null>(
-        (lowest, step) =>
-            step.reached > 0 && (lowest === null || step.completion_percent < lowest.completion_percent)
-                ? step
-                : lowest,
-        null,
-    )
-    const maxBlockers = Math.max(1, ...analytics.blockers.map((item) => item.count))
-
-    return (
-        <section aria-label="Facilitator pilot report" style={{ ...card, padding: 14 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-                <div>
-                    <h2 style={{ margin: 0, fontSize: 14 }}>Pilot report</h2>
-                    <p style={{ margin: '4px 0 0', color: 'var(--muted)', fontSize: 11, lineHeight: 1.5 }}>
-                        Group-level results for improving the next Nigerian workshop.
-                    </p>
-                </div>
-                {biggestDrop && biggestDrop.completion_percent < 100 && (
-                    <span style={{ ...chip('orange'), alignSelf: 'flex-start' }}>
-                        Review M{biggestDrop.mission}: {biggestDrop.title}
-                    </span>
-                )}
-            </div>
-
-            <h3 style={{ margin: '16px 0 8px', fontSize: 12 }}>Journey funnel</h3>
-            <div style={{ display: 'grid', gap: 8 }}>
-                {analytics.funnel.map((step, index) => (
-                    <div
-                        key={step.mission}
-                        style={{ display: 'grid', gridTemplateColumns: 'minmax(130px, 1.5fr) minmax(90px, 2fr) auto', gap: 10, alignItems: 'center' }}
-                    >
-                        <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 11 }}>
-                            {index + 1}. {step.title}
-                        </span>
-                        <div style={{ height: 7, overflow: 'hidden', borderRadius: 'var(--radius-pill)', background: 'var(--border)' }}>
-                            <div
-                                style={{ height: '100%', width: `${step.completion_percent}%`, background: 'var(--gradient-bitcoin)', borderRadius: 'inherit' }}
-                            />
-                        </div>
-                        <span style={{ minWidth: 58, textAlign: 'right', color: 'var(--muted)', fontFamily: 'var(--font-mono)', fontSize: 10 }}>
-                            {step.completed}/{step.reached} · {step.completion_percent}%
-                        </span>
-                    </div>
-                ))}
-            </div>
-
-            <h3 style={{ margin: '18px 0 8px', fontSize: 12 }}>What is blocking learners?</h3>
-            {analytics.blockers.length === 0 ? (
-                <p style={{ margin: 0, color: 'var(--muted)', fontSize: 11 }}>No blockers reported yet.</p>
-            ) : (
-                <div style={{ display: 'grid', gap: 8 }}>
-                    {analytics.blockers.map((item) => (
-                        <div key={item.reason} style={{ display: 'grid', gridTemplateColumns: 'minmax(150px, 1fr) minmax(80px, 2fr) auto', gap: 10, alignItems: 'center' }}>
-                            <span style={{ fontSize: 11 }}>{blockerLabel(item.reason)}</span>
-                            <div style={{ height: 7, overflow: 'hidden', borderRadius: 'var(--radius-pill)', background: 'var(--border)' }}>
-                                <div style={{ height: '100%', width: `${(item.count / maxBlockers) * 100}%`, background: '#FF8A4C', borderRadius: 'inherit' }} />
-                            </div>
-                            <strong style={{ minWidth: 18, textAlign: 'right', fontSize: 11 }}>{item.count}</strong>
-                        </div>
-                    ))}
-                </div>
-            )}
-            <p style={{ margin: '12px 0 0', fontSize: 10, color: 'var(--muted)', lineHeight: 1.5 }}>
-                Only combined counts are shown here. Learners’ feedback remains private.
-            </p>
-        </section>
-    )
-}
-
-function SmallSignal({ label, value }: { label: string; value: string | number }) {
-    return (
-        <div style={{ padding: 10, border: '1px solid var(--border)', borderRadius: 'var(--radius-2)' }}>
-            <div style={{ fontSize: 18, fontWeight: 800 }}>{value}</div>
-            <div style={{ marginTop: 3, fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</div>
-        </div>
-    )
-}
-
-function blockerLabel(reason: NonNullable<Participant['blocker_reason']>): string {
-    return {
-        explanation: 'the explanation is unclear',
-        wallet: 'wallet problem',
-        network: 'poor internet or network',
-        recipient: 'recipient is not ready',
-        payment: 'payment problem',
-        other: 'another problem',
-    }[reason]
 }
 
 function Stat({
@@ -717,15 +554,11 @@ function Leaderboard({ participants }: { participants: Participant[] }) {
 }
 
 function ParticipantRow({ participant, stuckMs }: { participant: Participant; stuckMs: number }) {
-    const journey = journeyById(participant.journey_id)
-    const outcomeProgress = journey
-        ? journeyProgress(journey, participant.completed_missions)
-        : null
-    const doneCount = outcomeProgress?.done ?? participant.completed_missions.length
-    const pct = outcomeProgress?.percent ?? Math.round((doneCount / MISSION_COUNT) * 100)
+    const doneCount = participant.completed_missions.length
+    const pct = Math.round((doneCount / MISSION_COUNT) * 100)
     const isDone = pct === 100
     const currentTree = treeFor(participant.current_mission)
-    const stuck = participant.blocker_reason !== null || stuckMs >= STUCK_MS
+    const stuck = stuckMs >= STUCK_MS
     const stuckMins = Math.floor(stuckMs / 60000)
     return (
         <div
@@ -786,31 +619,6 @@ function ParticipantRow({ participant, stuckMs }: { participant: Participant; st
                         #{participant.current_mission} · {currentTree.label}
                     </span>
                 </div>
-                {journey && (
-                    <div style={{ fontSize: 11.5, color: 'var(--text-soft)', lineHeight: 1.4 }}>
-                        <strong>{journey.title}</strong>
-                        {' · '}
-                        {outcomeProgress?.complete
-                            ? '✓ capability ready'
-                            : `${outcomeProgress?.done}/${outcomeProgress?.total} practical steps`}
-                        <div style={{ marginTop: 3, color: 'var(--muted)', fontSize: 10.5 }}>
-                            {participant.guidance === 'self-directed' ? 'Checklist' : 'Guided'}
-                            {' · '}{participant.session_minutes} min
-                            {' · '}{participant.practice_mode === 'test-network' ? 'Test network' : 'Simulation'}
-                        </div>
-                    </div>
-                )}
-                {participant.blocker_reason && (
-                    <div style={{ padding: 9, borderRadius: 'var(--radius-2)', background: 'rgba(255,87,34,0.09)', border: '1px solid rgba(255,87,34,0.3)', fontSize: 11.5, lineHeight: 1.45 }}>
-                        <strong>Needs help:</strong>{' '}
-                        {blockerLabel(participant.blocker_reason)}
-                        {participant.blocker_comment && (
-                            <div style={{ marginTop: 3, color: 'var(--text-soft)' }}>
-                                “{participant.blocker_comment}”
-                            </div>
-                        )}
-                    </div>
-                )}
                 {/* 8-bar tree strip */}
                 <div
                     style={{

@@ -9,9 +9,8 @@ import { seedParticipant, launch, openApp, enterTree, passLearnAndQuiz, sleep, m
 
 const report = makeReporter('badge-share')
 
-// Money Basics tree ends with the practical remittance checks; seed all but
-// the final repeat-without-prompts mission.
-const creds = await seedParticipant([0, 1, 77, 78, 2, 5, 9, 10, 106, 108])
+// Money Basics tree = [0,1,77,78,2,5,9,10]; seed all but the final mission.
+const creds = await seedParticipant([0, 1, 77, 78, 2, 5, 9])
 const browser = await launch()
 try {
     const page = await openApp(browser, creds, {
@@ -19,11 +18,11 @@ try {
         npub: 'npub1' + 'q'.repeat(50),
     })
     await enterTree(page, 'Money Basics')
-    await passLearnAndQuiz(page, 'Repeating a safe transfer using the checklist without lesson prompts', report)
+    await passLearnAndQuiz(page, 'only a company can reset your access', report)
 
     // Knowledge Do step: acknowledge, then the Next/Finish button fires the
     // tree-completion celebration.
-    const got = page.getByRole('button', { name: /I can repeat this safely/i })
+    const got = page.getByRole('button', { name: /You got it/i })
     if (await got.count()) await got.first().click({ force: true })
     await sleep(1200)
     const finish = page.getByRole('button', { name: /Finish Money Basics|Next:/i })

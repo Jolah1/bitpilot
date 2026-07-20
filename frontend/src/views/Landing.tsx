@@ -7,8 +7,6 @@ import { useRuntime } from '../lib/runtime'
 import { api, type ChallengeInfo } from '../lib/api'
 import { TREES } from '../lib/types'
 import { card, chip, ghostButton, primaryButton } from '../lib/ui'
-import { useLanguage } from '../lib/language'
-import { LanguageSwitch } from '../components/LanguageSwitch'
 
 // ─── Landing ─────────────────────────────────────────────────────────────────
 //
@@ -59,7 +57,6 @@ export default function Landing({
     /** Token entry for a returning facilitator (dashboard on any device). */
     onFacilitatorAccess: () => void
 }) {
-    const { t } = useLanguage()
     return (
         <div
             style={{
@@ -113,7 +110,6 @@ function Hero({
     onFacilitator: () => void
     onPair: () => void
 }) {
-    const { t } = useLanguage()
     return (
         <section
             aria-labelledby="hero-headline"
@@ -155,7 +151,7 @@ function Hero({
                         display: 'inline-block',
                     }}
                 />
-                {t('free')}
+                100% free · no signup · nothing to buy
             </span>
 
             <h1
@@ -169,9 +165,9 @@ function Hero({
                     position: 'relative',
                 }}
             >
-                {t('heroLine1')}
+                Learn Bitcoin
                 <br />
-                <span className="gradient-text">{t('heroLine2')}</span>
+                by <span className="gradient-text">actually using it.</span>
             </h1>
 
             {/* Two short sentences. First names the failure mode; second
@@ -188,7 +184,10 @@ function Hero({
                     position: 'relative',
                 }}
             >
-                {t('heroBody')}
+                Most people watch videos about Bitcoin and stay confused.
+                BitPilot teaches you by making you{' '}
+                <strong style={{ color: 'var(--text)' }}>actually do it</strong>:
+                wallets, Lightning, Nostr, the whole stack, in short, hands-on missions.
             </p>
 
             <div
@@ -211,7 +210,7 @@ function Hero({
                         }}
                         onClick={onContinue}
                     >
-                        {t('continueMissions')}
+                        ↻ Continue your missions
                     </button>
                 )}
                 <button
@@ -224,7 +223,7 @@ function Hero({
                     }}
                     onClick={onStart}
                 >
-                    {hasResumable ? t('differentTask') : t('chooseTask')}
+                    {hasResumable ? 'Start fresh' : '⚡ Start Learning Bitcoin'}
                 </button>
                 <button
                     style={{
@@ -235,7 +234,7 @@ function Hero({
                     }}
                     onClick={onFacilitator}
                 >
-                    {t('workshop')}
+                    🎓 Run a Workshop
                 </button>
                 <button
                     style={{
@@ -246,7 +245,7 @@ function Hero({
                     }}
                     onClick={onPair}
                 >
-                    {t('continueCode')}
+                    📲 Continue with a code
                 </button>
             </div>
 
@@ -259,7 +258,7 @@ function Hero({
                     position: 'relative',
                 }}
             >
-                {t('firstResult')}
+                About 45 minutes per flight path · works on your phone
             </p>
         </section>
     )
@@ -412,13 +411,13 @@ function HowItWorks() {
     const steps: Array<{ n: string; title: string; body: string }> = [
         {
             n: '1',
-            title: 'Choose',
-            body: 'Start with a result you need, not a list of Bitcoin topics.',
+            title: 'Learn',
+            body: 'A short lesson that explains one concept at a time. No filler.',
         },
         {
             n: '2',
-            title: 'Understand',
-            body: 'Get one short explanation exactly when the task needs it.',
+            title: 'Quiz',
+            body: 'A quick check to prove the idea actually landed.',
         },
         {
             n: '3',
@@ -427,8 +426,8 @@ function HowItWorks() {
         },
         {
             n: '4',
-            title: 'Use It',
-            body: 'Leave with a capability you can repeat outside BitPilot.',
+            title: 'Level Up',
+            body: 'Finish a flight path, earn the medallion, pick the next one.',
         },
     ]
     return (
@@ -440,7 +439,7 @@ function HowItWorks() {
                 padding: '0 clamp(1rem, 4vw, 1.5rem) clamp(2.5rem, 7vw, 4rem)',
             }}
         >
-            <SectionHeading id="how-headline" eyebrow="How it works" title="One useful outcome at a time." />
+            <SectionHeading id="how-headline" eyebrow="How it works" title="Four steps, every mission." />
             <ol
                 style={{
                     listStyle: 'none',
@@ -562,8 +561,8 @@ function YourJourney() {
         >
             <SectionHeading
                 id="journey-headline"
-                eyebrow="Explore further"
-                title="The complete Bitcoin library is still here."
+                eyebrow="Your journey"
+                title="Nine flight paths, take them in any order."
             />
 
             <div style={{ position: 'relative' }}>
@@ -619,7 +618,7 @@ function YourJourney() {
                     marginTop: 12,
                 }}
             >
-                Optional deep dives · available whenever you want more
+                Nine flight paths · short missions · pick any starting point
             </p>
         </section>
     )
@@ -1174,7 +1173,7 @@ function FinalCTA({
                     margin: '0 auto 22px',
                 }}
             >
-                Pick one practical task. You'll come out able to repeat it.
+                About 45 minutes. You'll come out the other side actually using it.
             </p>
             <div
                 style={{
@@ -1194,7 +1193,7 @@ function FinalCTA({
                     }}
                     onClick={hasResumable ? onContinue : onStart}
                 >
-                    {hasResumable ? '↻ Continue your task' : '⚡ Choose a practical task'}
+                    {hasResumable ? '↻ Continue your missions' : '⚡ Start Learning Bitcoin'}
                 </button>
             </div>
         </section>
@@ -1432,7 +1431,6 @@ function TopNav({
     onToggleTheme: () => void
     onCta: () => void
 }) {
-    const { t } = useLanguage()
     return (
         <nav
             aria-label="Primary"
@@ -1474,7 +1472,6 @@ function TopNav({
                 </span>
             </a>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <LanguageSwitch compact />
                 <ThemeToggle theme={theme} onToggle={onToggleTheme} />
                 <button
                     className="bp-press"
@@ -1486,7 +1483,7 @@ function TopNav({
                     }}
                     onClick={onCta}
                 >
-                    {t('start')}
+                    Start
                 </button>
             </div>
         </nav>

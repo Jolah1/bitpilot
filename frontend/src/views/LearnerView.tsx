@@ -10,22 +10,12 @@ import {
 } from 'react'
 import { api, ApiError } from '../lib/api'
 import { rich } from '../lib/rich'
-import {
-    JOURNEYS,
-    getJourneyPreferences,
-    getSavedJourney,
-    journeyProgress,
-    saveJourney,
-    syncJourneyProfile,
-    type Journey,
-} from '../lib/journeys'
+import { GOALS, getSavedGoal, saveGoal, type Goal } from '../lib/goals'
 import { useIsTechReal } from '../lib/runtime'
-import { localizeJourney, localizeMission, useLanguage } from '../lib/language'
 import {
     MISSION_COUNT,
     TREES,
     missionById,
-    treeFor,
     type Badge,
     type DoKind,
     type MissionDef,
@@ -91,23 +81,22 @@ interface DoOutcome {
 }
 
 /**
- * The learner experience. The home screen leads with a practical journey:
- * a short outcome assembled from the existing mission library. The complete
- * tree catalogue remains available as an explicit exploration mode.
+ * The learner experience. The home screen is a **tree picker**: 8 skill
+ * trees presented as peers, the learner picks one and flows linearly
+ * through it (Learn → Quiz → Do per mission). Trees advance independently
+ * server-side, finishing Money 101 doesn't gate Bitcoin or Lightning.
  *
  * Mobile-first: padding shrinks on small viewports, primary action button
  * stays visible (no fixed widths that overflow), ProgressRail is tree-based
  * so 60+ missions don't pile up into invisible slivers.
  */
 export default function LearnerView({ participantId }: { participantId: string }) {
-    const { language } = useLanguage()
     // `activeTreeKey === null` ⇒ tree picker is shown; otherwise we're
     // inside the linear flow of that tree. `treeIdx` is the position
     // within the *active tree's* ordered mission list (NOT a global
     // mission number). Decoupled from `mission.id` because a tree's
     // missions are non-contiguous numbers (e.g. Money = 0,1,2,5,9,10).
     const [activeTreeKey, setActiveTreeKey] = useState<Tree | null>(null)
-    const [activeJourney, setActiveJourney] = useState<Journey | null>(null)
     const [treeIdx, setTreeIdx] = useState(0)
     // Per-tree pointer from the server, `next incomplete mission id` per
     // tree (`null` once the tree is fully done). Used to gate the "Next"
@@ -133,7 +122,6 @@ export default function LearnerView({ participantId }: { participantId: string }
     const [loading, setLoading] = useState(false)
 
     const [completedMissions, setCompletedMissions] = useState<number[]>([])
-    const [hydratingProgress, setHydratingProgress] = useState(true)
     const [badges, setBadges] = useState<Badge[]>([])
     // Proof archive, keyed by mission. Lets a revisited mission show the
     // artifact it produced so the learner can copy an address or an npub
@@ -146,37 +134,20 @@ export default function LearnerView({ participantId }: { participantId: string }
     // Participant display name, used on the shareable badge image. We
     // capture it on hydrate so the share modal doesn't need to re-fetch.
     const [participantName, setParticipantName] = useState<string>('')
-    const [blockerReason, setBlockerReason] = useState<
-        import('../lib/types').Participant['blocker_reason']
-    >(null)
-    const [blockerComment, setBlockerComment] = useState('')
     // The badge currently displayed in the share/download modal, if any.
     const [sharingBadge, setSharingBadge] = useState<Badge | null>(null)
-    const [profileRevision, setProfileRevision] = useState(0)
 
     // Derived from `activeTreeKey + treeIdx`. When `activeTree` is null
     // we're on the tree picker; `mission` is undefined and the mission
     // card isn't rendered. When a tree is active, `mission` is its
     // `treeIdx`-th lesson (looked up by id in the catalogue).
-    const activeTree: TreeMeta | undefined = activeJourney
-        ? treeFor(activeJourney.missions[treeIdx])
-        : activeTreeKey
-          ? TREES.find((t) => t.key === activeTreeKey)
-          : undefined
-    const missionId: number | undefined = activeJourney
-        ? activeJourney.missions[treeIdx]
-        : activeTree?.missions[treeIdx]
-    const baseMission: MissionDef | undefined =
-        missionId !== undefined ? missionById(missionId) : undefined
-    const mission: MissionDef | undefined = baseMission
-        ? localizeMission(baseMission, language)
+    const activeTree: TreeMeta | undefined = activeTreeKey
+        ? TREES.find((t) => t.key === activeTreeKey)
         : undefined
-    const isLast =
-        !!activeTree &&
-        treeIdx ===
-            (activeJourney
-                ? activeJourney.missions.length - 1
-                : activeTree.missions.length - 1)
+    const missionId: number | undefined = activeTree?.missions[treeIdx]
+    const mission: MissionDef | undefined =
+        missionId !== undefined ? missionById(missionId) : undefined
+    const isLast = !!activeTree && treeIdx === activeTree.missions.length - 1
     // "All done" = every tree's pointer is null (the badge for it is
     // earned). Drives the final celebration screen.
     const allDone = TREES.every((t) => currentPerTree[t.key] === null)
@@ -186,16 +157,7 @@ export default function LearnerView({ participantId }: { participantId: string }
     // The tree-relative position of the next-incomplete mission in the
     // active tree. We gate the review-Next button on this so a learner
     // can't review-jump past their frontier.
-    const treeIdxFrontier: number = activeJourney
-        ? (() => {
-              const next = activeJourney.missions.find(
-                  (id) => !completedMissions.includes(id),
-              )
-              return next === undefined
-                  ? activeJourney.missions.length - 1
-                  : activeJourney.missions.indexOf(next)
-          })()
-        : activeTree
+    const treeIdxFrontier: number = activeTree
         ? (() => {
               const next = currentPerTree[activeTree.key]
               if (next === null) return activeTree.missions.length - 1
@@ -237,10 +199,6 @@ export default function LearnerView({ participantId }: { participantId: string }
                 setBadges(b)
                 setProofs(Object.fromEntries(done.map((c) => [c.mission, c.proof])))
                 setParticipantName(p.name ?? '')
-                setBlockerReason(p.blocker_reason ?? null)
-                setBlockerComment(p.blocker_comment ?? '')
-                syncJourneyProfile(p)
-                setProfileRevision((value) => value + 1)
                 if (p.current_per_tree) {
                     setCurrentPerTree(mergePerTreeMap(p.current_per_tree))
                 }
@@ -249,8 +207,6 @@ export default function LearnerView({ participantId }: { participantId: string }
                 // user lands on the tree picker with no progress. The Do
                 // action will fail loudly if the token is bad, which is
                 // the right place to surface it.
-            } finally {
-                if (!cancelled) setHydratingProgress(false)
             }
         })()
         return () => {
@@ -278,10 +234,7 @@ export default function LearnerView({ participantId }: { participantId: string }
         // Walk to the next mission *within the active tree*. If we just
         // finished the tree's last lesson, stay put, the DoPanel's
         // celebratory block shows and the learner can hit "Back to trees".
-        const flowLength = activeJourney
-            ? activeJourney.missions.length
-            : activeTree.missions.length
-        if (treeIdx < flowLength - 1) {
+        if (treeIdx < activeTree.missions.length - 1) {
             setTreeIdx(treeIdx + 1)
             resetForNext()
         }
@@ -295,11 +248,6 @@ export default function LearnerView({ participantId }: { participantId: string }
                 ) ?? null
             return { ...prev, [activeTree.key]: nextInTree }
         })
-        if (activeJourney && isLast) {
-            setActiveTreeKey(null)
-            setActiveJourney(null)
-            resetForNext()
-        }
         // Refresh badges and surface any newly-earned one.
         ;(async () => {
             try {
@@ -344,7 +292,6 @@ export default function LearnerView({ participantId }: { participantId: string }
      * land on the last mission so the learner can review.
      */
     const enterTree = (tree: TreeMeta) => {
-        setActiveJourney(null)
         const next = currentPerTree[tree.key]
         const idx =
             next === null
@@ -355,21 +302,8 @@ export default function LearnerView({ participantId }: { participantId: string }
         resetForNext()
     }
 
-    const enterJourney = (journey: Journey) => {
-        const tree = TREES.find((item) => item.key === journey.tree)
-        if (!tree) return
-        setActiveJourney(journey)
-        const next =
-            journey.missions.find((missionId) => !completedMissions.includes(missionId)) ??
-            journey.missions[journey.missions.length - 1]
-        setActiveTreeKey(tree.key)
-        setTreeIdx(Math.max(0, journey.missions.indexOf(next)))
-        resetForNext()
-    }
-
     const exitToTreePicker = () => {
         setActiveTreeKey(null)
-        setActiveJourney(null)
         resetForNext()
     }
 
@@ -821,10 +755,7 @@ export default function LearnerView({ participantId }: { participantId: string }
                     }
                     proof = doInput.trim()
                     outcome = {
-                        summary:
-                            mission.id === 106
-                                ? 'Comparison saved. You now know which quote leaves more spendable naira.'
-                                : 'Saved. This is your raw material for the final mission.',
+                        summary: 'Saved. This is your raw material for the final mission.',
                         simulated: false,
                     }
                     break
@@ -918,23 +849,6 @@ export default function LearnerView({ participantId }: { participantId: string }
 
     // ── Tree picker (home) ──
     if (!activeTree || !mission) {
-        if (hydratingProgress) {
-            return (
-                <main
-                    id="learner-main"
-                    aria-label="Loading your progress"
-                    style={{
-                        minHeight: '50vh',
-                        display: 'grid',
-                        placeItems: 'center',
-                        color: 'var(--muted)',
-                        fontSize: 14,
-                    }}
-                >
-                    Loading your saved progress…
-                </main>
-            )
-        }
         return (
             <main
                 id="learner-main"
@@ -943,7 +857,7 @@ export default function LearnerView({ participantId }: { participantId: string }
                     maxWidth: 960,
                     margin: '0 auto',
                 }}
-                aria-label="Your practical journey"
+                aria-label="Flight paths"
             >
                 {/* Badge medallions only once there's progress to show; a
                     fresh account seeing eight locked placeholders is pure
@@ -956,12 +870,10 @@ export default function LearnerView({ participantId }: { participantId: string }
                     />
                 )}
                 {modals}
-                <JourneyPicker
-                    key={profileRevision}
+                <TreePicker
                     completedMissions={completedMissions}
                     currentPerTree={currentPerTree}
                     onEnter={enterTree}
-                    onEnterJourney={enterJourney}
                 />
             </main>
         )
@@ -984,22 +896,12 @@ export default function LearnerView({ participantId }: { participantId: string }
 
             <MissionNav
                 tree={activeTree}
-                journey={activeJourney}
                 treeIdx={treeIdx}
                 treeIdxFrontier={treeIdxFrontier}
                 completed={completedMissions}
                 onPrev={goPrev}
                 onNext={goNextReview}
                 onExit={exitToTreePicker}
-            />
-
-            <HelpSignal
-                reason={blockerReason}
-                comment={blockerComment}
-                onSaved={(participant) => {
-                    setBlockerReason(participant.blocker_reason)
-                    setBlockerComment(participant.blocker_comment ?? '')
-                }}
             />
 
             <article style={{ ...card, overflow: 'hidden', marginTop: 14 }}>
@@ -1070,141 +972,14 @@ export default function LearnerView({ participantId }: { participantId: string }
                             nextMissionName={
                                 isLast
                                     ? null
-                                    : missionById(
-                                          activeJourney
-                                              ? activeJourney.missions[treeIdx + 1]
-                                              : activeTree.missions[treeIdx + 1],
-                                      )?.name ?? null
+                                    : missionById(activeTree.missions[treeIdx + 1])?.name ?? null
                             }
-                            treeLabel={activeJourney?.title ?? activeTree.label}
+                            treeLabel={activeTree.label}
                         />
                     )}
                 </div>
             </article>
         </main>
-    )
-}
-
-function HelpSignal({
-    reason,
-    comment,
-    onSaved,
-}: {
-    reason: import('../lib/types').Participant['blocker_reason']
-    comment: string
-    onSaved: (participant: import('../lib/types').Participant) => void
-}) {
-    const { language, t } = useLanguage()
-    const [open, setOpen] = useState(false)
-    const [selected, setSelected] = useState(reason)
-    const [note, setNote] = useState(comment)
-    const [saving, setSaving] = useState(false)
-    const reasons = language === 'pcm' ? [
-        ['explanation', 'I no understand the explanation'],
-        ['wallet', 'My wallet get problem'],
-        ['network', 'My internet or network poor'],
-        ['recipient', 'The receiver never ready'],
-        ['payment', 'The payment no dey work'],
-        ['other', 'Another thing'],
-    ] as const : [
-        ['explanation', 'I do not understand the explanation'],
-        ['wallet', 'My wallet is the problem'],
-        ['network', 'My internet or network is poor'],
-        ['recipient', 'The person receiving is not ready'],
-        ['payment', 'The payment is not working'],
-        ['other', 'Something else'],
-    ] as const
-
-    const save = async (nextReason = selected) => {
-        setSaving(true)
-        try {
-            const participant = await api.updateBlocker(nextReason, note.trim())
-            onSaved(participant)
-            setOpen(false)
-        } finally {
-            setSaving(false)
-        }
-    }
-
-    if (!open) {
-        return (
-            <button
-                type="button"
-                onClick={() => setOpen(true)}
-                style={{
-                    ...ghostButton,
-                    marginTop: 10,
-                    width: '100%',
-                    minHeight: 42,
-                    borderColor: reason ? 'var(--bitcoin)' : undefined,
-                    color: reason ? 'var(--bitcoin)' : undefined,
-                }}
-            >
-                {reason ? t('helpSent') : t('stuck')}
-            </button>
-        )
-    }
-
-    return (
-        <section style={{ ...card, padding: 14, marginTop: 10 }} aria-label="Ask the facilitator for help">
-            <strong style={{ fontSize: 14 }}>{t('stopping')}</strong>
-            <p style={{ margin: '4px 0 10px', fontSize: 12, color: 'var(--muted)' }}>
-                {t('facilitatorSees')}
-            </p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-                {reasons.map(([value, label]) => (
-                    <button
-                        type="button"
-                        key={value}
-                        aria-pressed={selected === value}
-                        onClick={() => setSelected(value)}
-                        style={{
-                            textAlign: 'left',
-                            padding: '9px 11px',
-                            borderRadius: 'var(--radius-2)',
-                            border: selected === value ? '1px solid var(--bitcoin)' : '1px solid var(--border)',
-                            background: selected === value ? 'rgba(255,87,34,0.08)' : 'transparent',
-                            color: 'var(--text)',
-                            cursor: 'pointer',
-                        }}
-                    >
-                        {label}
-                    </button>
-                ))}
-                <textarea
-                    value={note}
-                    onChange={(event) => setNote(event.target.value)}
-                    maxLength={240}
-                    rows={2}
-                    placeholder={t('optionalNote')}
-                    style={{ ...input, resize: 'vertical' }}
-                />
-                <div style={{ display: 'flex', gap: 8 }}>
-                    <button
-                        type="button"
-                        disabled={!selected || saving}
-                        onClick={() => void save()}
-                        style={{ ...primaryButton(!selected || saving), flex: 1 }}
-                    >
-                        {saving ? t('sending') : t('sendHelp')}
-                    </button>
-                    {reason && (
-                        <button
-                            type="button"
-                            disabled={saving}
-                            onClick={() => {
-                                setSelected(null)
-                                setNote('')
-                                void save(null)
-                            }}
-                            style={ghostButton}
-                        >
-                            {t('okayNow')}
-                        </button>
-                    )}
-                </div>
-            </div>
-        </section>
     )
 }
 
@@ -1258,7 +1033,6 @@ function mergePerTreeMap(
  */
 function MissionNav({
     tree,
-    journey,
     treeIdx,
     treeIdxFrontier,
     completed,
@@ -1267,7 +1041,6 @@ function MissionNav({
     onExit,
 }: {
     tree: TreeMeta
-    journey: Journey | null
     treeIdx: number
     treeIdxFrontier: number
     completed: number[]
@@ -1275,13 +1048,10 @@ function MissionNav({
     onNext: () => void
     onExit: () => void
 }) {
-    const { language, t } = useLanguage()
     const canPrev = treeIdx > 0
     const canNext = treeIdx < treeIdxFrontier
-    const missions = journey?.missions ?? tree.missions
-    const total = missions.length
-    const doneInTree = missions.filter((m) => completed.includes(m)).length
-    const label = journey ? localizeJourney(journey, language).title : tree.label
+    const total = tree.missions.length
+    const doneInTree = tree.missions.filter((m) => completed.includes(m)).length
     return (
         <nav
             aria-label="Mission navigation"
@@ -1301,7 +1071,7 @@ function MissionNav({
                     aria-label="Back to flight paths"
                     style={navButtonStyle(true)}
                 >
-                    ← {journey ? t('myTask') : t('flightPaths')}
+                    ← Flight paths
                 </button>
                 <span
                     style={{
@@ -1319,10 +1089,10 @@ function MissionNav({
                     title={
                         treeIdx < treeIdxFrontier
                             ? `Reviewing, current is mission ${treeIdxFrontier + 1} of ${total}`
-                            : `Mission ${treeIdx + 1} of ${total} in ${label}`
+                            : `Mission ${treeIdx + 1} of ${total} in ${tree.label}`
                     }
                 >
-                    {label} · {treeIdx + 1}/{total}
+                    {tree.label} · {treeIdx + 1}/{total}
                 </span>
                 <div style={{ display: 'flex', gap: 8 }}>
                     <button
@@ -1355,8 +1125,8 @@ function MissionNav({
                 aria-valuemin={0}
                 aria-valuemax={total}
                 aria-valuenow={doneInTree}
-                aria-label={`${label}: ${doneInTree} of ${total} missions complete`}
-                title={`${label}: ${doneInTree}/${total}`}
+                aria-label={`${tree.label}: ${doneInTree} of ${total} missions complete`}
+                title={`${tree.label}: ${doneInTree}/${total}`}
                 style={{
                     position: 'relative',
                     height: 5,
@@ -1380,48 +1150,43 @@ function MissionNav({
 }
 
 /**
- * Outcome-first home. A learner chooses one concrete job, sees the exact
- * capability it unlocks, and can still deliberately open the full library.
+ * The home screen: 8 skill trees as peers, the learner picks one.
  *
  * Each tile shows the tree's label, a one-line tagline, completion
  * count (e.g. "3/6"), and a clear CTA. Earned trees are marked. Tiles
  * are big, tap-friendly, and the layout collapses cleanly on mobile.
  */
-function JourneyPicker({
+function TreePicker({
     completedMissions,
     currentPerTree,
     onEnter,
-    onEnterJourney,
 }: {
     completedMissions: number[]
     currentPerTree: Record<Tree, number | null>
     onEnter: (tree: TreeMeta) => void
-    onEnterJourney: (journey: Journey) => void
 }) {
-    const { language, t } = useLanguage()
-    const [selectedJourney, setSelectedJourney] = useState<Journey | null>(
-        () => getSavedJourney(),
-    )
-    const [exploring, setExploring] = useState(() => getSavedJourney() === null)
-    const pickJourney = (journey: Journey) => {
-        setSelectedJourney(journey)
-        saveJourney(journey.id)
-        setExploring(false)
-        void api.updateJourneyProfile(journey.id, getJourneyPreferences())
+    const [goal, setGoal] = useState<Goal | null>(() => getSavedGoal())
+    const pickGoal = (g: Goal | null) => {
+        setGoal(g)
+        saveGoal(g)
     }
 
-    const selectedProgress = selectedJourney
-        ? journeyProgress(selectedJourney, completedMissions)
+    // With a goal, cards sort into that goal's recommended order and the
+    // first unfinished flight path gets a single "Up next" pointer. Without
+    // one, the default easiest-to-hardest order stands and each card may
+    // carry its own muted prerequisite tip.
+    const ordered: TreeMeta[] = goal
+        ? GOALS[goal].order.map((k) => TREES.find((t) => t.key === k)!)
+        : [...TREES]
+    const upNextKey: Tree | null = goal
+        ? (ordered.find(
+              (t) => !t.missions.every((m) => completedMissions.includes(m)),
+          )?.key ?? null)
         : null
-    const selectedTree = selectedJourney
-        ? TREES.find((tree) => tree.key === selectedJourney.tree)
-        : null
-    const ordered: TreeMeta[] = [...TREES]
-    const selectedCopy = selectedJourney ? localizeJourney(selectedJourney, language) : null
 
     return (
         <section
-            aria-label="Choose a practical Bitcoin outcome"
+            aria-label="Pick a flight path to learn"
             style={{
                 marginTop: 18,
                 display: 'flex',
@@ -1438,9 +1203,7 @@ function JourneyPicker({
                         margin: 0,
                     }}
                 >
-                    <span className="gradient-text">
-                        {selectedCopy ? selectedCopy.title : t('whatNeed')}
-                    </span>
+                    <span className="gradient-text">Pick a flight path</span>
                 </h1>
                 <p
                     style={{
@@ -1450,101 +1213,54 @@ function JourneyPicker({
                         lineHeight: 1.5,
                     }}
                 >
-                    {selectedCopy ? selectedCopy.promise : t('chooseUseful')}
+                    Easiest to hardest. New here? Start with Money Basics.
                 </p>
             </header>
 
-            {selectedJourney && selectedProgress && selectedTree && !exploring && (
-                <div style={{ ...card, padding: 18, display: 'flex', flexDirection: 'column', gap: 12 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
-                        <div>
-                            <div style={{ fontSize: 12, color: 'var(--muted)' }}>
-                                {selectedCopy?.audience}
-                            </div>
-                            <div style={{ marginTop: 4, fontSize: 14, fontWeight: 700 }}>
-                                {t('outcome')}: {selectedCopy?.outcome}
-                            </div>
-                        </div>
-                        <span style={{ ...chip(selectedProgress.complete ? 'green' : 'orange'), alignSelf: 'flex-start' }}>
-                            {selectedProgress.complete ? t('ready') : `${selectedProgress.done}/${selectedProgress.total} ${t('steps')}`}
-                        </span>
-                    </div>
-                    <div
-                        role="progressbar"
-                        aria-valuemin={0}
-                        aria-valuemax={selectedProgress.total}
-                        aria-valuenow={selectedProgress.done}
-                        style={{ height: 8, borderRadius: 'var(--radius-pill)', overflow: 'hidden', background: 'var(--border)' }}
-                    >
-                        <div style={{ height: '100%', width: `${selectedProgress.percent}%`, background: 'var(--gradient-bitcoin)' }} />
-                    </div>
-                    <button
-                        className="bp-press"
-                        style={{ ...primaryButton(), minHeight: 46, justifyContent: 'center' }}
-                        onClick={() => onEnterJourney(selectedJourney)}
-                    >
-                        {selectedProgress.complete ? t('reviewSkill') : selectedProgress.done > 0 ? t('continueTask') : t('startTask')}
-                    </button>
-                </div>
-            )}
-
-            <div>
-                <h2 style={{ margin: '0 0 10px', fontSize: 14 }}>
-                    {selectedJourney ? t('differentOutcome') : t('practicalJourneys')}
-                </h2>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 10 }}>
-                    {JOURNEYS.map((journey) => {
-                        const copy = localizeJourney(journey, language)
-                        const progress = journeyProgress(journey, completedMissions)
-                        const active = selectedJourney?.id === journey.id
-                        return (
-                            <button
-                                key={journey.id}
-                                type="button"
-                                className="bp-tile"
-                                aria-pressed={active}
-                                onClick={() => pickJourney(journey)}
-                                style={{
-                                    padding: 14,
-                                    textAlign: 'left',
-                                    borderRadius: 'var(--radius-3)',
-                                    border: active ? '1px solid var(--bitcoin)' : '1px solid var(--border)',
-                                    background: active ? 'rgba(255, 87, 34, 0.08)' : 'var(--surface)',
-                                    color: 'var(--text)',
-                                    fontFamily: 'var(--font-sans)',
-                                    cursor: 'pointer',
-                                }}
-                            >
-                                <div style={{ display: 'flex', gap: 10 }}>
-                                    <span aria-hidden="true" style={{ fontSize: 22 }}>{journey.icon}</span>
-                                    <span>
-                                        <strong style={{ display: 'block', fontSize: 14 }}>{copy.title}</strong>
-                                        <span style={{ display: 'block', marginTop: 3, fontSize: 11.5, lineHeight: 1.45, color: 'var(--muted)' }}>
-                                            {copy.audience} · {t('about')} {journey.minutes} min
-                                        </span>
-                                        {progress.done > 0 && (
-                                            <span style={{ display: 'block', marginTop: 6, fontSize: 11, color: progress.complete ? 'var(--success)' : 'var(--bitcoin)' }}>
-                                                {progress.complete ? t('completed') : `${progress.done}/${progress.total} ${t('stepsComplete')}`}
-                                            </span>
-                                        )}
-                                    </span>
-                                </div>
-                            </button>
-                        )
-                    })}
-                </div>
+            <div
+                role="group"
+                aria-label="Pick a learning goal"
+                style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 8,
+                    flexWrap: 'wrap',
+                }}
+            >
+                <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>I'm here as:</span>
+                {(Object.keys(GOALS) as Goal[]).map((g) => {
+                    const active = goal === g
+                    return (
+                        <button
+                            key={g}
+                            type="button"
+                            aria-pressed={active}
+                            title={GOALS[g].blurb}
+                            onClick={() => pickGoal(active ? null : g)}
+                            style={{
+                                padding: '6px 12px',
+                                fontSize: 12.5,
+                                fontWeight: 600,
+                                fontFamily: 'var(--font-sans)',
+                                borderRadius: 'var(--radius-pill)',
+                                cursor: 'pointer',
+                                background: active
+                                    ? 'rgba(255, 87, 34, 0.12)'
+                                    : 'transparent',
+                                border: active
+                                    ? '1px solid var(--bitcoin)'
+                                    : '1px solid var(--border)',
+                                color: active ? 'var(--bitcoin)' : 'var(--text-soft)',
+                            }}
+                        >
+                            {GOALS[g].label}
+                        </button>
+                    )
+                })}
             </div>
 
-            <button
-                type="button"
-                style={{ ...ghostButton, alignSelf: 'center', minHeight: 42 }}
-                onClick={() => setExploring((value) => !value)}
-                aria-expanded={exploring}
-            >
-                {exploring ? t('hideLibrary') : t('showLibrary')}
-            </button>
-
-            {exploring && <ol
+            <ol
                 style={{
                     listStyle: 'none',
                     margin: 0,
@@ -1560,7 +1276,7 @@ function JourneyPicker({
                         completedMissions.includes(m),
                     ).length
                     const isDone = done === total
-                    const isUpNext = false
+                    const isUpNext = t.key === upNextKey
                     const cta = isDone
                         ? 'Fly it again'
                         : done === 0
@@ -1576,7 +1292,7 @@ function JourneyPicker({
                         !recTree ||
                         recTree.missions.every((m) => completedMissions.includes(m))
                     const showNudge =
-                        !isDone && done === 0 && recTree && !recDone
+                        !goal && !isDone && done === 0 && recTree && !recDone
                     const diffColor =
                         t.difficulty === 'Beginner'
                             ? 'green'
@@ -1703,7 +1419,7 @@ function JourneyPicker({
                         </li>
                     )
                 })}
-            </ol>}
+            </ol>
         </section>
     )
 }
@@ -2583,11 +2299,7 @@ function DoPanel({
                 </div>
             )}
 
-            {!outcome && mission.id === 106 && (
-                <NairaComparison onChange={setDoInput} />
-            )}
-
-            {!outcome && mission.id !== 106 && ui.primary && (
+            {!outcome && ui.primary && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                     <label htmlFor={`do-input-${mission.id}`} style={labelStyle}>
                         {ui.primary.label}
@@ -2756,89 +2468,6 @@ function DoPanel({
                 </button>
             )}
         </>
-    )
-}
-
-function NairaComparison({ onChange }: { onChange: (value: string) => void }) {
-    const [values, setValues] = useState({
-        routeA: 'Bank or transfer app',
-        amountA: '',
-        feeA: '',
-        cashoutA: '',
-        routeB: 'Bitcoin / Lightning',
-        amountB: '',
-        feeB: '',
-        cashoutB: '',
-    })
-    const number = (value: string) => Number(value.replace(/,/g, '')) || 0
-    const finalA = Math.max(0, number(values.amountA) - number(values.feeA) - number(values.cashoutA))
-    const finalB = Math.max(0, number(values.amountB) - number(values.feeB) - number(values.cashoutB))
-    const money = (value: number) => `₦${Math.round(value).toLocaleString('en-NG')}`
-
-    useEffect(() => {
-        if (!values.amountA || !values.amountB) {
-            onChange('')
-            return
-        }
-        onChange(
-            JSON.stringify({
-                route_a: values.routeA,
-                final_naira_a: finalA,
-                route_b: values.routeB,
-                final_naira_b: finalB,
-            }),
-        )
-    }, [values, finalA, finalB, onChange])
-
-    const field = (
-        key: keyof typeof values,
-        label: string,
-        placeholder: string,
-        text = false,
-    ) => (
-        <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <span style={{ fontSize: 11, color: 'var(--muted)' }}>{label}</span>
-            <input
-                value={values[key]}
-                inputMode={text ? undefined : 'decimal'}
-                onChange={(event) =>
-                    setValues((current) => ({ ...current, [key]: event.target.value }))
-                }
-                placeholder={placeholder}
-                style={input}
-            />
-        </label>
-    )
-
-    const route = (side: 'A' | 'B', final: number) => (
-        <div style={{ padding: 12, border: '1px solid var(--border)', borderRadius: 'var(--radius-2)', display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {field(`route${side}` as keyof typeof values, `Route ${side} name`, side === 'A' ? 'Bank transfer' : 'Lightning', true)}
-            {field(`amount${side}` as keyof typeof values, 'Naira promised to recipient', '80000')}
-            {field(`fee${side}` as keyof typeof values, 'Fees still to deduct', '0')}
-            {field(`cashout${side}` as keyof typeof values, 'Conversion or cash-out cost', '0')}
-            <div style={{ paddingTop: 7, borderTop: '1px solid var(--border)', fontSize: 13 }}>
-                Recipient can spend: <strong style={{ color: 'var(--bitcoin)' }}>{money(final)}</strong>
-            </div>
-        </div>
-    )
-
-    return (
-        <section aria-label="Compare two transfer routes in naira">
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10 }}>
-                {route('A', finalA)}
-                {route('B', finalB)}
-            </div>
-            {values.amountA && values.amountB && (
-                <div style={{ ...callout('info'), marginTop: 10 }}>
-                    {finalA === finalB
-                        ? 'Both routes leave the same spendable naira. Compare speed, safety, and reliability too.'
-                        : `${finalA > finalB ? values.routeA : values.routeB} leaves ${money(Math.abs(finalA - finalB))} more for the recipient.`}
-                </div>
-            )}
-            <p style={{ margin: '8px 0 0', fontSize: 11, color: 'var(--muted)' }}>
-                Use quotes you received yourself. BitPilot does not provide a live exchange rate or recommend a provider.
-            </p>
-        </section>
     )
 }
 

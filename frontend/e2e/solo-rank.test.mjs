@@ -1,7 +1,7 @@
 /**
- * Smoke test: the solo Achievements view leads with the learner's selected
- * practical outcome and named capabilities. Catalogue-wide progress stays
- * behind an explicit disclosure.
+ * Smoke test: the solo Achievements view shows the overall rank ladder
+ * (Cadet, Pilot, Captain, Commander) derived from earned flight paths,
+ * with a plain-words line naming exactly which paths unlock the next rank.
  *
  *   node e2e/solo-rank.test.mjs
  */
@@ -26,14 +26,7 @@ const report = makeReporter('solo-rank')
 async function seedSolo(missions) {
     await ensureExplorerStub()
     const s = await apiPost('/sessions', { name: '__solo__' })
-    const j = await apiPost('/participants', {
-        name: 'Riko',
-        session_id: s.session.id,
-        journey_id: 'receive-payment',
-        guidance: 'guided',
-        session_minutes: 30,
-        practice_mode: 'simulation',
-    })
+    const j = await apiPost('/participants', { name: 'Riko', session_id: s.session.id })
     for (const m of missions) {
         await apiPost('/missions/complete', { mission: m, proof: proofFor(m) }, j.auth_token)
     }
@@ -58,7 +51,6 @@ async function openAchievements(browser, creds) {
             localStorage.setItem('bitpilot.session_id', sid)
             localStorage.setItem('bitpilot.participant_id', pid)
             localStorage.setItem('bitpilot.facilitator_token', fac)
-            localStorage.setItem('bitpilot-journey', 'receive-payment')
         },
         [creds.sid, creds.pid, creds.token, creds.facToken],
     )
@@ -76,31 +68,39 @@ async function openAchievements(browser, creds) {
     return page
 }
 
-const LIGHTNING_FOUNDATIONS = [21, 22, 80]
+// Keep the restored rank test aligned with today's expanded Money tree.
+const MONEY = [0, 1, 77, 78, 2, 5, 9, 10, 106, 108, 110]
+const BITCOIN = [6, 7, 8, 87, 88, 18, 19, 89, 40, 90, 48, 49]
 
 const browser = await launch()
 try {
-    const learner = await seedSolo(LIGHTNING_FOUNDATIONS)
-    const page = await openAchievements(browser, learner)
+    // A fresh-ish learner (one beginner path done) is still a Cadet.
+    const cadet = await seedSolo(MONEY)
+    let page = await openAchievements(browser, cadet)
     report.assert(
-        (await page.getByText(/I can create and explain a Lightning invoice/i).count()) > 0,
-        'the selected practical outcome is the progress headline',
+        (await page.getByLabel('Your rank').getByText(/^Cadet$/).count()) > 0,
+        'one beginner path done still shows Cadet',
     )
     report.assert(
-        (await page.getByText(/^3\/4 steps$/i).count()) > 0,
-        'progress is scoped to the selected journey',
+        (await page.getByText(/Finish Bitcoin to make/i).count()) > 0,
+        'the next-rank line names the missing beginner path',
+    )
+    await page.close()
+
+    // Both beginner paths done: rank Pilot, next stop Captain.
+    const pilot = await seedSolo([...MONEY, ...BITCOIN])
+    page = await openAchievements(browser, pilot)
+    report.assert(
+        (await page.getByLabel('Your rank').getByText(/^Pilot$/).count()) > 0,
+        'clearing both beginner paths makes Pilot',
     )
     report.assert(
-        (await page.getByText(/Understands how a Lightning payment can move/i).count()) > 0,
-        'a completed step is translated into a named capability',
+        (await page.getByText(/Finish Lightning, Nostr and eCash to make/i).count()) > 0,
+        'the next-rank line lists all intermediate paths for Captain',
     )
     report.assert(
-        (await page.getByText(/Can create a Lightning invoice/i).count()) > 0,
-        'the remaining capability is visible',
-    )
-    report.assert(
-        (await page.getByRole('button', { name: /Show complete mission-library progress/i }).count()) > 0,
-        'catalogue-wide progress is secondary and explicitly disclosed',
+        (await page.getByRole('listitem').filter({ hasText: /^Commander$/i }).count()) > 0,
+        'the rank ladder shows the top rank',
     )
     await page.close()
 } finally {
