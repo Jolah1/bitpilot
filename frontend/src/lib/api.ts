@@ -386,6 +386,13 @@ export const api = {
             body: { used_outside: usedOutside },
         }),
 
+    updateBlocker: (reason: Participant['blocker_reason'], comment = '') =>
+        request<Participant>('/participants/me/blocker', {
+            method: 'PATCH',
+            auth: 'participant',
+            body: { reason, comment },
+        }),
+
     /**
      * Device A: mint a one-time code to continue on another device. Redeeming
      * it on the other device signs this one out (the server rotates the token).

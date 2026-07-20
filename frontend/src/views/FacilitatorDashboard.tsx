@@ -62,13 +62,15 @@ export default function FacilitatorDashboard({ sessionId }: { sessionId: string 
         if (isFinished(p)) return 0
         return Date.now() - p.last_active * 1000
     }
-    const needsHand = participants.filter((p) => stuckMsFor(p) >= STUCK_MS).length
+    const needsHand = participants.filter(
+        (p) => p.blocker_reason !== null || stuckMsFor(p) >= STUCK_MS,
+    ).length
 
     // Surface the people who need attention: stuck longest first, then whoever
     // has the least progress, with finished learners settling to the bottom.
     const ranked = [...participants].sort((a, b) => {
-        const sa = stuckMsFor(a) >= STUCK_MS,
-            sb = stuckMsFor(b) >= STUCK_MS
+        const sa = a.blocker_reason !== null || stuckMsFor(a) >= STUCK_MS,
+            sb = b.blocker_reason !== null || stuckMsFor(b) >= STUCK_MS
         const ta = isFinished(a) ? 2 : sa ? 0 : 1
         const tb = isFinished(b) ? 2 : sb ? 0 : 1
         if (ta !== tb) return ta - tb
@@ -354,6 +356,17 @@ function SmallSignal({ label, value }: { label: string; value: string | number }
     )
 }
 
+function blockerLabel(reason: NonNullable<Participant['blocker_reason']>): string {
+    return {
+        explanation: 'the explanation is unclear',
+        wallet: 'wallet problem',
+        network: 'poor internet or network',
+        recipient: 'recipient is not ready',
+        payment: 'payment problem',
+        other: 'another problem',
+    }[reason]
+}
+
 function Stat({
     label,
     value,
@@ -622,7 +635,7 @@ function ParticipantRow({ participant, stuckMs }: { participant: Participant; st
     const pct = outcomeProgress?.percent ?? Math.round((doneCount / MISSION_COUNT) * 100)
     const isDone = pct === 100
     const currentTree = treeFor(participant.current_mission)
-    const stuck = stuckMs >= STUCK_MS
+    const stuck = participant.blocker_reason !== null || stuckMs >= STUCK_MS
     const stuckMins = Math.floor(stuckMs / 60000)
     return (
         <div
@@ -695,6 +708,17 @@ function ParticipantRow({ participant, stuckMs }: { participant: Participant; st
                             {' · '}{participant.session_minutes} min
                             {' · '}{participant.practice_mode === 'test-network' ? 'Test network' : 'Simulation'}
                         </div>
+                    </div>
+                )}
+                {participant.blocker_reason && (
+                    <div style={{ padding: 9, borderRadius: 'var(--radius-2)', background: 'rgba(255,87,34,0.09)', border: '1px solid rgba(255,87,34,0.3)', fontSize: 11.5, lineHeight: 1.45 }}>
+                        <strong>Needs help:</strong>{' '}
+                        {blockerLabel(participant.blocker_reason)}
+                        {participant.blocker_comment && (
+                            <div style={{ marginTop: 3, color: 'var(--text-soft)' }}>
+                                “{participant.blocker_comment}”
+                            </div>
+                        )}
                     </div>
                 )}
                 {/* 8-bar tree strip */}

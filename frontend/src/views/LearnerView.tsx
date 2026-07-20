@@ -144,6 +144,10 @@ export default function LearnerView({ participantId }: { participantId: string }
     // Participant display name, used on the shareable badge image. We
     // capture it on hydrate so the share modal doesn't need to re-fetch.
     const [participantName, setParticipantName] = useState<string>('')
+    const [blockerReason, setBlockerReason] = useState<
+        import('../lib/types').Participant['blocker_reason']
+    >(null)
+    const [blockerComment, setBlockerComment] = useState('')
     // The badge currently displayed in the share/download modal, if any.
     const [sharingBadge, setSharingBadge] = useState<Badge | null>(null)
     const [profileRevision, setProfileRevision] = useState(0)
@@ -228,6 +232,8 @@ export default function LearnerView({ participantId }: { participantId: string }
                 setBadges(b)
                 setProofs(Object.fromEntries(done.map((c) => [c.mission, c.proof])))
                 setParticipantName(p.name ?? '')
+                setBlockerReason(p.blocker_reason ?? null)
+                setBlockerComment(p.blocker_comment ?? '')
                 syncJourneyProfile(p)
                 setProfileRevision((value) => value + 1)
                 if (p.current_per_tree) {
@@ -810,7 +816,10 @@ export default function LearnerView({ participantId }: { participantId: string }
                     }
                     proof = doInput.trim()
                     outcome = {
-                        summary: 'Saved. This is your raw material for the final mission.',
+                        summary:
+                            mission.id === 106
+                                ? 'Comparison saved. You now know which quote leaves more spendable naira.'
+                                : 'Saved. This is your raw material for the final mission.',
                         simulated: false,
                     }
                     break
@@ -979,6 +988,15 @@ export default function LearnerView({ participantId }: { participantId: string }
                 onExit={exitToTreePicker}
             />
 
+            <HelpSignal
+                reason={blockerReason}
+                comment={blockerComment}
+                onSaved={(participant) => {
+                    setBlockerReason(participant.blocker_reason)
+                    setBlockerComment(participant.blocker_comment ?? '')
+                }}
+            />
+
             <article style={{ ...card, overflow: 'hidden', marginTop: 14 }}>
                 <MissionHeader mission={mission} />
 
@@ -1059,6 +1077,121 @@ export default function LearnerView({ participantId }: { participantId: string }
                 </div>
             </article>
         </main>
+    )
+}
+
+function HelpSignal({
+    reason,
+    comment,
+    onSaved,
+}: {
+    reason: import('../lib/types').Participant['blocker_reason']
+    comment: string
+    onSaved: (participant: import('../lib/types').Participant) => void
+}) {
+    const [open, setOpen] = useState(false)
+    const [selected, setSelected] = useState(reason)
+    const [note, setNote] = useState(comment)
+    const [saving, setSaving] = useState(false)
+    const reasons = [
+        ['explanation', 'I do not understand the explanation'],
+        ['wallet', 'My wallet is the problem'],
+        ['network', 'My internet or network is poor'],
+        ['recipient', 'The person receiving is not ready'],
+        ['payment', 'The payment is not working'],
+        ['other', 'Something else'],
+    ] as const
+
+    const save = async (nextReason = selected) => {
+        setSaving(true)
+        try {
+            const participant = await api.updateBlocker(nextReason, note.trim())
+            onSaved(participant)
+            setOpen(false)
+        } finally {
+            setSaving(false)
+        }
+    }
+
+    if (!open) {
+        return (
+            <button
+                type="button"
+                onClick={() => setOpen(true)}
+                style={{
+                    ...ghostButton,
+                    marginTop: 10,
+                    width: '100%',
+                    minHeight: 42,
+                    borderColor: reason ? 'var(--bitcoin)' : undefined,
+                    color: reason ? 'var(--bitcoin)' : undefined,
+                }}
+            >
+                {reason ? '🆘 Help request sent · update it' : 'I’m stuck — ask for help'}
+            </button>
+        )
+    }
+
+    return (
+        <section style={{ ...card, padding: 14, marginTop: 10 }} aria-label="Ask the facilitator for help">
+            <strong style={{ fontSize: 14 }}>What is stopping you?</strong>
+            <p style={{ margin: '4px 0 10px', fontSize: 12, color: 'var(--muted)' }}>
+                Pick the closest answer. Your facilitator will see it immediately.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+                {reasons.map(([value, label]) => (
+                    <button
+                        type="button"
+                        key={value}
+                        aria-pressed={selected === value}
+                        onClick={() => setSelected(value)}
+                        style={{
+                            textAlign: 'left',
+                            padding: '9px 11px',
+                            borderRadius: 'var(--radius-2)',
+                            border: selected === value ? '1px solid var(--bitcoin)' : '1px solid var(--border)',
+                            background: selected === value ? 'rgba(255,87,34,0.08)' : 'transparent',
+                            color: 'var(--text)',
+                            cursor: 'pointer',
+                        }}
+                    >
+                        {label}
+                    </button>
+                ))}
+                <textarea
+                    value={note}
+                    onChange={(event) => setNote(event.target.value)}
+                    maxLength={240}
+                    rows={2}
+                    placeholder="Optional: tell them what happened"
+                    style={{ ...input, resize: 'vertical' }}
+                />
+                <div style={{ display: 'flex', gap: 8 }}>
+                    <button
+                        type="button"
+                        disabled={!selected || saving}
+                        onClick={() => void save()}
+                        style={{ ...primaryButton(!selected || saving), flex: 1 }}
+                    >
+                        {saving ? 'Sending…' : 'Send help request'}
+                    </button>
+                    {reason && (
+                        <button
+                            type="button"
+                            disabled={saving}
+                            onClick={() => {
+                                setSelected(null)
+                                setNote('')
+                                void save(null)
+                            }}
+                            style={ghostButton}
+                        >
+                            I’m okay now
+                        </button>
+                    )}
+                </div>
+            </div>
+        </section>
     )
 }
 
@@ -2435,7 +2568,11 @@ function DoPanel({
                 </div>
             )}
 
-            {!outcome && ui.primary && (
+            {!outcome && mission.id === 106 && (
+                <NairaComparison onChange={setDoInput} />
+            )}
+
+            {!outcome && mission.id !== 106 && ui.primary && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                     <label htmlFor={`do-input-${mission.id}`} style={labelStyle}>
                         {ui.primary.label}
@@ -2604,6 +2741,89 @@ function DoPanel({
                 </button>
             )}
         </>
+    )
+}
+
+function NairaComparison({ onChange }: { onChange: (value: string) => void }) {
+    const [values, setValues] = useState({
+        routeA: 'Bank or transfer app',
+        amountA: '',
+        feeA: '',
+        cashoutA: '',
+        routeB: 'Bitcoin / Lightning',
+        amountB: '',
+        feeB: '',
+        cashoutB: '',
+    })
+    const number = (value: string) => Number(value.replace(/,/g, '')) || 0
+    const finalA = Math.max(0, number(values.amountA) - number(values.feeA) - number(values.cashoutA))
+    const finalB = Math.max(0, number(values.amountB) - number(values.feeB) - number(values.cashoutB))
+    const money = (value: number) => `₦${Math.round(value).toLocaleString('en-NG')}`
+
+    useEffect(() => {
+        if (!values.amountA || !values.amountB) {
+            onChange('')
+            return
+        }
+        onChange(
+            JSON.stringify({
+                route_a: values.routeA,
+                final_naira_a: finalA,
+                route_b: values.routeB,
+                final_naira_b: finalB,
+            }),
+        )
+    }, [values, finalA, finalB, onChange])
+
+    const field = (
+        key: keyof typeof values,
+        label: string,
+        placeholder: string,
+        text = false,
+    ) => (
+        <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <span style={{ fontSize: 11, color: 'var(--muted)' }}>{label}</span>
+            <input
+                value={values[key]}
+                inputMode={text ? undefined : 'decimal'}
+                onChange={(event) =>
+                    setValues((current) => ({ ...current, [key]: event.target.value }))
+                }
+                placeholder={placeholder}
+                style={input}
+            />
+        </label>
+    )
+
+    const route = (side: 'A' | 'B', final: number) => (
+        <div style={{ padding: 12, border: '1px solid var(--border)', borderRadius: 'var(--radius-2)', display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {field(`route${side}` as keyof typeof values, `Route ${side} name`, side === 'A' ? 'Bank transfer' : 'Lightning', true)}
+            {field(`amount${side}` as keyof typeof values, 'Naira promised to recipient', '80000')}
+            {field(`fee${side}` as keyof typeof values, 'Fees still to deduct', '0')}
+            {field(`cashout${side}` as keyof typeof values, 'Conversion or cash-out cost', '0')}
+            <div style={{ paddingTop: 7, borderTop: '1px solid var(--border)', fontSize: 13 }}>
+                Recipient can spend: <strong style={{ color: 'var(--bitcoin)' }}>{money(final)}</strong>
+            </div>
+        </div>
+    )
+
+    return (
+        <section aria-label="Compare two transfer routes in naira">
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10 }}>
+                {route('A', finalA)}
+                {route('B', finalB)}
+            </div>
+            {values.amountA && values.amountB && (
+                <div style={{ ...callout('info'), marginTop: 10 }}>
+                    {finalA === finalB
+                        ? 'Both routes leave the same spendable naira. Compare speed, safety, and reliability too.'
+                        : `${finalA > finalB ? values.routeA : values.routeB} leaves ${money(Math.abs(finalA - finalB))} more for the recipient.`}
+                </div>
+            )}
+            <p style={{ margin: '8px 0 0', fontSize: 11, color: 'var(--muted)' }}>
+                Use quotes you received yourself. BitPilot does not provide a live exchange rate or recommend a provider.
+            </p>
+        </section>
     )
 }
 

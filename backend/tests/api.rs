@@ -528,6 +528,29 @@ fn workshop_profile_overrides_joiner_preferences_and_reports_aggregate_outcomes(
     assert_eq!(joined["participant"]["session_minutes"], 60);
     let token = joined["auth_token"].as_str().unwrap();
 
+    let blocked: Value = client()
+        .patch(format!("{}/api/participants/me/blocker", h.base))
+        .header("authorization", format!("Bearer {token}"))
+        .json(&json!({
+            "reason": "network",
+            "comment": "Data is slow in my area"
+        }))
+        .send()
+        .unwrap()
+        .json()
+        .unwrap();
+    assert_eq!(blocked["blocker_reason"], "network");
+    assert_eq!(blocked["blocker_comment"], "Data is slow in my area");
+
+    let room: Vec<Value> = client()
+        .get(format!("{}/api/sessions/{session_id}/participants", h.base))
+        .header("x-facilitator-key", facilitator_token)
+        .send()
+        .unwrap()
+        .json()
+        .unwrap();
+    assert_eq!(room[0]["blocker_reason"], "network");
+
     assert!(complete(&h.base, token, 106, "acknowledged").status().is_success());
     client()
         .patch(format!("{}/api/participants/me/outcome-feedback", h.base))

@@ -821,8 +821,8 @@ function ChooseGoal({
                 </div>
                 <p style={{ fontSize: 13.5, color: 'var(--muted)', lineHeight: 1.55, margin: 0 }}>
                     {facilitator
-                        ? 'Everyone joining your workshop will receive this practical route and the delivery settings below.'
-                        : 'Start with one useful result. You will learn the Bitcoin concepts you need while completing the task.'}
+                        ? 'Everyone who joins will get this same practical route. Choose the pace and practice mode below.'
+                        : 'Choose one useful result. We will explain each Bitcoin idea when you need it.'}
                 </p>
             </header>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>

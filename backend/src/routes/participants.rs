@@ -44,6 +44,7 @@ pub fn router(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .route("/me", get(get_self))
         .route("/me/profile", patch(update_profile))
         .route("/me/outcome-feedback", patch(update_outcome_feedback))
+        .route("/me/blocker", patch(update_blocker))
         .route("/me/completions", get(list_completions))
         .route("/me/badges", get(list_badges))
         .route(
@@ -344,6 +345,8 @@ async fn join_session(
             session_minutes,
             practice_mode,
             used_outside: None,
+            blocker_reason: None,
+            blocker_comment: None,
         },
         auth_token,
     }))
@@ -395,6 +398,51 @@ async fn update_outcome_feedback(
     )
     .bind(if body.used_outside { 1 } else { 0 })
     .bind(now() as i64)
+    .bind(&authed.participant_id)
+    .execute(&state.db)
+    .await?;
+    Ok(Json(load_participant(&state, &authed.participant_id).await?))
+}
+
+#[derive(Deserialize)]
+struct UpdateBlockerRequest {
+    reason: Option<String>,
+    comment: Option<String>,
+}
+
+async fn update_blocker(
+    State(state): State<Arc<AppState>>,
+    Extension(authed): Extension<AuthedParticipant>,
+    Json(body): Json<UpdateBlockerRequest>,
+) -> Result<Json<Participant>, AppError> {
+    const REASONS: &[&str] = &[
+        "explanation",
+        "wallet",
+        "network",
+        "recipient",
+        "payment",
+        "other",
+    ];
+    let reason = body.reason.as_deref().map(str::trim).filter(|value| !value.is_empty());
+    if let Some(value) = reason {
+        if !REASONS.contains(&value) {
+            return Err(AppError::BadRequest("unknown blocker reason".into()));
+        }
+    }
+    let comment = if reason.is_some() {
+        body.comment.as_deref().map(str::trim).filter(|value| !value.is_empty())
+    } else {
+        None
+    };
+    if comment.is_some_and(|value| value.len() > 240) {
+        return Err(AppError::BadRequest("blocker comment too long (max 240 chars)".into()));
+    }
+    sqlx::query(
+        "UPDATE participants SET blocker_reason = ?, blocker_comment = ?, blocker_at = ? WHERE id = ?",
+    )
+    .bind(reason)
+    .bind(comment)
+    .bind(reason.map(|_| now() as i64))
     .bind(&authed.participant_id)
     .execute(&state.db)
     .await?;
@@ -597,8 +645,8 @@ pub async fn load_participant(
     state: &AppState,
     participant_id: &str,
 ) -> Result<Participant, AppError> {
-    let row: Option<(String, String, String, i64, Option<String>, String, i64, i64, i64, Option<String>, String, i64, String, Option<i64>)> = sqlx::query_as(
-        "SELECT id, name, session_id, current_mission, nostr_pubkey, current_per_tree, last_active, streak_count, streak_day, journey_id, guidance, session_minutes, practice_mode, used_outside \
+    let row: Option<(String, String, String, i64, Option<String>, String, i64, i64, i64, Option<String>, String, i64, String, Option<i64>, Option<String>, Option<String>)> = sqlx::query_as(
+        "SELECT id, name, session_id, current_mission, nostr_pubkey, current_per_tree, last_active, streak_count, streak_day, journey_id, guidance, session_minutes, practice_mode, used_outside, blocker_reason, blocker_comment \
          FROM participants WHERE id = ?",
     )
     .bind(participant_id)
@@ -633,6 +681,8 @@ pub async fn load_participant(
         session_minutes: row.11 as u16,
         practice_mode: PracticeMode::parse(&row.12),
         used_outside: row.13.map(|value| value != 0),
+        blocker_reason: row.14,
+        blocker_comment: row.15,
     })
 }
 
@@ -640,8 +690,8 @@ async fn load_participants_by_session(
     state: &AppState,
     session_id: &str,
 ) -> Result<Vec<Participant>, AppError> {
-    let rows: Vec<(String, String, String, i64, Option<String>, String, i64, i64, i64, Option<String>, String, i64, String, Option<i64>)> = sqlx::query_as(
-        "SELECT id, name, session_id, current_mission, nostr_pubkey, current_per_tree, last_active, streak_count, streak_day, journey_id, guidance, session_minutes, practice_mode, used_outside \
+    let rows: Vec<(String, String, String, i64, Option<String>, String, i64, i64, i64, Option<String>, String, i64, String, Option<i64>, Option<String>, Option<String>)> = sqlx::query_as(
+        "SELECT id, name, session_id, current_mission, nostr_pubkey, current_per_tree, last_active, streak_count, streak_day, journey_id, guidance, session_minutes, practice_mode, used_outside, blocker_reason, blocker_comment \
          FROM participants WHERE session_id = ? ORDER BY created_at",
     )
     .bind(session_id)
@@ -679,6 +729,8 @@ async fn load_participants_by_session(
             session_minutes: r.11 as u16,
             practice_mode: PracticeMode::parse(&r.12),
             used_outside: r.13.map(|value| value != 0),
+            blocker_reason: r.14,
+            blocker_comment: r.15,
         });
     }
     Ok(out)

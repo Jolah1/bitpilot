@@ -34,6 +34,15 @@ export interface Participant {
     session_minutes: number
     practice_mode: 'simulation' | 'test-network'
     used_outside: boolean | null
+    blocker_reason:
+        | 'explanation'
+        | 'wallet'
+        | 'network'
+        | 'recipient'
+        | 'payment'
+        | 'other'
+        | null
+    blocker_comment: string | null
 }
 
 export interface Session {
@@ -2826,17 +2835,18 @@ export const MISSIONS: MissionDef[] = [
             ],
         },
     },
-    knowledge({
+    {
         id: 106,
         emoji: '🧮',
         topic: 'Remittance',
         tech: 'bitcoin',
         name: 'Compare the true transfer cost',
         tagline: 'The advertised fee is only one part of what your recipient loses.',
+        simulated: false,
         learn: {
             heading: 'Compare what arrives, not what the app advertises',
             body:
-                "Ada wants her family to receive the equivalent of ₦80,000. Service A advertises a 1% fee but uses a poor exchange rate. Service B charges 2% but converts fairly. Lightning may have a small network fee, but the recipient may still pay to convert or withdraw.\n\nWrite down four numbers for every route:\n1. The amount you send.\n2. Every visible fee.\n3. The exchange rate actually used.\n4. The amount the recipient can finally spend after cash-out.\n\nThe cheapest route is the one that delivers the most usable value safely and on time, not the one with the smallest banner fee.",
+                "Ada in Lagos expects ₦80,000. One app advertises a small fee but gives a poor naira rate. Another charges more openly but delivers more money after conversion and withdrawal. A Bitcoin route can also have a wallet, conversion, or cash-out cost.\n\nUse the real quotes on your screen. For each route, enter the naira amount promised to the recipient, then subtract every charge the recipient must still pay. BitPilot does not fetch or recommend an exchange rate.\n\nThe better route is the safe one that leaves the recipient with more spendable naira when they need it—not the one with the loudest “zero fee” advert.",
             tip: 'Ask: “Exactly how much can the recipient spend?” That one number makes different routes comparable.',
         },
         quiz: {
@@ -2847,9 +2857,12 @@ export const MISSIONS: MissionDef[] = [
                 { text: 'How many people downloaded the app', correct: false },
             ],
         },
-        actionLabel: 'I compared the full cost',
-        helper: 'Compare two routes using the final spendable amount, including conversion and cash-out.',
-    }),
+        do: {
+            kind: 'paste-value',
+            actionLabel: 'Save my comparison',
+            helper: 'Enter two quotes in naira. BitPilot will subtract fees and show what the recipient can actually spend.',
+        },
+    },
     knowledge({
         id: 107,
         emoji: '🤝',
