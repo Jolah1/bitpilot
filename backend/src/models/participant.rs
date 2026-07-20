@@ -43,6 +43,7 @@ pub struct Participant {
     pub guidance: Guidance,
     pub session_minutes: u16,
     pub practice_mode: PracticeMode,
+    pub used_outside: Option<bool>,
 }
 
 impl Participant {

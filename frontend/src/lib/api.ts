@@ -121,6 +121,18 @@ interface RedeemPairingWire {
 export interface SessionResponse {
     session: Session
     participant_count: number
+    journey_id: JourneyId | null
+    guidance: JourneyPreferences['guidance'] | null
+    session_minutes: number | null
+    practice_mode: JourneyPreferences['practiceMode'] | null
+}
+
+export interface SessionAnalytics {
+    participants: number
+    outcome_ready: number
+    used_outside: number
+    not_yet_used_outside: number
+    average_seconds_to_first_action: number | null
 }
 
 export interface InvoiceResponse {
@@ -303,9 +315,16 @@ export const api = {
         request<BadgeCertificate>(`/certificates/${id}`),
 
     createSession: async (name: string): Promise<Session> => {
+        const preferences = getJourneyPreferences()
         const wire = await request<CreateSessionWire>('/sessions', {
             method: 'POST',
-            body: { name },
+            body: {
+                name,
+                journey_id: getSavedJourneyId(),
+                guidance: preferences.guidance,
+                session_minutes: preferences.sessionMinutes,
+                practice_mode: preferences.practiceMode,
+            },
         })
         // Stash the facilitator token transparently. The UI gets back just
         // the Session, exactly as the UI session expected.
@@ -318,6 +337,11 @@ export const api = {
 
     listParticipants: (sessionId: string) =>
         request<Participant[]>(`/sessions/${sessionId}/participants`, { auth: 'facilitator' }),
+
+    getSessionAnalytics: (sessionId: string) =>
+        request<SessionAnalytics>(`/sessions/${sessionId}/analytics`, {
+            auth: 'facilitator',
+        }),
 
     joinSession: async (name: string, sessionId: string): Promise<Participant> => {
         const preferences = getJourneyPreferences()
@@ -353,6 +377,13 @@ export const api = {
                 session_minutes: preferences.sessionMinutes,
                 practice_mode: preferences.practiceMode,
             },
+        }),
+
+    updateOutcomeFeedback: (usedOutside: boolean) =>
+        request<Participant>('/participants/me/outcome-feedback', {
+            method: 'PATCH',
+            auth: 'participant',
+            body: { used_outside: usedOutside },
         }),
 
     /**
@@ -469,10 +500,11 @@ export const api = {
 
 export async function fetchSessionProgress(
     sessionId: string,
-): Promise<{ session: Session; participants: Participant[] }> {
-    const [sessionData, participants] = await Promise.all([
+): Promise<{ session: Session; sessionProfile: SessionResponse; participants: Participant[]; analytics: SessionAnalytics }> {
+    const [sessionData, participants, analytics] = await Promise.all([
         api.getSession(sessionId),
         api.listParticipants(sessionId),
+        api.getSessionAnalytics(sessionId),
     ])
-    return { session: sessionData.session, participants }
+    return { session: sessionData.session, sessionProfile: sessionData, participants, analytics }
 }

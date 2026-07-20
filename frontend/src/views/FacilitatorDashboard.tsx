@@ -50,6 +50,8 @@ export default function FacilitatorDashboard({ sessionId }: { sessionId: string 
 
     const session = progress?.session
     const participants: Participant[] = progress?.participants ?? []
+    const analytics = progress?.analytics
+    const workshopJourney = journeyById(progress?.sessionProfile.journey_id ?? null)
 
     // How long a learner has been idle: server-recorded last activity (join or
     // a mission completion) to now. Finished learners never count. `last_active`
@@ -188,6 +190,21 @@ export default function FacilitatorDashboard({ sessionId }: { sessionId: string 
                 </div>
             )}
 
+            {workshopJourney && (
+                <section style={{ ...card, padding: 14 }} aria-label="Workshop outcome">
+                    <div style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                        Workshop outcome
+                    </div>
+                    <strong style={{ display: 'block', marginTop: 4 }}>{workshopJourney.title}</strong>
+                    <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--muted)', lineHeight: 1.5 }}>
+                        This session’s QR and join link automatically assign the journey.
+                        {' '}{progress?.sessionProfile.guidance === 'self-directed' ? 'Checklist' : 'Guided'}
+                        {' · '}{progress?.sessionProfile.session_minutes ?? 30} min
+                        {' · '}{progress?.sessionProfile.practice_mode === 'test-network' ? 'Test network' : 'Simulation'}
+                    </p>
+                </section>
+            )}
+
             {/* Stats */}
             <section
                 aria-label="Session statistics"
@@ -202,6 +219,28 @@ export default function FacilitatorDashboard({ sessionId }: { sessionId: string 
                 <Stat label="Avg. outcome" value={`${avgProgress}%`} />
                 <Stat label="Needs a hand" value={needsHand} alert={needsHand > 0} />
             </section>
+
+            {analytics && (
+                <section aria-label="Pilot outcome analytics" style={{ ...card, padding: 14 }}>
+                    <h2 style={{ margin: '0 0 10px', fontSize: 13 }}>Practical outcome signals</h2>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>
+                        <SmallSignal label="Outcome ready" value={`${analytics.outcome_ready}/${analytics.participants}`} />
+                        <SmallSignal
+                            label="Average first action"
+                            value={
+                                analytics.average_seconds_to_first_action === null
+                                    ? 'Waiting'
+                                    : `${Math.max(1, Math.round(analytics.average_seconds_to_first_action / 60))} min`
+                            }
+                        />
+                        <SmallSignal label="Used outside BitPilot" value={analytics.used_outside} />
+                        <SmallSignal label="Not yet used outside" value={analytics.not_yet_used_outside} />
+                    </div>
+                    <p style={{ margin: '10px 0 0', fontSize: 11, color: 'var(--muted)', lineHeight: 1.5 }}>
+                        Aggregate workshop signals only. Individual feedback answers are not displayed.
+                    </p>
+                </section>
+            )}
 
             {/* Tree legend */}
             <section
@@ -303,6 +342,15 @@ export default function FacilitatorDashboard({ sessionId }: { sessionId: string 
                 </section>
             )}
         </main>
+    )
+}
+
+function SmallSignal({ label, value }: { label: string; value: string | number }) {
+    return (
+        <div style={{ padding: 10, border: '1px solid var(--border)', borderRadius: 'var(--radius-2)' }}>
+            <div style={{ fontSize: 18, fontWeight: 800 }}>{value}</div>
+            <div style={{ marginTop: 3, fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</div>
+        </div>
     )
 }
 

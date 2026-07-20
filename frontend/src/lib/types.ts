@@ -33,6 +33,7 @@ export interface Participant {
     guidance: 'guided' | 'self-directed'
     session_minutes: number
     practice_mode: 'simulation' | 'test-network'
+    used_outside: boolean | null
 }
 
 export interface Session {
@@ -93,9 +94,9 @@ export interface TreeMeta {
  * mirror is here so the UI can group/render without a network call.
  */
 export const TREES: TreeMeta[] = [
-    { key: 'money',        label: 'Money Basics', missions: [0, 1, 77, 78, 2, 5, 9, 10],                   tagline: 'What money is, why fiat leaks, why Bitcoin exists.', difficulty: 'Beginner' },
+    { key: 'money',        label: 'Money Basics', missions: [0, 1, 77, 78, 2, 5, 9, 10, 106, 108, 110],    tagline: 'What money is, why fiat leaks, why Bitcoin exists.', difficulty: 'Beginner' },
     { key: 'bitcoin',      label: 'Bitcoin',      missions: [6, 7, 8, 87, 88, 18, 19, 89, 40, 90, 48, 49], tagline: 'Blocks, mempool, miners, UTXOs, Script, Taproot, pools.', difficulty: 'Beginner', recommendedAfter: 'money' },
-    { key: 'lightning',    label: 'Lightning',    missions: [21, 22, 79, 80, 23, 24, 25, 38, 81, 82, 39, 83], tagline: 'Channels, HTLCs, liquidity, LSPs, watchtowers, splicing.', difficulty: 'Intermediate', recommendedAfter: 'bitcoin' },
+    { key: 'lightning',    label: 'Lightning',    missions: [21, 22, 79, 80, 23, 24, 25, 38, 81, 82, 39, 83, 107, 109], tagline: 'Channels, HTLCs, liquidity, LSPs, watchtowers, splicing.', difficulty: 'Intermediate', recommendedAfter: 'bitcoin' },
     { key: 'nostr',        label: 'Nostr',        missions: [13, 14, 15, 97, 16, 17, 26, 27, 98, 28, 29, 30, 35, 36, 37, 99], tagline: 'Identity without a server. Notes, signers, DMs, the wider ecosystem.', difficulty: 'Intermediate' },
     { key: 'ecash',        label: 'eCash',        missions: [31, 32, 33, 34, 84, 55, 56, 85, 57, 86],      tagline: 'Bearer money backed by a mint. Cashu, Fedimint, honest failure modes.', difficulty: 'Intermediate', recommendedAfter: 'lightning' },
     { key: 'self-custody', label: 'Self-custody', missions: [3, 4, 11, 12, 91, 92, 93, 20, 41, 94, 95, 43, 44, 45, 96], tagline: 'Wallets, seeds, passphrases, PSBTs, descriptors, multisig.', difficulty: 'Advanced', recommendedAfter: 'bitcoin' },
@@ -2825,6 +2826,126 @@ export const MISSIONS: MissionDef[] = [
             ],
         },
     },
+    knowledge({
+        id: 106,
+        emoji: '🧮',
+        topic: 'Remittance',
+        tech: 'bitcoin',
+        name: 'Compare the true transfer cost',
+        tagline: 'The advertised fee is only one part of what your recipient loses.',
+        learn: {
+            heading: 'Compare what arrives, not what the app advertises',
+            body:
+                "Ada wants her family to receive the equivalent of ₦80,000. Service A advertises a 1% fee but uses a poor exchange rate. Service B charges 2% but converts fairly. Lightning may have a small network fee, but the recipient may still pay to convert or withdraw.\n\nWrite down four numbers for every route:\n1. The amount you send.\n2. Every visible fee.\n3. The exchange rate actually used.\n4. The amount the recipient can finally spend after cash-out.\n\nThe cheapest route is the one that delivers the most usable value safely and on time, not the one with the smallest banner fee.",
+            tip: 'Ask: “Exactly how much can the recipient spend?” That one number makes different routes comparable.',
+        },
+        quiz: {
+            question: 'Which number best compares two remittance routes?',
+            options: [
+                { text: 'The advertised percentage fee', correct: false, why: 'That can hide exchange-rate and cash-out costs.' },
+                { text: 'The final spendable amount the recipient receives', correct: true },
+                { text: 'How many people downloaded the app', correct: false },
+            ],
+        },
+        actionLabel: 'I compared the full cost',
+        helper: 'Compare two routes using the final spendable amount, including conversion and cash-out.',
+    }),
+    knowledge({
+        id: 107,
+        emoji: '🤝',
+        topic: 'Remittance',
+        tech: 'lightning',
+        name: 'Prepare the recipient',
+        tagline: 'A payment is not successful until the other person can use it.',
+        learn: {
+            heading: 'Agree on the receiving plan before sending',
+            body:
+                "Before a meaningful transfer, confirm that the recipient can open their wallet, create an invoice, recognise a completed payment, and knows whether they will keep sats or convert them.\n\nSend a tiny test first. Ask the recipient to confirm the amount inside their own wallet, not with a screenshot someone forwarded. Then discuss cash-out: which service they can access, its fees, its identity requirements, and what happens if it is unavailable.\n\nNever make the first payment the urgent, full-size payment.",
+            tip: 'Tiny test, recipient confirms independently, then the intended amount.',
+        },
+        quiz: {
+            question: 'What should happen before the full remittance?',
+            options: [
+                { text: 'Send the full amount and explain later', correct: false },
+                { text: 'Complete a tiny test and confirm the recipient can use or convert it', correct: true },
+                { text: 'Ask for a screenshot of somebody else receiving money', correct: false },
+            ],
+        },
+        actionLabel: 'The recipient is ready',
+        helper: 'Confirm the recipient has a wallet, can verify receipt, and has a realistic use or cash-out plan.',
+    }),
+    knowledge({
+        id: 108,
+        emoji: '🛡️',
+        topic: 'Remittance',
+        tech: 'bitcoin',
+        name: 'Stop remittance scams',
+        tagline: 'Bitcoin cannot reverse a payment made to an impersonator.',
+        learn: {
+            heading: 'Verify the person and the request separately',
+            body:
+                "Urgency is a common weapon: “I changed my wallet, send now.” Treat a new address, invoice, phone number, or sudden emergency as a reason to slow down.\n\nContact the recipient through a second channel you already trust. Ask a question only they should know. Read back part of the destination or have them generate a fresh invoice while you are speaking. Never trust a payment destination copied from an unsolicited message.\n\nFor a new or changed destination, repeat the tiny-test rule even if you have paid this person before.",
+            tip: 'New destination means new verification. Urgency never removes that rule.',
+        },
+        quiz: {
+            question: 'A relative urgently messages from a new number with a payment destination. What is safest?',
+            options: [
+                { text: 'Pay immediately because it sounds urgent', correct: false },
+                { text: 'Verify through a second trusted channel, then send a tiny test', correct: true },
+                { text: 'Forward the destination to more people', correct: false },
+            ],
+        },
+        actionLabel: 'I verified the request',
+        helper: 'Name the second trusted channel you would use before paying a new or changed destination.',
+    }),
+    knowledge({
+        id: 109,
+        emoji: '🧯',
+        topic: 'Remittance',
+        tech: 'lightning',
+        name: 'When a payment fails',
+        tagline: 'A failed attempt is a status to investigate, not a reason to pay twice.',
+        learn: {
+            heading: 'Check state before retrying',
+            body:
+                "Lightning attempts can fail because an invoice expired, a route lacked liquidity, the wallet lost connectivity, or the receiver could not accept the amount.\n\nFirst read the wallet status: succeeded, pending, or failed. If it says succeeded, do not pay again; ask the recipient to refresh and verify. If it is pending, wait for the wallet to resolve it. If it clearly failed, create a fresh invoice or destination before retrying.\n\nKeep the payment ID or proof. Support can investigate an identifier; “my payment disappeared” gives them very little.",
+            tip: 'Succeeded: do not resend. Pending: wait. Failed: use a fresh invoice and retry once.',
+        },
+        quiz: {
+            question: 'Your wallet says the payment is pending. What should you do?',
+            options: [
+                { text: 'Immediately send the same amount again', correct: false },
+                { text: 'Wait for a final status and keep the payment identifier', correct: true },
+                { text: 'Delete the wallet history', correct: false },
+            ],
+        },
+        actionLabel: 'I know the recovery steps',
+        helper: 'Practise the decision: succeeded, pending, or failed—then choose the matching next action.',
+    }),
+    knowledge({
+        id: 110,
+        emoji: '✅',
+        topic: 'Remittance',
+        tech: 'bitcoin',
+        name: 'Repeat without BitPilot',
+        tagline: 'The real test is doing the next transfer safely without lesson prompts.',
+        learn: {
+            heading: 'Your reusable transfer checklist',
+            body:
+                "Before:\n• Compare the final spendable amount.\n• Confirm the recipient and destination through a trusted channel.\n• Agree on how the recipient will use or convert the funds.\n\nDuring:\n• Send a tiny test.\n• Let the recipient verify it in their own wallet.\n• Send the intended amount only after confirmation.\n\nAfter:\n• Save the payment identifier.\n• Confirm the final usable amount.\n• If anything looks wrong, check succeeded, pending, or failed before acting.\n\nUse this checklist for the next transfer. Speed comes from a practised process, not from skipping checks.",
+            tip: 'Save this checklist somewhere you already look before sending money.',
+        },
+        quiz: {
+            question: 'What demonstrates that this journey worked?',
+            options: [
+                { text: 'Remembering every technical term', correct: false },
+                { text: 'Repeating a safe transfer using the checklist without lesson prompts', correct: true },
+                { text: 'Finishing faster than everybody else', correct: false },
+            ],
+        },
+        actionLabel: 'I can repeat this safely',
+        helper: 'Read the checklist once without the lesson and explain the sequence in your own words.',
+    }),
 ]
 
 /** Total mission count. The frontend never hardcodes 58, it reads this. */

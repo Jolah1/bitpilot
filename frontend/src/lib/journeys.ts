@@ -62,12 +62,13 @@ export const JOURNEYS: Journey[] = [
         audience: 'For diaspora workers and families',
         promise: 'Practise receiving, then send a Lightning payment safely.',
         tree: 'lightning',
-        missions: [10, 21, 22, 80, 23, 24],
-        minutes: 30,
+        missions: [106, 10, 107, 21, 80, 23, 24, 108, 109, 110],
+        minutes: 50,
         outcome: 'I can send and receive a Lightning payment.',
         capabilities: [
             { mission: 23, label: 'Can create a Lightning invoice' },
             { mission: 24, label: 'Can send a Lightning payment' },
+            { mission: 110, label: 'Can repeat a safe remittance without lesson prompts' },
         ],
     },
     {

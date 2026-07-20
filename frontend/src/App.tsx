@@ -389,7 +389,7 @@ export default function App() {
                         }}
                         onWorkshop={() => {
                             setView('facilitator')
-                            setScreen('setup')
+                            setScreen('goal')
                         }}
                     />
                 )}
@@ -398,6 +398,7 @@ export default function App() {
                         theme={theme}
                         onToggleTheme={toggleTheme}
                         onBack={() => setScreen('mode')}
+                        facilitator={view === 'facilitator'}
                         onPick={(journey) => {
                             saveJourney(journey)
                             setScreen('setup')
@@ -412,9 +413,7 @@ export default function App() {
                             setScreen(
                                 joinSessionId
                                     ? 'landing'
-                                    : view === 'learner'
-                                      ? 'goal'
-                                      : 'mode',
+                                    : 'goal',
                             )
                         }
                         participantName={participantName}
@@ -787,11 +786,13 @@ function ChooseGoal({
     onToggleTheme,
     onBack,
     onPick,
+    facilitator = false,
 }: {
     theme: Theme
     onToggleTheme: () => void
     onBack: () => void
     onPick: (journey: JourneyId | null) => void
+    facilitator?: boolean
 }) {
     const [preferences, setPreferences] = useState<JourneyPreferences>(
         () => getJourneyPreferences(),
@@ -813,12 +814,15 @@ function ChooseGoal({
                             margin: 0,
                         }}
                     >
-                        What do you need Bitcoin to help you do?
+                        {facilitator
+                            ? 'What should this workshop help people do?'
+                            : 'What do you need Bitcoin to help you do?'}
                     </h1>
                 </div>
                 <p style={{ fontSize: 13.5, color: 'var(--muted)', lineHeight: 1.55, margin: 0 }}>
-                    Start with one useful result. You will learn the Bitcoin
-                    concepts you need while completing the task.
+                    {facilitator
+                        ? 'Everyone joining your workshop will receive this practical route and the delivery settings below.'
+                        : 'Start with one useful result. You will learn the Bitcoin concepts you need while completing the task.'}
                 </p>
             </header>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -880,7 +884,7 @@ function ChooseGoal({
                     justifyContent: 'center',
                 }}
             >
-                Explore the complete mission library
+                {facilitator ? 'Run an unrestricted workshop' : 'Explore the complete mission library'}
             </button>
         </StepShell>
     )

@@ -46,9 +46,9 @@ impl Tree {
     /// derive from this, and the frontend `TREES` constant mirrors it.
     pub fn missions(self) -> &'static [u8] {
         match self {
-            Tree::Money       => &[0, 1, 77, 78, 2, 5, 9, 10],
+            Tree::Money       => &[0, 1, 77, 78, 2, 5, 9, 10, 106, 108, 110],
             Tree::Bitcoin     => &[6, 7, 8, 87, 88, 18, 19, 89, 40, 90, 48, 49],
-            Tree::Lightning   => &[21, 22, 79, 80, 23, 24, 25, 38, 81, 82, 39, 83],
+            Tree::Lightning   => &[21, 22, 79, 80, 23, 24, 25, 38, 81, 82, 39, 83, 107, 109],
             Tree::Nostr       => &[13, 14, 15, 97, 16, 17, 26, 27, 98, 28, 29, 30, 35, 36, 37, 99],
             Tree::Ecash       => &[31, 32, 33, 34, 84, 55, 56, 85, 57, 86],
             Tree::SelfCustody => &[3, 4, 11, 12, 91, 92, 93, 20, 41, 94, 95, 43, 44, 45, 96],
@@ -269,6 +269,12 @@ const CATALOGUE: &[Row] = &[
     Row { number: 103, title: "Decode a good first issue",    simulated: false, description: "Maintainers label easy wins for you. Learn to read them." },
     Row { number: 104, title: "Tests are contributions too",  simulated: false, description: "The easiest code PR: prove an existing function works." },
     Row { number: 105, title: "Ship a real PR",               simulated: false, description: "Graduation is a merge commit with your name on it." },
+    // ── Practical remittance ───────────────────────────────────────────
+    Row { number: 106, title: "Compare the true transfer cost", simulated: false, description: "Fees, exchange-rate spread, and cash-out cost in one comparison." },
+    Row { number: 107, title: "Prepare the recipient",          simulated: false, description: "Wallet readiness, a tiny test, and a clear cash-out plan." },
+    Row { number: 108, title: "Stop remittance scams",          simulated: false, description: "Verify the person and request before money moves." },
+    Row { number: 109, title: "When a payment fails",           simulated: false, description: "Read the status, protect the preimage, retry safely." },
+    Row { number: 110, title: "Repeat without BitPilot",        simulated: false, description: "A final checklist you can use for the next real transfer." },
 ];
 
 impl Mission {
@@ -297,7 +303,7 @@ impl Mission {
     pub const FIRST: u8 = 0;
 
     /// Last valid mission id (inclusive).
-    pub const LAST: u8 = 105;
+    pub const LAST: u8 = 110;
 
     /// Which `DoKind` does this mission use? Used by `verify_proof` to know
     /// which ledger to check. Kept in lock-step with the frontend's
@@ -324,6 +330,7 @@ impl Mission {
             // 102/103 render a paste-value input on the frontend; server-side
             // any non-empty reflection counts, same as knowledge missions.
             100 | 101 | 102 | 103 | 104 => DoKind::Knowledge,
+            106 | 107 | 108 | 109 | 110 => DoKind::Knowledge,
 
             // Action missions:
             // 6 and 51 both ask the learner to read one live number off a

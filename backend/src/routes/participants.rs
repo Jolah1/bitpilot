@@ -28,6 +28,7 @@ pub fn sessions_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
     let admin = Router::new()
         .route("/:id", get(get_session))
         .route("/:id/participants", get(list_participants))
+        .route("/:id/analytics", get(get_session_analytics))
         .layer(from_fn_with_state(state, require_facilitator));
     public.merge(admin)
 }
@@ -42,6 +43,7 @@ pub fn router(state: Arc<AppState>) -> Router<Arc<AppState>> {
     let authed = Router::new()
         .route("/me", get(get_self))
         .route("/me/profile", patch(update_profile))
+        .route("/me/outcome-feedback", patch(update_outcome_feedback))
         .route("/me/completions", get(list_completions))
         .route("/me/badges", get(list_badges))
         .route(
@@ -56,6 +58,10 @@ pub fn router(state: Arc<AppState>) -> Router<Arc<AppState>> {
 #[derive(Deserialize)]
 struct CreateSessionRequest {
     name: String,
+    journey_id: Option<JourneyId>,
+    guidance: Option<Guidance>,
+    session_minutes: Option<u16>,
+    practice_mode: Option<PracticeMode>,
 }
 
 #[derive(Serialize)]
@@ -85,14 +91,19 @@ async fn create_session(
     let facilitator_hash = hash_token(&facilitator_token);
     let created_at = now() as i64;
 
+    let session_minutes = body.session_minutes.unwrap_or(30).clamp(5, 120);
     sqlx::query(
-        "INSERT INTO sessions (id, name, facilitator_token_hash, created_at) \
-         VALUES (?, ?, ?, ?)",
+        "INSERT INTO sessions (id, name, facilitator_token_hash, created_at, journey_id, guidance, session_minutes, practice_mode) \
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(&id)
     .bind(name)
     .bind(&facilitator_hash)
     .bind(created_at)
+    .bind(body.journey_id.map(JourneyId::as_str))
+    .bind(body.guidance.map(Guidance::as_str))
+    .bind(session_minutes as i64)
+    .bind(body.practice_mode.map(PracticeMode::as_str))
     .execute(&state.db)
     .await?;
 
@@ -111,14 +122,18 @@ async fn create_session(
 struct SessionResponse {
     session: Session,
     participant_count: usize,
+    journey_id: Option<JourneyId>,
+    guidance: Option<Guidance>,
+    session_minutes: Option<u16>,
+    practice_mode: Option<PracticeMode>,
 }
 
 async fn get_session(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
 ) -> Result<Json<SessionResponse>, AppError> {
-    let row: (String, String, i64) =
-        sqlx::query_as("SELECT id, name, created_at FROM sessions WHERE id = ?")
+    let row: (String, String, i64, Option<String>, Option<String>, Option<i64>, Option<String>) =
+        sqlx::query_as("SELECT id, name, created_at, journey_id, guidance, session_minutes, practice_mode FROM sessions WHERE id = ?")
             .bind(&id)
             .fetch_optional(&state.db)
             .await?
@@ -135,6 +150,10 @@ async fn get_session(
             created_at: row.2 as u64,
         },
         participant_count: participants.len(),
+        journey_id: row.3.as_deref().and_then(JourneyId::parse),
+        guidance: row.4.as_deref().map(Guidance::parse),
+        session_minutes: row.5.map(|value| value as u16),
+        practice_mode: row.6.as_deref().map(PracticeMode::parse),
     }))
 }
 
@@ -153,6 +172,61 @@ async fn list_participants(
     Ok(Json(
         load_participants_by_session(&state, &session_id).await?,
     ))
+}
+
+#[derive(Serialize)]
+struct SessionAnalytics {
+    participants: usize,
+    outcome_ready: usize,
+    used_outside: usize,
+    not_yet_used_outside: usize,
+    average_seconds_to_first_action: Option<u64>,
+}
+
+async fn get_session_analytics(
+    State(state): State<Arc<AppState>>,
+    Path(session_id): Path<String>,
+) -> Result<Json<SessionAnalytics>, AppError> {
+    let participants = load_participants_by_session(&state, &session_id).await?;
+    let mut outcome_ready = 0;
+    for participant in &participants {
+        if let Some(journey) = participant.journey_id {
+            if journey
+                .next_incomplete(&participant.completed_missions)
+                .is_none()
+            {
+                outcome_ready += 1;
+            }
+        }
+    }
+    let feedback: (i64, i64) = sqlx::query_as(
+        "SELECT \
+           COALESCE(SUM(CASE WHEN used_outside = 1 THEN 1 ELSE 0 END), 0), \
+           COALESCE(SUM(CASE WHEN used_outside = 0 THEN 1 ELSE 0 END), 0) \
+         FROM participants WHERE session_id = ?",
+    )
+    .bind(&session_id)
+    .fetch_one(&state.db)
+    .await?;
+    let first_action: (Option<f64>,) = sqlx::query_as(
+        "SELECT AVG(first_completed - created_at) FROM (\
+           SELECT p.created_at, MIN(mc.completed_at) AS first_completed \
+           FROM participants p JOIN mission_completions mc ON mc.participant_id = p.id \
+           WHERE p.session_id = ? GROUP BY p.id\
+         )",
+    )
+    .bind(&session_id)
+    .fetch_one(&state.db)
+    .await?;
+    Ok(Json(SessionAnalytics {
+        participants: participants.len(),
+        outcome_ready,
+        used_outside: feedback.0 as usize,
+        not_yet_used_outside: feedback.1 as usize,
+        average_seconds_to_first_action: first_action
+            .0
+            .and_then(|value| value.is_finite().then_some(value.max(0.0) as u64)),
+    }))
 }
 
 #[derive(Deserialize)]
@@ -205,9 +279,35 @@ async fn join_session(
 
     // New curriculum is 0-indexed; we explicitly bind 0 to be robust if
     // the column's default ever drifts in a future migration.
-    let guidance = body.guidance.unwrap_or(Guidance::Guided);
-    let practice_mode = body.practice_mode.unwrap_or(PracticeMode::Simulation);
-    let session_minutes = body.session_minutes.unwrap_or(30).clamp(5, 120);
+    let workshop: Option<(Option<String>, Option<String>, Option<i64>, Option<String>)> =
+        sqlx::query_as(
+            "SELECT journey_id, guidance, session_minutes, practice_mode FROM sessions WHERE id = ?",
+        )
+        .bind(&body.session_id)
+        .fetch_optional(&state.db)
+        .await?;
+    let workshop = workshop.unwrap_or((None, None, None, None));
+    let workshop_journey = workshop.0.as_deref().and_then(JourneyId::parse);
+    let journey_id = workshop_journey.or(body.journey_id);
+    let guidance = if workshop_journey.is_some() {
+        workshop.1.as_deref().map(Guidance::parse)
+    } else {
+        body.guidance
+    }
+    .unwrap_or(Guidance::Guided);
+    let practice_mode = if workshop_journey.is_some() {
+        workshop.3.as_deref().map(PracticeMode::parse)
+    } else {
+        body.practice_mode
+    }
+    .unwrap_or(PracticeMode::Simulation);
+    let session_minutes = if workshop_journey.is_some() {
+        workshop.2.map(|value| value as u16)
+    } else {
+        body.session_minutes
+    }
+    .unwrap_or(30)
+    .clamp(5, 120);
     sqlx::query(
         "INSERT INTO participants \
          (id, name, session_id, current_mission, nostr_pubkey, auth_token_hash, created_at, last_active, journey_id, guidance, session_minutes, practice_mode) \
@@ -219,7 +319,7 @@ async fn join_session(
     .bind(&auth_hash)
     .bind(created_at)
     .bind(created_at)
-    .bind(body.journey_id.map(JourneyId::as_str))
+    .bind(journey_id.map(JourneyId::as_str))
     .bind(guidance.as_str())
     .bind(session_minutes as i64)
     .bind(practice_mode.as_str())
@@ -239,10 +339,11 @@ async fn join_session(
             last_active: created_at as u64,
             streak_count: 0,
             streak_day: 0,
-            journey_id: body.journey_id,
+            journey_id,
             guidance,
             session_minutes,
             practice_mode,
+            used_outside: None,
         },
         auth_token,
     }))
@@ -273,6 +374,27 @@ async fn update_profile(
     .bind(body.guidance.as_str())
     .bind(body.session_minutes as i64)
     .bind(body.practice_mode.as_str())
+    .bind(&authed.participant_id)
+    .execute(&state.db)
+    .await?;
+    Ok(Json(load_participant(&state, &authed.participant_id).await?))
+}
+
+#[derive(Deserialize)]
+struct OutcomeFeedbackRequest {
+    used_outside: bool,
+}
+
+async fn update_outcome_feedback(
+    State(state): State<Arc<AppState>>,
+    Extension(authed): Extension<AuthedParticipant>,
+    Json(body): Json<OutcomeFeedbackRequest>,
+) -> Result<Json<Participant>, AppError> {
+    sqlx::query(
+        "UPDATE participants SET used_outside = ?, feedback_at = ? WHERE id = ?",
+    )
+    .bind(if body.used_outside { 1 } else { 0 })
+    .bind(now() as i64)
     .bind(&authed.participant_id)
     .execute(&state.db)
     .await?;
@@ -475,8 +597,8 @@ pub async fn load_participant(
     state: &AppState,
     participant_id: &str,
 ) -> Result<Participant, AppError> {
-    let row: Option<(String, String, String, i64, Option<String>, String, i64, i64, i64, Option<String>, String, i64, String)> = sqlx::query_as(
-        "SELECT id, name, session_id, current_mission, nostr_pubkey, current_per_tree, last_active, streak_count, streak_day, journey_id, guidance, session_minutes, practice_mode \
+    let row: Option<(String, String, String, i64, Option<String>, String, i64, i64, i64, Option<String>, String, i64, String, Option<i64>)> = sqlx::query_as(
+        "SELECT id, name, session_id, current_mission, nostr_pubkey, current_per_tree, last_active, streak_count, streak_day, journey_id, guidance, session_minutes, practice_mode, used_outside \
          FROM participants WHERE id = ?",
     )
     .bind(participant_id)
@@ -510,6 +632,7 @@ pub async fn load_participant(
         guidance: Guidance::parse(&row.10),
         session_minutes: row.11 as u16,
         practice_mode: PracticeMode::parse(&row.12),
+        used_outside: row.13.map(|value| value != 0),
     })
 }
 
@@ -517,8 +640,8 @@ async fn load_participants_by_session(
     state: &AppState,
     session_id: &str,
 ) -> Result<Vec<Participant>, AppError> {
-    let rows: Vec<(String, String, String, i64, Option<String>, String, i64, i64, i64, Option<String>, String, i64, String)> = sqlx::query_as(
-        "SELECT id, name, session_id, current_mission, nostr_pubkey, current_per_tree, last_active, streak_count, streak_day, journey_id, guidance, session_minutes, practice_mode \
+    let rows: Vec<(String, String, String, i64, Option<String>, String, i64, i64, i64, Option<String>, String, i64, String, Option<i64>)> = sqlx::query_as(
+        "SELECT id, name, session_id, current_mission, nostr_pubkey, current_per_tree, last_active, streak_count, streak_day, journey_id, guidance, session_minutes, practice_mode, used_outside \
          FROM participants WHERE session_id = ? ORDER BY created_at",
     )
     .bind(session_id)
@@ -555,6 +678,7 @@ async fn load_participants_by_session(
             guidance: Guidance::parse(&r.10),
             session_minutes: r.11 as u16,
             practice_mode: PracticeMode::parse(&r.12),
+            used_outside: r.13.map(|value| value != 0),
         });
     }
     Ok(out)

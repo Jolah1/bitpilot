@@ -440,8 +440,9 @@ fn selected_journey_allows_its_next_cross_tree_step() {
     let j = join_journey(&h.base, "Ada", &s.id, "send-remittance");
 
     // Money's normal pointer is mission 0. Remittance intentionally begins
-    // at custody mission 10, so only the saved journey gate can authorize it.
-    let r = complete(&h.base, &j.auth_token, 10, "acknowledged");
+    // at practical cost-comparison mission 106, so only the saved journey
+    // gate can authorize it.
+    let r = complete(&h.base, &j.auth_token, 106, "acknowledged");
     assert!(r.status().is_success(), "journey step rejected: {}", r.text().unwrap());
 
     let p = me(&h.base, &j.auth_token);
@@ -490,6 +491,68 @@ fn learner_can_update_and_clear_journey_profile() {
 }
 
 #[test]
+fn workshop_profile_overrides_joiner_preferences_and_reports_aggregate_outcomes() {
+    let h = Harness::start();
+    let created: Value = client()
+        .post(format!("{}/api/sessions", h.base))
+        .json(&json!({
+            "name": "Remittance pilot",
+            "journey_id": "send-remittance",
+            "guidance": "guided",
+            "session_minutes": 60,
+            "practice_mode": "simulation"
+        }))
+        .send()
+        .unwrap()
+        .json()
+        .unwrap();
+    let session_id = created["session"]["id"].as_str().unwrap();
+    let facilitator_token = created["facilitator_token"].as_str().unwrap();
+
+    let joined: Value = client()
+        .post(format!("{}/api/participants", h.base))
+        .json(&json!({
+            "name": "Tomi",
+            "session_id": session_id,
+            "journey_id": "secure-savings",
+            "guidance": "self-directed",
+            "session_minutes": 15,
+            "practice_mode": "test-network"
+        }))
+        .send()
+        .unwrap()
+        .json()
+        .unwrap();
+    assert_eq!(joined["participant"]["journey_id"], "send-remittance");
+    assert_eq!(joined["participant"]["guidance"], "guided");
+    assert_eq!(joined["participant"]["session_minutes"], 60);
+    let token = joined["auth_token"].as_str().unwrap();
+
+    assert!(complete(&h.base, token, 106, "acknowledged").status().is_success());
+    client()
+        .patch(format!("{}/api/participants/me/outcome-feedback", h.base))
+        .header("authorization", format!("Bearer {token}"))
+        .json(&json!({ "used_outside": false }))
+        .send()
+        .unwrap()
+        .error_for_status()
+        .unwrap();
+
+    let analytics: Value = client()
+        .get(format!("{}/api/sessions/{session_id}/analytics", h.base))
+        .header("x-facilitator-key", facilitator_token)
+        .send()
+        .unwrap()
+        .json()
+        .unwrap();
+    assert_eq!(analytics["participants"], 1);
+    assert_eq!(analytics["outcome_ready"], 0);
+    assert_eq!(analytics["used_outside"], 0);
+    assert_eq!(analytics["not_yet_used_outside"], 1);
+    assert!(analytics["average_seconds_to_first_action"].is_number());
+}
+
+#[test]
 fn empty_proof_rejected() {
     let h = Harness::start();
     let s = create_session(&h.base, "empty-test");
@@ -507,10 +570,10 @@ fn out_of_range_mission_rejected() {
     let s = create_session(&h.base, "range-test");
     let j = join_session(&h.base, "frank", &s.id);
 
-    let r = complete(&h.base, &j.auth_token, 106, "anything");
+    let r = complete(&h.base, &j.auth_token, 111, "anything");
     assert_eq!(r.status(), 400);
     let v: Value = r.json().unwrap();
-    assert!(v["error"].as_str().unwrap().contains("0..=105"));
+    assert!(v["error"].as_str().unwrap().contains("0..=110"));
 }
 
 #[test]
@@ -636,7 +699,7 @@ fn missions_list_is_public_no_auth_required() {
     let r = client().get(format!("{}/api/missions", h.base)).send().unwrap();
     assert_eq!(r.status(), 200);
     let arr: Vec<Value> = r.json().unwrap();
-    assert_eq!(arr.len(), 106, "curriculum is 0..=105 = 106 missions");
+    assert_eq!(arr.len(), 111, "curriculum is 0..=110 = 111 missions");
     // Tree assignment check — by mission number (catalogue order is
     // grouped by tree, not numeric, so we look up by `number` field).
     let by_num = |n: i64| arr.iter().find(|m| m["number"] == n).unwrap();
@@ -722,14 +785,14 @@ fn me_badges_starts_empty_then_unlocks_money_after_tree_clear() {
     assert_eq!(badges.len(), 9);
     assert!(badges.iter().all(|b| b["earned"] == false));
     let money = badges.iter().find(|b| b["tree"] == "money").unwrap();
-    assert_eq!(money["required"], 8);
+    assert_eq!(money["required"], 11);
     assert_eq!(money["completed"], 0);
 
     // Clear the Money tree by walking its missions in tree order — the
     // per-tree gate requires each pointer to match exactly, so we cannot
     // just iterate 0..=N and expect it to work when non-Money ids sit
     // between Money ids.
-    let money_ids: [u8; 8] = [0, 1, 77, 78, 2, 5, 9, 10];
+    let money_ids: [u8; 11] = [0, 1, 77, 78, 2, 5, 9, 10, 106, 108, 110];
     for m in money_ids {
         let r = complete(&h.base, &j.auth_token, m, "acknowledged");
         assert_eq!(r.status(), 200, "completing mission {m}");
@@ -738,7 +801,7 @@ fn me_badges_starts_empty_then_unlocks_money_after_tree_clear() {
     let badges = fetch();
     let money = badges.iter().find(|b| b["tree"] == "money").unwrap();
     assert_eq!(money["earned"], true);
-    assert_eq!(money["completed"], 8);
+    assert_eq!(money["completed"], 11);
     assert!(money["earned_at"].as_i64().unwrap() > 0);
     // Privacy is single-mission (46), so still locked since we stopped at 10.
     let privacy = badges.iter().find(|b| b["tree"] == "privacy").unwrap();
@@ -771,7 +834,7 @@ fn badge_certificate_issue_and_public_verify() {
     assert_eq!(issue("no-such-tree").status(), 404);
 
     // Clear the Money tree, then certify it.
-    let money_ids: [u8; 8] = [0, 1, 77, 78, 2, 5, 9, 10];
+    let money_ids: [u8; 11] = [0, 1, 77, 78, 2, 5, 9, 10, 106, 108, 110];
     for m in money_ids {
         assert_eq!(complete(&h.base, &j.auth_token, m, "acknowledged").status(), 200);
     }
@@ -783,7 +846,7 @@ fn badge_certificate_issue_and_public_verify() {
     assert_eq!(cert["tree_label"], "Money Basics");
     assert_eq!(cert["rank"], "Money Basics Wings");
     assert_eq!(cert["participant_name"], "dana");
-    assert_eq!(cert["missions_completed"], 8);
+    assert_eq!(cert["missions_completed"], 11);
     assert_eq!(cert["signature_valid"], true);
     assert!(cert["earned_at"].as_i64().unwrap() > 0);
     assert!(cert["server_npub"].as_str().unwrap().starts_with("npub1"));
@@ -1012,7 +1075,7 @@ fn challenge_create_validates_input() {
     for (body, why) in [
         (json!({"title": " ", "missions": [1], "starts_at": now, "ends_at": now + 10}), "empty title"),
         (json!({"title": "x", "missions": [], "starts_at": now, "ends_at": now + 10}), "no missions"),
-        (json!({"title": "x", "missions": [106], "starts_at": now, "ends_at": now + 10}), "mission out of range"),
+        (json!({"title": "x", "missions": [111], "starts_at": now, "ends_at": now + 10}), "mission out of range"),
         (json!({"title": "x", "missions": [1], "starts_at": now + 10, "ends_at": now}), "inverted window"),
         (json!({"title": "x", "missions": [1], "starts_at": now - 100, "ends_at": now - 50}), "window in the past"),
     ] {

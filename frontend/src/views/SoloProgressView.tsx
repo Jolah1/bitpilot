@@ -164,6 +164,37 @@ export default function SoloProgressView({
                             Continue toward this outcome
                         </button>
                     )}
+                    {progress.complete && participant?.used_outside === null && (
+                        <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px solid var(--border)' }}>
+                            <strong style={{ fontSize: 13 }}>Have you used this skill outside BitPilot?</strong>
+                            <p style={{ margin: '4px 0 10px', fontSize: 11.5, color: 'var(--muted)' }}>
+                                One optional answer helps improve this journey. Facilitators only see aggregate totals.
+                            </p>
+                            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                                {([
+                                    [true, 'Yes, I used it'],
+                                    [false, 'Not yet'],
+                                ] as const).map(([answer, label]) => (
+                                    <button
+                                        key={label}
+                                        type="button"
+                                        onClick={async () => {
+                                            const updated = await api.updateOutcomeFeedback(answer)
+                                            setParticipant(updated)
+                                        }}
+                                        style={{ background: 'transparent', border: '1px solid var(--border)', borderRadius: 'var(--radius-pill)', color: 'var(--text)', padding: '7px 11px', cursor: 'pointer' }}
+                                    >
+                                        {label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                    {progress.complete && participant?.used_outside !== null && (
+                        <p style={{ margin: '14px 0 0', fontSize: 12, color: 'var(--muted)' }}>
+                            Feedback recorded: {participant?.used_outside ? 'used outside BitPilot' : 'not yet used outside BitPilot'}.
+                        </p>
+                    )}
                 </section>
             )}
 

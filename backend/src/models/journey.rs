@@ -38,7 +38,7 @@ impl JourneyId {
             Self::ReceivePayment => &[21, 22, 80, 23],
             // Custody is taught just before the practical Lightning flow:
             // a cross-tree safety concept that matters to remittance users.
-            Self::SendRemittance => &[10, 21, 22, 80, 23, 24],
+            Self::SendRemittance => &[106, 10, 107, 21, 80, 23, 24, 108, 109, 110],
             Self::SecureSavings => &[3, 4, 11, 12, 93, 20],
             Self::PublishIndependently => &[13, 14, 15, 97, 16, 26],
             Self::ContributeCode => &[100, 101, 102, 103, 104, 105],
