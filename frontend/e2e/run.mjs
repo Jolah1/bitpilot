@@ -12,6 +12,7 @@ import { dirname, join } from 'node:path'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const suite = [
+    ['language.test.mjs'],
     ['secret-reveal.test.mjs', 'seed'],
     ['secret-reveal.test.mjs', 'nostrid'],
     ['sign-event.test.mjs'],

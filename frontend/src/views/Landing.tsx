@@ -7,6 +7,8 @@ import { useRuntime } from '../lib/runtime'
 import { api, type ChallengeInfo } from '../lib/api'
 import { TREES } from '../lib/types'
 import { card, chip, ghostButton, primaryButton } from '../lib/ui'
+import { useLanguage } from '../lib/language'
+import { LanguageSwitch } from '../components/LanguageSwitch'
 
 // ─── Landing ─────────────────────────────────────────────────────────────────
 //
@@ -57,6 +59,7 @@ export default function Landing({
     /** Token entry for a returning facilitator (dashboard on any device). */
     onFacilitatorAccess: () => void
 }) {
+    const { t } = useLanguage()
     return (
         <div
             style={{
@@ -110,6 +113,7 @@ function Hero({
     onFacilitator: () => void
     onPair: () => void
 }) {
+    const { t } = useLanguage()
     return (
         <section
             aria-labelledby="hero-headline"
@@ -151,7 +155,7 @@ function Hero({
                         display: 'inline-block',
                     }}
                 />
-                100% free · no signup · nothing to buy
+                {t('free')}
             </span>
 
             <h1
@@ -165,9 +169,9 @@ function Hero({
                     position: 'relative',
                 }}
             >
-                Use Bitcoin
+                {t('heroLine1')}
                 <br />
-                for <span className="gradient-text">something useful.</span>
+                <span className="gradient-text">{t('heroLine2')}</span>
             </h1>
 
             {/* Two short sentences. First names the failure mode; second
@@ -184,10 +188,7 @@ function Hero({
                     position: 'relative',
                 }}
             >
-                Choose a real task—receive a payment, send money, protect savings,
-                publish independently, or contribute code. BitPilot guides you
-                through it and explains Bitcoin{' '}
-                <strong style={{ color: 'var(--text)' }}>when you need it</strong>.
+                {t('heroBody')}
             </p>
 
             <div
@@ -210,7 +211,7 @@ function Hero({
                         }}
                         onClick={onContinue}
                     >
-                        ↻ Continue your missions
+                        {t('continueMissions')}
                     </button>
                 )}
                 <button
@@ -223,7 +224,7 @@ function Hero({
                     }}
                     onClick={onStart}
                 >
-                    {hasResumable ? 'Start a different task' : '⚡ Choose a practical task'}
+                    {hasResumable ? t('differentTask') : t('chooseTask')}
                 </button>
                 <button
                     style={{
@@ -234,7 +235,7 @@ function Hero({
                     }}
                     onClick={onFacilitator}
                 >
-                    🎓 Run a Workshop
+                    {t('workshop')}
                 </button>
                 <button
                     style={{
@@ -245,7 +246,7 @@ function Hero({
                     }}
                     onClick={onPair}
                 >
-                    📲 Continue with a code
+                    {t('continueCode')}
                 </button>
             </div>
 
@@ -258,7 +259,7 @@ function Hero({
                     position: 'relative',
                 }}
             >
-                First useful result in about 25–60 minutes · works on your phone
+                {t('firstResult')}
             </p>
         </section>
     )
@@ -1431,6 +1432,7 @@ function TopNav({
     onToggleTheme: () => void
     onCta: () => void
 }) {
+    const { t } = useLanguage()
     return (
         <nav
             aria-label="Primary"
@@ -1472,6 +1474,7 @@ function TopNav({
                 </span>
             </a>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <LanguageSwitch compact />
                 <ThemeToggle theme={theme} onToggle={onToggleTheme} />
                 <button
                     className="bp-press"
@@ -1483,7 +1486,7 @@ function TopNav({
                     }}
                     onClick={onCta}
                 >
-                    Start
+                    {t('start')}
                 </button>
             </div>
         </nav>

@@ -20,6 +20,7 @@ import {
     type Journey,
 } from '../lib/journeys'
 import { useIsTechReal } from '../lib/runtime'
+import { localizeJourney, localizeMission, useLanguage } from '../lib/language'
 import {
     MISSION_COUNT,
     TREES,
@@ -99,6 +100,7 @@ interface DoOutcome {
  * so 60+ missions don't pile up into invisible slivers.
  */
 export default function LearnerView({ participantId }: { participantId: string }) {
+    const { language } = useLanguage()
     // `activeTreeKey === null` ⇒ tree picker is shown; otherwise we're
     // inside the linear flow of that tree. `treeIdx` is the position
     // within the *active tree's* ordered mission list (NOT a global
@@ -164,8 +166,11 @@ export default function LearnerView({ participantId }: { participantId: string }
     const missionId: number | undefined = activeJourney
         ? activeJourney.missions[treeIdx]
         : activeTree?.missions[treeIdx]
-    const mission: MissionDef | undefined =
+    const baseMission: MissionDef | undefined =
         missionId !== undefined ? missionById(missionId) : undefined
+    const mission: MissionDef | undefined = baseMission
+        ? localizeMission(baseMission, language)
+        : undefined
     const isLast =
         !!activeTree &&
         treeIdx ===
@@ -1089,11 +1094,19 @@ function HelpSignal({
     comment: string
     onSaved: (participant: import('../lib/types').Participant) => void
 }) {
+    const { language, t } = useLanguage()
     const [open, setOpen] = useState(false)
     const [selected, setSelected] = useState(reason)
     const [note, setNote] = useState(comment)
     const [saving, setSaving] = useState(false)
-    const reasons = [
+    const reasons = language === 'pcm' ? [
+        ['explanation', 'I no understand the explanation'],
+        ['wallet', 'My wallet get problem'],
+        ['network', 'My internet or network poor'],
+        ['recipient', 'The receiver never ready'],
+        ['payment', 'The payment no dey work'],
+        ['other', 'Another thing'],
+    ] as const : [
         ['explanation', 'I do not understand the explanation'],
         ['wallet', 'My wallet is the problem'],
         ['network', 'My internet or network is poor'],
@@ -1127,16 +1140,16 @@ function HelpSignal({
                     color: reason ? 'var(--bitcoin)' : undefined,
                 }}
             >
-                {reason ? '🆘 Help request sent · update it' : 'I’m stuck — ask for help'}
+                {reason ? t('helpSent') : t('stuck')}
             </button>
         )
     }
 
     return (
         <section style={{ ...card, padding: 14, marginTop: 10 }} aria-label="Ask the facilitator for help">
-            <strong style={{ fontSize: 14 }}>What is stopping you?</strong>
+            <strong style={{ fontSize: 14 }}>{t('stopping')}</strong>
             <p style={{ margin: '4px 0 10px', fontSize: 12, color: 'var(--muted)' }}>
-                Pick the closest answer. Your facilitator will see it immediately.
+                {t('facilitatorSees')}
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
                 {reasons.map(([value, label]) => (
@@ -1163,7 +1176,7 @@ function HelpSignal({
                     onChange={(event) => setNote(event.target.value)}
                     maxLength={240}
                     rows={2}
-                    placeholder="Optional: tell them what happened"
+                    placeholder={t('optionalNote')}
                     style={{ ...input, resize: 'vertical' }}
                 />
                 <div style={{ display: 'flex', gap: 8 }}>
@@ -1173,7 +1186,7 @@ function HelpSignal({
                         onClick={() => void save()}
                         style={{ ...primaryButton(!selected || saving), flex: 1 }}
                     >
-                        {saving ? 'Sending…' : 'Send help request'}
+                        {saving ? t('sending') : t('sendHelp')}
                     </button>
                     {reason && (
                         <button
@@ -1186,7 +1199,7 @@ function HelpSignal({
                             }}
                             style={ghostButton}
                         >
-                            I’m okay now
+                            {t('okayNow')}
                         </button>
                     )}
                 </div>
@@ -1262,12 +1275,13 @@ function MissionNav({
     onNext: () => void
     onExit: () => void
 }) {
+    const { language, t } = useLanguage()
     const canPrev = treeIdx > 0
     const canNext = treeIdx < treeIdxFrontier
     const missions = journey?.missions ?? tree.missions
     const total = missions.length
     const doneInTree = missions.filter((m) => completed.includes(m)).length
-    const label = journey?.title ?? tree.label
+    const label = journey ? localizeJourney(journey, language).title : tree.label
     return (
         <nav
             aria-label="Mission navigation"
@@ -1287,7 +1301,7 @@ function MissionNav({
                     aria-label="Back to flight paths"
                     style={navButtonStyle(true)}
                 >
-                    ← {journey ? 'My task' : 'Flight paths'}
+                    ← {journey ? t('myTask') : t('flightPaths')}
                 </button>
                 <span
                     style={{
@@ -1384,6 +1398,7 @@ function JourneyPicker({
     onEnter: (tree: TreeMeta) => void
     onEnterJourney: (journey: Journey) => void
 }) {
+    const { language, t } = useLanguage()
     const [selectedJourney, setSelectedJourney] = useState<Journey | null>(
         () => getSavedJourney(),
     )
@@ -1402,6 +1417,7 @@ function JourneyPicker({
         ? TREES.find((tree) => tree.key === selectedJourney.tree)
         : null
     const ordered: TreeMeta[] = [...TREES]
+    const selectedCopy = selectedJourney ? localizeJourney(selectedJourney, language) : null
 
     return (
         <section
@@ -1423,7 +1439,7 @@ function JourneyPicker({
                     }}
                 >
                     <span className="gradient-text">
-                        {selectedJourney ? selectedJourney.title : 'What do you need to do?'}
+                        {selectedCopy ? selectedCopy.title : t('whatNeed')}
                     </span>
                 </h1>
                 <p
@@ -1434,9 +1450,7 @@ function JourneyPicker({
                         lineHeight: 1.5,
                     }}
                 >
-                    {selectedJourney
-                        ? selectedJourney.promise
-                        : 'Choose one useful result. Learn only what you need while doing it.'}
+                    {selectedCopy ? selectedCopy.promise : t('chooseUseful')}
                 </p>
             </header>
 
@@ -1445,14 +1459,14 @@ function JourneyPicker({
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
                         <div>
                             <div style={{ fontSize: 12, color: 'var(--muted)' }}>
-                                {selectedJourney.audience}
+                                {selectedCopy?.audience}
                             </div>
                             <div style={{ marginTop: 4, fontSize: 14, fontWeight: 700 }}>
-                                Outcome: {selectedJourney.outcome}
+                                {t('outcome')}: {selectedCopy?.outcome}
                             </div>
                         </div>
                         <span style={{ ...chip(selectedProgress.complete ? 'green' : 'orange'), alignSelf: 'flex-start' }}>
-                            {selectedProgress.complete ? '✓ Capability ready' : `${selectedProgress.done}/${selectedProgress.total} steps`}
+                            {selectedProgress.complete ? t('ready') : `${selectedProgress.done}/${selectedProgress.total} ${t('steps')}`}
                         </span>
                     </div>
                     <div
@@ -1469,17 +1483,18 @@ function JourneyPicker({
                         style={{ ...primaryButton(), minHeight: 46, justifyContent: 'center' }}
                         onClick={() => onEnterJourney(selectedJourney)}
                     >
-                        {selectedProgress.complete ? 'Review this skill' : selectedProgress.done > 0 ? 'Continue this task' : 'Start this task'}
+                        {selectedProgress.complete ? t('reviewSkill') : selectedProgress.done > 0 ? t('continueTask') : t('startTask')}
                     </button>
                 </div>
             )}
 
             <div>
                 <h2 style={{ margin: '0 0 10px', fontSize: 14 }}>
-                    {selectedJourney ? 'Choose a different outcome' : 'Practical journeys'}
+                    {selectedJourney ? t('differentOutcome') : t('practicalJourneys')}
                 </h2>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 10 }}>
                     {JOURNEYS.map((journey) => {
+                        const copy = localizeJourney(journey, language)
                         const progress = journeyProgress(journey, completedMissions)
                         const active = selectedJourney?.id === journey.id
                         return (
@@ -1503,13 +1518,13 @@ function JourneyPicker({
                                 <div style={{ display: 'flex', gap: 10 }}>
                                     <span aria-hidden="true" style={{ fontSize: 22 }}>{journey.icon}</span>
                                     <span>
-                                        <strong style={{ display: 'block', fontSize: 14 }}>{journey.title}</strong>
+                                        <strong style={{ display: 'block', fontSize: 14 }}>{copy.title}</strong>
                                         <span style={{ display: 'block', marginTop: 3, fontSize: 11.5, lineHeight: 1.45, color: 'var(--muted)' }}>
-                                            {journey.audience} · about {journey.minutes} min
+                                            {copy.audience} · {t('about')} {journey.minutes} min
                                         </span>
                                         {progress.done > 0 && (
                                             <span style={{ display: 'block', marginTop: 6, fontSize: 11, color: progress.complete ? 'var(--success)' : 'var(--bitcoin)' }}>
-                                                {progress.complete ? '✓ Completed' : `${progress.done}/${progress.total} steps complete`}
+                                                {progress.complete ? t('completed') : `${progress.done}/${progress.total} ${t('stepsComplete')}`}
                                             </span>
                                         )}
                                     </span>
@@ -1526,7 +1541,7 @@ function JourneyPicker({
                 onClick={() => setExploring((value) => !value)}
                 aria-expanded={exploring}
             >
-                {exploring ? 'Hide complete mission library' : 'Explore the complete mission library'}
+                {exploring ? t('hideLibrary') : t('showLibrary')}
             </button>
 
             {exploring && <ol
