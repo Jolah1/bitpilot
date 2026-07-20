@@ -4,7 +4,7 @@ import { isSoloSessionName } from '../App'
 import { BrandMark } from '../components/BrandMark'
 import { QRSessionCard } from '../components/QRJoinFlow'
 import { MISSION_COUNT, TREES, treeFor, type Participant } from '../lib/types'
-import { fetchSessionProgress } from '../lib/api'
+import { fetchSessionProgress, type SessionAnalytics } from '../lib/api'
 import { journeyById, journeyProgress } from '../lib/journeys'
 import { card, chip, ghostButton, treeColor } from '../lib/ui'
 
@@ -228,11 +228,19 @@ export default function FacilitatorDashboard({ sessionId }: { sessionId: string 
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>
                         <SmallSignal label="Outcome ready" value={`${analytics.outcome_ready}/${analytics.participants}`} />
                         <SmallSignal
-                            label="Average first action"
+                            label="Typical first action"
                             value={
-                                analytics.average_seconds_to_first_action === null
+                                analytics.median_seconds_to_first_action === null
                                     ? 'Waiting'
-                                    : `${Math.max(1, Math.round(analytics.average_seconds_to_first_action / 60))} min`
+                                    : formatDuration(analytics.median_seconds_to_first_action)
+                            }
+                        />
+                        <SmallSignal
+                            label="Typical completion"
+                            value={
+                                analytics.median_seconds_to_outcome === null
+                                    ? 'Waiting'
+                                    : formatDuration(analytics.median_seconds_to_outcome)
                             }
                         />
                         <SmallSignal label="Used outside BitPilot" value={analytics.used_outside} />
@@ -243,6 +251,8 @@ export default function FacilitatorDashboard({ sessionId }: { sessionId: string 
                     </p>
                 </section>
             )}
+
+            {analytics && analytics.funnel.length > 0 && <PilotReport analytics={analytics} />}
 
             {/* Tree legend */}
             <section
@@ -344,6 +354,86 @@ export default function FacilitatorDashboard({ sessionId }: { sessionId: string 
                 </section>
             )}
         </main>
+    )
+}
+
+function formatDuration(seconds: number): string {
+    if (seconds < 60) return '< 1 min'
+    const minutes = Math.round(seconds / 60)
+    if (minutes < 60) return `${minutes} min`
+    const hours = Math.floor(minutes / 60)
+    const remainder = minutes % 60
+    return remainder === 0 ? `${hours} hr` : `${hours} hr ${remainder} min`
+}
+
+function PilotReport({ analytics }: { analytics: SessionAnalytics }) {
+    const biggestDrop = analytics.funnel.reduce<(typeof analytics.funnel)[number] | null>(
+        (lowest, step) =>
+            step.reached > 0 && (lowest === null || step.completion_percent < lowest.completion_percent)
+                ? step
+                : lowest,
+        null,
+    )
+    const maxBlockers = Math.max(1, ...analytics.blockers.map((item) => item.count))
+
+    return (
+        <section aria-label="Facilitator pilot report" style={{ ...card, padding: 14 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                <div>
+                    <h2 style={{ margin: 0, fontSize: 14 }}>Pilot report</h2>
+                    <p style={{ margin: '4px 0 0', color: 'var(--muted)', fontSize: 11, lineHeight: 1.5 }}>
+                        Group-level results for improving the next Nigerian workshop.
+                    </p>
+                </div>
+                {biggestDrop && biggestDrop.completion_percent < 100 && (
+                    <span style={{ ...chip('orange'), alignSelf: 'flex-start' }}>
+                        Review M{biggestDrop.mission}: {biggestDrop.title}
+                    </span>
+                )}
+            </div>
+
+            <h3 style={{ margin: '16px 0 8px', fontSize: 12 }}>Journey funnel</h3>
+            <div style={{ display: 'grid', gap: 8 }}>
+                {analytics.funnel.map((step, index) => (
+                    <div
+                        key={step.mission}
+                        style={{ display: 'grid', gridTemplateColumns: 'minmax(130px, 1.5fr) minmax(90px, 2fr) auto', gap: 10, alignItems: 'center' }}
+                    >
+                        <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 11 }}>
+                            {index + 1}. {step.title}
+                        </span>
+                        <div style={{ height: 7, overflow: 'hidden', borderRadius: 'var(--radius-pill)', background: 'var(--border)' }}>
+                            <div
+                                style={{ height: '100%', width: `${step.completion_percent}%`, background: 'var(--gradient-bitcoin)', borderRadius: 'inherit' }}
+                            />
+                        </div>
+                        <span style={{ minWidth: 58, textAlign: 'right', color: 'var(--muted)', fontFamily: 'var(--font-mono)', fontSize: 10 }}>
+                            {step.completed}/{step.reached} · {step.completion_percent}%
+                        </span>
+                    </div>
+                ))}
+            </div>
+
+            <h3 style={{ margin: '18px 0 8px', fontSize: 12 }}>What is blocking learners?</h3>
+            {analytics.blockers.length === 0 ? (
+                <p style={{ margin: 0, color: 'var(--muted)', fontSize: 11 }}>No blockers reported yet.</p>
+            ) : (
+                <div style={{ display: 'grid', gap: 8 }}>
+                    {analytics.blockers.map((item) => (
+                        <div key={item.reason} style={{ display: 'grid', gridTemplateColumns: 'minmax(150px, 1fr) minmax(80px, 2fr) auto', gap: 10, alignItems: 'center' }}>
+                            <span style={{ fontSize: 11 }}>{blockerLabel(item.reason)}</span>
+                            <div style={{ height: 7, overflow: 'hidden', borderRadius: 'var(--radius-pill)', background: 'var(--border)' }}>
+                                <div style={{ height: '100%', width: `${(item.count / maxBlockers) * 100}%`, background: '#FF8A4C', borderRadius: 'inherit' }} />
+                            </div>
+                            <strong style={{ minWidth: 18, textAlign: 'right', fontSize: 11 }}>{item.count}</strong>
+                        </div>
+                    ))}
+                </div>
+            )}
+            <p style={{ margin: '12px 0 0', fontSize: 10, color: 'var(--muted)', lineHeight: 1.5 }}>
+                Only combined counts are shown here. Learners’ feedback remains private.
+            </p>
+        </section>
     )
 }
 

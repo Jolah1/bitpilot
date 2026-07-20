@@ -573,6 +573,17 @@ fn workshop_profile_overrides_joiner_preferences_and_reports_aggregate_outcomes(
     assert_eq!(analytics["used_outside"], 0);
     assert_eq!(analytics["not_yet_used_outside"], 1);
     assert!(analytics["average_seconds_to_first_action"].is_number());
+    assert!(analytics["median_seconds_to_first_action"].is_number());
+    assert!(analytics["median_seconds_to_outcome"].is_null());
+    assert_eq!(analytics["funnel"][0]["mission"], 106);
+    assert_eq!(analytics["funnel"][0]["reached"], 1);
+    assert_eq!(analytics["funnel"][0]["completed"], 1);
+    assert_eq!(analytics["funnel"][0]["completion_percent"], 100);
+    assert_eq!(analytics["funnel"][1]["mission"], 10);
+    assert_eq!(analytics["funnel"][1]["reached"], 1);
+    assert_eq!(analytics["funnel"][1]["completed"], 0);
+    assert_eq!(analytics["blockers"][0]["reason"], "network");
+    assert_eq!(analytics["blockers"][0]["count"], 1);
 }
 
 #[test]

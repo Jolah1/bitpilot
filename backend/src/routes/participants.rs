@@ -5,6 +5,7 @@ use axum::{
     Json, Router,
 };
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -13,9 +14,7 @@ use crate::auth::{
     require_facilitator, require_participant, AuthedParticipant,
 };
 use crate::error::AppError;
-use crate::models::{
-    now, Badge, Guidance, JourneyId, Participant, PracticeMode, Session,
-};
+use crate::models::{now, Badge, Guidance, JourneyId, Mission, Participant, PracticeMode, Session};
 use crate::state::AppState;
 
 /// `/api/sessions` — facilitator-side routes. `POST /` is open (anyone can
@@ -182,6 +181,38 @@ struct SessionAnalytics {
     used_outside: usize,
     not_yet_used_outside: usize,
     average_seconds_to_first_action: Option<u64>,
+    median_seconds_to_first_action: Option<u64>,
+    median_seconds_to_outcome: Option<u64>,
+    funnel: Vec<JourneyStepAnalytics>,
+    blockers: Vec<BlockerAnalytics>,
+}
+
+#[derive(Serialize)]
+struct JourneyStepAnalytics {
+    mission: u8,
+    title: String,
+    reached: usize,
+    completed: usize,
+    completion_percent: u8,
+}
+
+#[derive(Serialize)]
+struct BlockerAnalytics {
+    reason: String,
+    count: usize,
+}
+
+fn median_seconds(mut values: Vec<u64>) -> Option<u64> {
+    if values.is_empty() {
+        return None;
+    }
+    values.sort_unstable();
+    let middle = values.len() / 2;
+    Some(if values.len() % 2 == 0 {
+        (values[middle - 1] + values[middle]) / 2
+    } else {
+        values[middle]
+    })
 }
 
 async fn get_session_analytics(
@@ -219,6 +250,118 @@ async fn get_session_analytics(
     .bind(&session_id)
     .fetch_one(&state.db)
     .await?;
+
+    let first_action_durations: Vec<(i64,)> = sqlx::query_as(
+        "SELECT MAX(0, first_completed - created_at) FROM (\
+           SELECT p.created_at, MIN(mc.completed_at) AS first_completed \
+           FROM participants p JOIN mission_completions mc ON mc.participant_id = p.id \
+           WHERE p.session_id = ? GROUP BY p.id\
+         )",
+    )
+    .bind(&session_id)
+    .fetch_all(&state.db)
+    .await?;
+
+    let session_journey: (Option<String>,) =
+        sqlx::query_as("SELECT journey_id FROM sessions WHERE id = ?")
+            .bind(&session_id)
+            .fetch_one(&state.db)
+            .await?;
+    let session_journey = session_journey.0.as_deref().and_then(JourneyId::parse);
+    let mission_titles: HashMap<u8, String> = Mission::all()
+        .into_iter()
+        .map(|mission| (mission.number, mission.title))
+        .collect();
+
+    let funnel = session_journey
+        .map(|journey| {
+            let cohort: Vec<&Participant> = participants
+                .iter()
+                .filter(|participant| participant.journey_id == Some(journey))
+                .collect();
+            journey
+                .missions()
+                .iter()
+                .enumerate()
+                .map(|(index, mission)| {
+                    let reached = if index == 0 {
+                        cohort.len()
+                    } else {
+                        let previous = journey.missions()[index - 1];
+                        cohort
+                            .iter()
+                            .filter(|participant| participant.completed_missions.contains(&previous))
+                            .count()
+                    };
+                    let completed = cohort
+                        .iter()
+                        .filter(|participant| participant.completed_missions.contains(mission))
+                        .count();
+                    JourneyStepAnalytics {
+                        mission: *mission,
+                        title: mission_titles.get(mission).cloned().unwrap_or_default(),
+                        reached,
+                        completed,
+                        completion_percent: if reached == 0 {
+                            0
+                        } else {
+                            ((completed * 100) / reached) as u8
+                        },
+                    }
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+
+    let created_rows: Vec<(String, i64)> =
+        sqlx::query_as("SELECT id, created_at FROM participants WHERE session_id = ?")
+            .bind(&session_id)
+            .fetch_all(&state.db)
+            .await?;
+    let created_at: HashMap<String, i64> = created_rows.into_iter().collect();
+    let completion_rows: Vec<(String, i64, i64)> = sqlx::query_as(
+        "SELECT mc.participant_id, mc.mission, mc.completed_at \
+         FROM mission_completions mc JOIN participants p ON p.id = mc.participant_id \
+         WHERE p.session_id = ?",
+    )
+    .bind(&session_id)
+    .fetch_all(&state.db)
+    .await?;
+    let mut completion_times: HashMap<String, HashMap<u8, i64>> = HashMap::new();
+    for (participant_id, mission, completed_at) in completion_rows {
+        completion_times
+            .entry(participant_id)
+            .or_default()
+            .insert(mission as u8, completed_at);
+    }
+    let outcome_durations = participants
+        .iter()
+        .filter_map(|participant| {
+            let journey = participant.journey_id?;
+            let times = completion_times.get(&participant.id)?;
+            let finished_at = journey
+                .missions()
+                .iter()
+                .map(|mission| times.get(mission).copied())
+                .collect::<Option<Vec<_>>>()?
+                .into_iter()
+                .max()?;
+            Some(finished_at.saturating_sub(*created_at.get(&participant.id)?) as u64)
+        })
+        .collect();
+
+    let blocker_order = ["explanation", "wallet", "network", "recipient", "payment", "other"];
+    let blockers = blocker_order
+        .into_iter()
+        .filter_map(|reason| {
+            let count = participants
+                .iter()
+                .filter(|participant| participant.blocker_reason.as_deref() == Some(reason))
+                .count();
+            (count > 0).then(|| BlockerAnalytics { reason: reason.into(), count })
+        })
+        .collect();
+
     Ok(Json(SessionAnalytics {
         participants: participants.len(),
         outcome_ready,
@@ -227,6 +370,12 @@ async fn get_session_analytics(
         average_seconds_to_first_action: first_action
             .0
             .and_then(|value| value.is_finite().then_some(value.max(0.0) as u64)),
+        median_seconds_to_first_action: median_seconds(
+            first_action_durations.into_iter().map(|(value,)| value as u64).collect(),
+        ),
+        median_seconds_to_outcome: median_seconds(outcome_durations),
+        funnel,
+        blockers,
     }))
 }
 

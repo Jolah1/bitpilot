@@ -133,6 +133,19 @@ export interface SessionAnalytics {
     used_outside: number
     not_yet_used_outside: number
     average_seconds_to_first_action: number | null
+    median_seconds_to_first_action: number | null
+    median_seconds_to_outcome: number | null
+    funnel: Array<{
+        mission: number
+        title: string
+        reached: number
+        completed: number
+        completion_percent: number
+    }>
+    blockers: Array<{
+        reason: NonNullable<Participant['blocker_reason']>
+        count: number
+    }>
 }
 
 export interface InvoiceResponse {
