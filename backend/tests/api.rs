@@ -156,6 +156,27 @@ fn join_session(base: &str, name: &str, session_id: &str) -> Joined {
     }
 }
 
+fn join_journey(base: &str, name: &str, session_id: &str, journey_id: &str) -> Joined {
+    let r: Value = client()
+        .post(format!("{base}/api/participants"))
+        .json(&json!({
+            "name": name,
+            "session_id": session_id,
+            "journey_id": journey_id,
+            "guidance": "self-directed",
+            "session_minutes": 15,
+            "practice_mode": "test-network"
+        }))
+        .send()
+        .unwrap()
+        .json()
+        .unwrap();
+    Joined {
+        participant_id: r["participant"]["id"].as_str().unwrap().to_string(),
+        auth_token: r["auth_token"].as_str().unwrap().to_string(),
+    }
+}
+
 /// Complete one mission. Returns the raw response so tests can inspect
 /// both 2xx and error bodies without unwrapping.
 fn complete(
@@ -410,6 +431,62 @@ fn per_tree_gate_blocks_skipping_within_tree() {
         "expected per-tree skip error, got {:?}",
         v["error"]
     );
+}
+
+#[test]
+fn selected_journey_allows_its_next_cross_tree_step() {
+    let h = Harness::start();
+    let s = create_session(&h.base, "outcome workshop");
+    let j = join_journey(&h.base, "Ada", &s.id, "send-remittance");
+
+    // Money's normal pointer is mission 0. Remittance intentionally begins
+    // at custody mission 10, so only the saved journey gate can authorize it.
+    let r = complete(&h.base, &j.auth_token, 10, "acknowledged");
+    assert!(r.status().is_success(), "journey step rejected: {}", r.text().unwrap());
+
+    let p = me(&h.base, &j.auth_token);
+    assert_eq!(p["journey_id"], "send-remittance");
+    assert_eq!(p["guidance"], "self-directed");
+    assert_eq!(p["session_minutes"], 15);
+    assert_eq!(p["practice_mode"], "test-network");
+}
+
+#[test]
+fn learner_can_update_and_clear_journey_profile() {
+    let h = Harness::start();
+    let s = create_session(&h.base, "profile");
+    let j = join_session(&h.base, "Mina", &s.id);
+
+    let updated: Value = client()
+        .patch(format!("{}/api/participants/me/profile", h.base))
+        .header("authorization", format!("Bearer {}", j.auth_token))
+        .json(&json!({
+            "journey_id": "secure-savings",
+            "guidance": "guided",
+            "session_minutes": 60,
+            "practice_mode": "simulation"
+        }))
+        .send()
+        .unwrap()
+        .json()
+        .unwrap();
+    assert_eq!(updated["journey_id"], "secure-savings");
+    assert_eq!(updated["session_minutes"], 60);
+
+    let cleared: Value = client()
+        .patch(format!("{}/api/participants/me/profile", h.base))
+        .header("authorization", format!("Bearer {}", j.auth_token))
+        .json(&json!({
+            "journey_id": null,
+            "guidance": "self-directed",
+            "session_minutes": 30,
+            "practice_mode": "test-network"
+        }))
+        .send()
+        .unwrap()
+        .json()
+        .unwrap();
+    assert!(cleared["journey_id"].is_null());
 }
 
 #[test]
@@ -1050,4 +1127,3 @@ fn challenge_completions_outside_the_window_do_not_count() {
     assert_eq!(v["results"][0]["cleared"], 0);
     assert_eq!(v["results"][0]["last_clear"], Value::Null);
 }
-

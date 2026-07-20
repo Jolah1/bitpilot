@@ -1,20 +1,21 @@
 # BitPilot
 
-> Learn Bitcoin by using it.
+> Use Bitcoin for something useful. Learn what you need along the way.
 
-BitPilot is a beginner-friendly onboarding app that teaches:
-- Bitcoin
-- Lightning
-- Nostr
-- eCash
+BitPilot is a beginner-friendly onboarding app organized around practical
+outcomes: receiving a payment, sending money, securing savings, publishing
+independently, or contributing to an open-source project.
 
-through short interactive missions.
-
-Instead of long explanations, users learn by:
+Instead of starting with a large curriculum, learners choose a concrete task
+and complete a short journey by:
 - sending payments
 - scanning QR codes
 - creating identities
 - completing simple tasks
+
+The full Bitcoin, Lightning, Nostr, eCash, self-custody, privacy, sovereignty,
+and open-source mission library remains available as an optional exploration
+mode.
 
 Built for:
 - workshops

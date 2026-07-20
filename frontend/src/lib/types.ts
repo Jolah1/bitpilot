@@ -23,6 +23,16 @@ export interface Participant {
     streak_count: number
     /** UTC day number (unix seconds / 86400) the streak was last credited. */
     streak_day: number
+    journey_id:
+        | 'receive-payment'
+        | 'send-remittance'
+        | 'secure-savings'
+        | 'publish-independently'
+        | 'contribute-code'
+        | null
+    guidance: 'guided' | 'self-directed'
+    session_minutes: number
+    practice_mode: 'simulation' | 'test-network'
 }
 
 export interface Session {

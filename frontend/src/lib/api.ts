@@ -29,6 +29,12 @@ import {
     setSessionId,
 } from './auth'
 import type { Badge, Participant, Session } from './types'
+import {
+    getJourneyPreferences,
+    getSavedJourneyId,
+    type JourneyId,
+    type JourneyPreferences,
+} from './journeys'
 
 const BASE = '/api'
 
@@ -314,9 +320,17 @@ export const api = {
         request<Participant[]>(`/sessions/${sessionId}/participants`, { auth: 'facilitator' }),
 
     joinSession: async (name: string, sessionId: string): Promise<Participant> => {
+        const preferences = getJourneyPreferences()
         const wire = await request<JoinSessionWire>('/participants', {
             method: 'POST',
-            body: { name, session_id: sessionId },
+            body: {
+                name,
+                session_id: sessionId,
+                journey_id: getSavedJourneyId(),
+                guidance: preferences.guidance,
+                session_minutes: preferences.sessionMinutes,
+                practice_mode: preferences.practiceMode,
+            },
         })
         setAuthToken(wire.auth_token)
         return wire.participant
@@ -325,6 +339,21 @@ export const api = {
     /** Authenticated self-fetch. */
     getParticipant: () =>
         request<Participant>('/participants/me', { auth: 'participant' }),
+
+    updateJourneyProfile: (
+        journeyId: JourneyId | null,
+        preferences: JourneyPreferences,
+    ) =>
+        request<Participant>('/participants/me/profile', {
+            method: 'PATCH',
+            auth: 'participant',
+            body: {
+                journey_id: journeyId,
+                guidance: preferences.guidance,
+                session_minutes: preferences.sessionMinutes,
+                practice_mode: preferences.practiceMode,
+            },
+        }),
 
     /**
      * Device A: mint a one-time code to continue on another device. Redeeming

@@ -5,6 +5,7 @@ import { BrandMark } from '../components/BrandMark'
 import { QRSessionCard } from '../components/QRJoinFlow'
 import { MISSION_COUNT, TREES, treeFor, type Participant } from '../lib/types'
 import { fetchSessionProgress } from '../lib/api'
+import { journeyById, journeyProgress } from '../lib/journeys'
 import { card, chip, ghostButton, treeColor } from '../lib/ui'
 
 /**
@@ -13,7 +14,12 @@ import { card, chip, ghostButton, treeColor } from '../lib/ui'
  * timestamp, so the signal is accurate and survives a dashboard reload.
  */
 const STUCK_MS = 4 * 60 * 1000
-const isFinished = (p: Participant) => p.completed_missions.length === MISSION_COUNT
+const isFinished = (p: Participant) => {
+    const journey = journeyById(p.journey_id)
+    return journey
+        ? journeyProgress(journey, p.completed_missions).complete
+        : p.completed_missions.length === MISSION_COUNT
+}
 
 /**
  * Facilitator dashboard. Polls /api/sessions/:id every 3s, shows a per-tree
@@ -74,13 +80,19 @@ export default function FacilitatorDashboard({ sessionId }: { sessionId: string 
     // than leaking the raw "__solo__" string into the header or QR card.
     const isSolo = isSoloSessionName(session?.name)
     const displayName = isSolo ? 'Solo run' : session?.name
-    const completed = participants.filter((p) => p.completed_missions.length === MISSION_COUNT).length
+    const completed = participants.filter(isFinished).length
     const avgProgress =
         participants.length > 0
             ? Math.round(
-                  (participants.reduce((s, p) => s + p.completed_missions.length, 0) /
-                      (participants.length * MISSION_COUNT)) *
-                      100,
+                  participants.reduce((sum, participant) => {
+                      const journey = journeyById(participant.journey_id)
+                      return (
+                          sum +
+                          (journey
+                              ? journeyProgress(journey, participant.completed_missions).percent
+                              : (participant.completed_missions.length / MISSION_COUNT) * 100)
+                      )
+                  }, 0) / participants.length,
               )
             : 0
 
@@ -186,8 +198,8 @@ export default function FacilitatorDashboard({ sessionId }: { sessionId: string 
                 }}
             >
                 <Stat label="Participants" value={participants.length} />
-                <Stat label="Finished" value={completed} accent />
-                <Stat label="Avg. progress" value={`${avgProgress}%`} />
+                <Stat label="Outcomes ready" value={completed} accent />
+                <Stat label="Avg. outcome" value={`${avgProgress}%`} />
                 <Stat label="Needs a hand" value={needsHand} alert={needsHand > 0} />
             </section>
 
@@ -554,8 +566,12 @@ function Leaderboard({ participants }: { participants: Participant[] }) {
 }
 
 function ParticipantRow({ participant, stuckMs }: { participant: Participant; stuckMs: number }) {
-    const doneCount = participant.completed_missions.length
-    const pct = Math.round((doneCount / MISSION_COUNT) * 100)
+    const journey = journeyById(participant.journey_id)
+    const outcomeProgress = journey
+        ? journeyProgress(journey, participant.completed_missions)
+        : null
+    const doneCount = outcomeProgress?.done ?? participant.completed_missions.length
+    const pct = outcomeProgress?.percent ?? Math.round((doneCount / MISSION_COUNT) * 100)
     const isDone = pct === 100
     const currentTree = treeFor(participant.current_mission)
     const stuck = stuckMs >= STUCK_MS
@@ -619,6 +635,20 @@ function ParticipantRow({ participant, stuckMs }: { participant: Participant; st
                         #{participant.current_mission} · {currentTree.label}
                     </span>
                 </div>
+                {journey && (
+                    <div style={{ fontSize: 11.5, color: 'var(--text-soft)', lineHeight: 1.4 }}>
+                        <strong>{journey.title}</strong>
+                        {' · '}
+                        {outcomeProgress?.complete
+                            ? '✓ capability ready'
+                            : `${outcomeProgress?.done}/${outcomeProgress?.total} practical steps`}
+                        <div style={{ marginTop: 3, color: 'var(--muted)', fontSize: 10.5 }}>
+                            {participant.guidance === 'self-directed' ? 'Checklist' : 'Guided'}
+                            {' · '}{participant.session_minutes} min
+                            {' · '}{participant.practice_mode === 'test-network' ? 'Test network' : 'Simulation'}
+                        </div>
+                    </div>
+                )}
                 {/* 8-bar tree strip */}
                 <div
                     style={{

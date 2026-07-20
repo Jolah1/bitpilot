@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
 use crate::models::mission::Tree;
+use crate::models::{Guidance, JourneyId, PracticeMode};
 
 /// Wire-format participant — the shape returned over the API.
 ///
@@ -38,6 +39,10 @@ pub struct Participant {
     /// The frontend compares this to its own "today" to show whether the
     /// streak is already banked for the day.
     pub streak_day: u64,
+    pub journey_id: Option<JourneyId>,
+    pub guidance: Guidance,
+    pub session_minutes: u16,
+    pub practice_mode: PracticeMode,
 }
 
 impl Participant {

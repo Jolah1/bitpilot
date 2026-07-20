@@ -1,7 +1,7 @@
 use axum::{
     extract::{Extension, Path, State},
     middleware::from_fn_with_state,
-    routing::{get, post},
+    routing::{get, patch, post},
     Json, Router,
 };
 use serde::{Deserialize, Serialize};
@@ -13,7 +13,9 @@ use crate::auth::{
     require_facilitator, require_participant, AuthedParticipant,
 };
 use crate::error::AppError;
-use crate::models::{now, Badge, Participant, Session};
+use crate::models::{
+    now, Badge, Guidance, JourneyId, Participant, PracticeMode, Session,
+};
 use crate::state::AppState;
 
 /// `/api/sessions` — facilitator-side routes. `POST /` is open (anyone can
@@ -39,6 +41,7 @@ pub fn router(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .route("/pair", post(redeem_pairing_code));
     let authed = Router::new()
         .route("/me", get(get_self))
+        .route("/me/profile", patch(update_profile))
         .route("/me/completions", get(list_completions))
         .route("/me/badges", get(list_badges))
         .route(
@@ -156,6 +159,10 @@ async fn list_participants(
 struct JoinSessionRequest {
     name: String,
     session_id: String,
+    journey_id: Option<JourneyId>,
+    guidance: Option<Guidance>,
+    session_minutes: Option<u16>,
+    practice_mode: Option<PracticeMode>,
 }
 
 #[derive(Serialize)]
@@ -198,10 +205,13 @@ async fn join_session(
 
     // New curriculum is 0-indexed; we explicitly bind 0 to be robust if
     // the column's default ever drifts in a future migration.
+    let guidance = body.guidance.unwrap_or(Guidance::Guided);
+    let practice_mode = body.practice_mode.unwrap_or(PracticeMode::Simulation);
+    let session_minutes = body.session_minutes.unwrap_or(30).clamp(5, 120);
     sqlx::query(
         "INSERT INTO participants \
-         (id, name, session_id, current_mission, nostr_pubkey, auth_token_hash, created_at, last_active) \
-         VALUES (?, ?, ?, 0, NULL, ?, ?, ?)",
+         (id, name, session_id, current_mission, nostr_pubkey, auth_token_hash, created_at, last_active, journey_id, guidance, session_minutes, practice_mode) \
+         VALUES (?, ?, ?, 0, NULL, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(&id)
     .bind(name)
@@ -209,6 +219,10 @@ async fn join_session(
     .bind(&auth_hash)
     .bind(created_at)
     .bind(created_at)
+    .bind(body.journey_id.map(JourneyId::as_str))
+    .bind(guidance.as_str())
+    .bind(session_minutes as i64)
+    .bind(practice_mode.as_str())
     .execute(&state.db)
     .await?;
 
@@ -225,9 +239,44 @@ async fn join_session(
             last_active: created_at as u64,
             streak_count: 0,
             streak_day: 0,
+            journey_id: body.journey_id,
+            guidance,
+            session_minutes,
+            practice_mode,
         },
         auth_token,
     }))
+}
+
+#[derive(Deserialize)]
+struct UpdateProfileRequest {
+    journey_id: Option<JourneyId>,
+    guidance: Guidance,
+    session_minutes: u16,
+    practice_mode: PracticeMode,
+}
+
+async fn update_profile(
+    State(state): State<Arc<AppState>>,
+    Extension(authed): Extension<AuthedParticipant>,
+    Json(body): Json<UpdateProfileRequest>,
+) -> Result<Json<Participant>, AppError> {
+    if !(5..=120).contains(&body.session_minutes) {
+        return Err(AppError::BadRequest(
+            "session_minutes must be between 5 and 120".into(),
+        ));
+    }
+    sqlx::query(
+        "UPDATE participants SET journey_id = ?, guidance = ?, session_minutes = ?, practice_mode = ? WHERE id = ?",
+    )
+    .bind(body.journey_id.map(JourneyId::as_str))
+    .bind(body.guidance.as_str())
+    .bind(body.session_minutes as i64)
+    .bind(body.practice_mode.as_str())
+    .bind(&authed.participant_id)
+    .execute(&state.db)
+    .await?;
+    Ok(Json(load_participant(&state, &authed.participant_id).await?))
 }
 
 /// `GET /api/participants/me` — authenticated read of the calling
@@ -426,8 +475,8 @@ pub async fn load_participant(
     state: &AppState,
     participant_id: &str,
 ) -> Result<Participant, AppError> {
-    let row: Option<(String, String, String, i64, Option<String>, String, i64, i64, i64)> = sqlx::query_as(
-        "SELECT id, name, session_id, current_mission, nostr_pubkey, current_per_tree, last_active, streak_count, streak_day \
+    let row: Option<(String, String, String, i64, Option<String>, String, i64, i64, i64, Option<String>, String, i64, String)> = sqlx::query_as(
+        "SELECT id, name, session_id, current_mission, nostr_pubkey, current_per_tree, last_active, streak_count, streak_day, journey_id, guidance, session_minutes, practice_mode \
          FROM participants WHERE id = ?",
     )
     .bind(participant_id)
@@ -457,6 +506,10 @@ pub async fn load_participant(
         last_active: row.6 as u64,
         streak_count: row.7 as u32,
         streak_day: row.8 as u64,
+        journey_id: row.9.as_deref().and_then(JourneyId::parse),
+        guidance: Guidance::parse(&row.10),
+        session_minutes: row.11 as u16,
+        practice_mode: PracticeMode::parse(&row.12),
     })
 }
 
@@ -464,8 +517,8 @@ async fn load_participants_by_session(
     state: &AppState,
     session_id: &str,
 ) -> Result<Vec<Participant>, AppError> {
-    let rows: Vec<(String, String, String, i64, Option<String>, String, i64, i64, i64)> = sqlx::query_as(
-        "SELECT id, name, session_id, current_mission, nostr_pubkey, current_per_tree, last_active, streak_count, streak_day \
+    let rows: Vec<(String, String, String, i64, Option<String>, String, i64, i64, i64, Option<String>, String, i64, String)> = sqlx::query_as(
+        "SELECT id, name, session_id, current_mission, nostr_pubkey, current_per_tree, last_active, streak_count, streak_day, journey_id, guidance, session_minutes, practice_mode \
          FROM participants WHERE session_id = ? ORDER BY created_at",
     )
     .bind(session_id)
@@ -498,6 +551,10 @@ async fn load_participants_by_session(
             last_active: r.6 as u64,
             streak_count: r.7 as u32,
             streak_day: r.8 as u64,
+            journey_id: r.9.as_deref().and_then(JourneyId::parse),
+            guidance: Guidance::parse(&r.10),
+            session_minutes: r.11 as u16,
+            practice_mode: PracticeMode::parse(&r.12),
         });
     }
     Ok(out)

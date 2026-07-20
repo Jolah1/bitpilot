@@ -11,6 +11,7 @@ import { useEffect, useState } from 'react'
 import { TierProgressionMark } from '../components/TierProgressionMark'
 import { api } from '../lib/api'
 import { rich } from '../lib/rich'
+import { journeyById, journeyProgress } from '../lib/journeys'
 import {
     MISSIONS,
     MISSION_COUNT,
@@ -20,7 +21,6 @@ import {
     type Participant,
 } from '../lib/types'
 import { card, chip, primaryButton, treeColor } from '../lib/ui'
-import { RANK_LADDER, listLabels, rankFor } from '../lib/rank'
 import { ShareBadgeModal } from '../components/ShareBadgeModal'
 
 export default function SoloProgressView({
@@ -35,6 +35,7 @@ export default function SoloProgressView({
     const [badges, setBadges] = useState<Badge[]>([])
     const [loading, setLoading] = useState(true)
     const [sharing, setSharing] = useState<Badge | null>(null)
+    const [showLibrary, setShowLibrary] = useState(false)
 
     useEffect(() => {
         let cancelled = false
@@ -68,6 +69,9 @@ export default function SoloProgressView({
     const streakBankedToday =
         streak > 0 && participant?.streak_day === Math.floor(Date.now() / 86_400_000)
     const currentMissionDef = MISSIONS[Math.min(currentMission, MISSION_COUNT - 1)]
+    const journey = journeyById(participant?.journey_id ?? null)
+    const progress = journey ? journeyProgress(journey, completed) : null
+    const capabilities = journey?.capabilities ?? []
 
     return (
         <main
@@ -118,39 +122,71 @@ export default function SoloProgressView({
                               : 'Your progress'}
                     </h1>
                     <span style={{ fontSize: 12, color: 'var(--muted)' }}>
-                        Solo run · {completed.length}/{MISSION_COUNT} missions complete
+                        {journey ? journey.title : 'Complete mission library'}
                     </span>
                 </div>
             </header>
 
-            {/* Rank card: the overall standing across all flight paths. */}
-            {!loading && badges.length > 0 && <RankCard badges={badges} />}
+            {journey && progress && (
+                <section aria-label="Practical outcome" style={{ ...card, padding: 18 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                        <div>
+                            <div style={{ fontSize: 12, color: 'var(--muted)' }}>{journey.audience}</div>
+                            <div style={{ marginTop: 3, fontSize: 11, color: 'var(--muted)' }}>
+                                {participant?.guidance === 'self-directed' ? 'Checklist' : 'Step-by-step guidance'}
+                                {' · '}{participant?.session_minutes} min sessions
+                                {' · '}{participant?.practice_mode === 'test-network' ? 'Test network' : 'Simulation'}
+                            </div>
+                            <h2 style={{ margin: '4px 0 0', fontSize: 18 }}>{journey.outcome}</h2>
+                        </div>
+                        <span style={{ ...chip(progress.complete ? 'green' : 'orange'), alignSelf: 'flex-start' }}>
+                            {progress.complete ? '✓ Ready to use' : `${progress.done}/${progress.total} steps`}
+                        </span>
+                    </div>
+                    <div style={{ marginTop: 14, height: 9, borderRadius: 'var(--radius-pill)', overflow: 'hidden', background: 'var(--border)' }}>
+                        <div style={{ height: '100%', width: `${progress.percent}%`, background: 'var(--gradient-bitcoin)' }} />
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 10, marginTop: 14 }}>
+                        {capabilities.map((capability) => {
+                            const ready = completed.includes(capability.mission)
+                            return (
+                                <div key={capability.mission} style={{ padding: 12, border: '1px solid var(--border)', borderRadius: 'var(--radius-2)' }}>
+                                    <span aria-hidden="true">{ready ? '✅' : '○'}</span>{' '}
+                                    <span style={{ fontSize: 13, color: ready ? 'var(--text)' : 'var(--muted)' }}>
+                                        {capability.label}
+                                    </span>
+                                </div>
+                            )
+                        })}
+                    </div>
+                    {onResume && !progress.complete && (
+                        <button className="bp-press" onClick={onResume} style={{ ...primaryButton(), marginTop: 14, minHeight: 44 }}>
+                            Continue toward this outcome
+                        </button>
+                    )}
+                </section>
+            )}
 
-            {/* Stat row */}
-            <section
-                aria-label="Headline stats"
-                style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
-                    gap: 12,
-                }}
+            {!journey && (
+                <section aria-label="Headline stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
+                    <Stat label="Missions" value={`${completed.length}/${MISSION_COUNT}`} />
+                    <Stat label="Flight paths earned" value={`${earnedBadges}/${TREES.length}`} accent={earnedBadges > 0} />
+                    <Stat label="Complete" value={`${pctComplete}%`} />
+                    <Stat label={streakBankedToday ? 'Day streak · done today' : 'Day streak'} value={`${streak > 0 ? '🔥 ' : ''}${streak}`} accent={streak > 0} />
+                </section>
+            )}
+
+            <button
+                type="button"
+                onClick={() => setShowLibrary((value) => !value)}
+                aria-expanded={showLibrary}
+                style={{ background: 'transparent', border: '1px solid var(--border)', borderRadius: 'var(--radius-2)', color: 'var(--text)', padding: '10px 14px', cursor: 'pointer', fontFamily: 'inherit' }}
             >
-                <Stat label="Missions" value={`${completed.length}/${MISSION_COUNT}`} />
-                <Stat
-                    label="Flight paths earned"
-                    value={`${earnedBadges}/${TREES.length}`}
-                    accent={earnedBadges > 0}
-                />
-                <Stat label="Complete" value={`${pctComplete}%`} />
-                <Stat
-                    label={streakBankedToday ? 'Day streak · done today' : 'Day streak'}
-                    value={`${streak > 0 ? '🔥 ' : ''}${streak}`}
-                    accent={streak > 0}
-                />
-            </section>
+                {showLibrary ? 'Hide complete mission-library progress' : 'Show complete mission-library progress'}
+            </button>
 
             {/* Tree progress bars */}
-            <section aria-label="Flight path progress" style={{ ...card, padding: 16 }}>
+            {showLibrary && <section aria-label="Flight path progress" style={{ ...card, padding: 16 }}>
                 <h2
                     style={{
                         margin: 0,
@@ -226,10 +262,10 @@ export default function SoloProgressView({
                         )
                     })}
                 </div>
-            </section>
+            </section>}
 
             {/* Badge gallery */}
-            <section aria-label="Flight path badges" style={{ ...card, padding: 16 }}>
+            {showLibrary && <section aria-label="Flight path badges" style={{ ...card, padding: 16 }}>
                 <h2
                     style={{
                         margin: 0,
@@ -325,7 +361,7 @@ export default function SoloProgressView({
                         )
                     })}
                 </div>
-            </section>
+            </section>}
 
             {/* Current mission pointer */}
             {!loading &&
@@ -392,98 +428,6 @@ export default function SoloProgressView({
                 />
             )}
         </main>
-    )
-}
-
-/**
- * Overall rank across all flight paths: Cadet, Pilot, Captain, Commander.
- * The ladder shows where the learner stands; the line under it says, in
- * plain words, exactly which paths unlock the next rank.
- */
-function RankCard({ badges }: { badges: Badge[] }) {
-    const rank = rankFor(badges)
-    const currentIdx = RANK_LADDER.findIndex((r) => r.key === rank.key)
-    return (
-        <section aria-label="Your rank" style={{ ...card, padding: 16 }}>
-            <div
-                style={{
-                    fontSize: 10,
-                    letterSpacing: '0.1em',
-                    textTransform: 'uppercase',
-                    color: 'var(--muted)',
-                    fontWeight: 700,
-                    marginBottom: 6,
-                }}
-            >
-                Your rank
-            </div>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
-                <span
-                    style={{
-                        fontSize: 'clamp(26px, 6vw, 36px)',
-                        fontWeight: 900,
-                        letterSpacing: '-0.02em',
-                        lineHeight: 1,
-                        background: 'var(--gradient-bitcoin)',
-                        WebkitBackgroundClip: 'text',
-                        backgroundClip: 'text',
-                        WebkitTextFillColor: 'transparent',
-                        color: 'transparent',
-                    }}
-                >
-                    {rank.title}
-                </span>
-                <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>{rank.blurb}</span>
-            </div>
-
-            {/* Rank ladder: passed and current ranks light up. */}
-            <div
-                role="list"
-                aria-label="Rank ladder"
-                style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    flexWrap: 'wrap',
-                    marginTop: 12,
-                }}
-            >
-                {RANK_LADDER.map((r, i) => {
-                    const reached = i <= currentIdx
-                    const isCurrent = i === currentIdx
-                    return (
-                        <span
-                            role="listitem"
-                            key={r.key}
-                            aria-current={isCurrent ? 'step' : undefined}
-                            style={{
-                                fontSize: 11,
-                                fontWeight: 800,
-                                letterSpacing: '0.08em',
-                                textTransform: 'uppercase',
-                                padding: '4px 10px',
-                                borderRadius: 'var(--radius-pill)',
-                                border: isCurrent
-                                    ? '1px solid var(--bitcoin)'
-                                    : '1px solid var(--border)',
-                                color: reached ? 'var(--bitcoin)' : 'var(--muted)',
-                                background: isCurrent ? 'rgba(255, 87, 34, 0.08)' : 'transparent',
-                                opacity: reached ? 1 : 0.6,
-                            }}
-                        >
-                            {r.title}
-                        </span>
-                    )
-                })}
-            </div>
-
-            {rank.next && (
-                <p style={{ margin: '12px 0 0', fontSize: 13, color: 'var(--text)', lineHeight: 1.5 }}>
-                    Finish {listLabels(rank.next.remaining)} to make{' '}
-                    <strong>{rank.next.title}</strong>.
-                </p>
-            )}
-        </section>
     )
 }
 

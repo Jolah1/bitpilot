@@ -92,12 +92,18 @@ async fn complete_mission(
     // working on Lightning isn't blocked by an unfinished Money lesson.
     let tree = Tree::from_mission(body.mission);
     let pointer = p.current_per_tree.get(&tree).copied().flatten();
-    if pointer != Some(body.mission) {
+    let journey_pointer = p
+        .journey_id
+        .and_then(|journey| journey.next_incomplete(&p.completed_missions));
+    if pointer != Some(body.mission) && journey_pointer != Some(body.mission) {
         return Err(AppError::BadRequest(format!(
-            "Not your current mission in this tree (expected {}, got {})",
+            "Not your current mission (tree expected {}; journey expected {}; got {})",
             pointer
                 .map(|n| n.to_string())
                 .unwrap_or_else(|| "(tree complete)".into()),
+            journey_pointer
+                .map(|n| n.to_string())
+                .unwrap_or_else(|| "(journey complete or not selected)".into()),
             body.mission
         )));
     }

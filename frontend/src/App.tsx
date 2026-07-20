@@ -45,7 +45,14 @@ import {
     setSessionId as persistSessionId,
 } from './lib/auth'
 import { RuntimeProvider } from './lib/runtime'
-import { GOALS, saveGoal, type Goal } from './lib/goals'
+import {
+    JOURNEYS,
+    getJourneyPreferences,
+    saveJourney,
+    saveJourneyPreferences,
+    type JourneyPreferences,
+    type JourneyId,
+} from './lib/journeys'
 import {
     card,
     ghostButton,
@@ -62,7 +69,7 @@ type View = 'learner' | 'facilitator'
 type Screen =
     | 'landing'
     | 'mode' // solo vs workshop, first onboarding step
-    | 'goal' // curious / builder / privacy, second onboarding step (solo only)
+    | 'goal' // practical outcome picker, second onboarding step (solo only)
     | 'setup'
     | 'session-not-found'
     | 'app'
@@ -391,8 +398,8 @@ export default function App() {
                         theme={theme}
                         onToggleTheme={toggleTheme}
                         onBack={() => setScreen('mode')}
-                        onPick={(g) => {
-                            saveGoal(g)
+                        onPick={(journey) => {
+                            saveJourney(journey)
                             setScreen('setup')
                         }}
                     />
@@ -747,17 +754,17 @@ function ChooseMode({
                             margin: 0,
                         }}
                     >
-                        How do you want to learn?
+                        How will you use BitPilot?
                     </h1>
                 </div>
                 <p style={{ fontSize: 13.5, color: 'var(--muted)', lineHeight: 1.55, margin: 0 }}>
-                    Both are free and cover the same missions. You can switch later.
+                    Solve a task by yourself or guide a group through one together.
                 </p>
             </header>
             <StepOption
                 icon="🧑‍🚀"
-                title="Learn solo"
-                body="Go at your own pace. Progress saves in this browser, and every badge is earnable on your own."
+                title="Complete a task myself"
+                body="Choose a practical outcome. Progress saves in this browser, and you can change tasks later."
                 onClick={onSolo}
             />
             <StepOption
@@ -774,7 +781,7 @@ function ChooseMode({
     )
 }
 
-/** Onboarding step 2 (solo only): pick a learning goal, or skip. */
+/** Onboarding step 2 (solo only): choose a useful outcome, or explore. */
 function ChooseGoal({
     theme,
     onToggleTheme,
@@ -784,12 +791,14 @@ function ChooseGoal({
     theme: Theme
     onToggleTheme: () => void
     onBack: () => void
-    onPick: (goal: Goal | null) => void
+    onPick: (journey: JourneyId | null) => void
 }) {
-    const icons: Record<Goal, string> = {
-        curious: '🌱',
-        builder: '🔧',
-        privacy: '🕵️',
+    const [preferences, setPreferences] = useState<JourneyPreferences>(
+        () => getJourneyPreferences(),
+    )
+    const updatePreferences = (next: JourneyPreferences) => {
+        setPreferences(next)
+        saveJourneyPreferences(next)
     }
     return (
         <StepShell theme={theme} onToggleTheme={onToggleTheme} onBack={onBack}>
@@ -804,21 +813,60 @@ function ChooseGoal({
                             margin: 0,
                         }}
                     >
-                        What brings you here?
+                        What do you need Bitcoin to help you do?
                     </h1>
                 </div>
                 <p style={{ fontSize: 13.5, color: 'var(--muted)', lineHeight: 1.55, margin: 0 }}>
-                    This orders your flight paths so the next best step is always
-                    on top. Nothing gets locked, and you can change it any time.
+                    Start with one useful result. You will learn the Bitcoin
+                    concepts you need while completing the task.
                 </p>
             </header>
-            {(Object.keys(GOALS) as Goal[]).map((g) => (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <PreferenceButtons
+                    label="Guidance"
+                    value={preferences.guidance}
+                    options={[
+                        ['guided', 'Guide me step by step'],
+                        ['self-directed', 'Give me a checklist'],
+                    ]}
+                    onChange={(guidance) =>
+                        updatePreferences({ ...preferences, guidance })
+                    }
+                />
+                <PreferenceButtons
+                    label="Time available now"
+                    value={String(preferences.sessionMinutes)}
+                    options={[
+                        ['15', '15 min'],
+                        ['30', '30 min'],
+                        ['60', '60 min'],
+                    ]}
+                    onChange={(minutes) =>
+                        updatePreferences({
+                            ...preferences,
+                            sessionMinutes: Number(minutes),
+                        })
+                    }
+                />
+                <PreferenceButtons
+                    label="Practice environment"
+                    value={preferences.practiceMode}
+                    options={[
+                        ['simulation', 'Simulation'],
+                        ['test-network', 'Test network'],
+                    ]}
+                    onChange={(practiceMode) =>
+                        updatePreferences({ ...preferences, practiceMode })
+                    }
+                />
+            </div>
+            {JOURNEYS.map((journey) => (
                 <StepOption
-                    key={g}
-                    icon={icons[g]}
-                    title={GOALS[g].label}
-                    body={GOALS[g].blurb}
-                    onClick={() => onPick(g)}
+                    key={journey.id}
+                    icon={journey.icon}
+                    title={journey.title}
+                    body={`${journey.audience} · about ${journey.minutes} min. ${journey.promise}`}
+                    onClick={() => onPick(journey.id)}
                 />
             ))}
             <button
@@ -832,9 +880,56 @@ function ChooseGoal({
                     justifyContent: 'center',
                 }}
             >
-                Just exploring, show me everything
+                Explore the complete mission library
             </button>
         </StepShell>
+    )
+}
+
+function PreferenceButtons<T extends string>({
+    label,
+    value,
+    options,
+    onChange,
+}: {
+    label: string
+    value: T
+    options: [T, string][]
+    onChange: (value: T) => void
+}) {
+    return (
+        <div>
+            <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 6 }}>{label}</div>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {options.map(([option, text]) => {
+                    const active = value === option
+                    return (
+                        <button
+                            key={option}
+                            type="button"
+                            aria-pressed={active}
+                            onClick={() => onChange(option)}
+                            style={{
+                                padding: '7px 10px',
+                                borderRadius: 'var(--radius-pill)',
+                                border: active
+                                    ? '1px solid var(--bitcoin)'
+                                    : '1px solid var(--border)',
+                                background: active
+                                    ? 'rgba(255, 87, 34, 0.1)'
+                                    : 'transparent',
+                                color: active ? 'var(--bitcoin)' : 'var(--text-soft)',
+                                fontFamily: 'var(--font-sans)',
+                                fontSize: 11.5,
+                                cursor: 'pointer',
+                            }}
+                        >
+                            {text}
+                        </button>
+                    )
+                })}
+            </div>
+        </div>
     )
 }
 
