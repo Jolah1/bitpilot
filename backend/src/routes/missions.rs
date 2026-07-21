@@ -185,6 +185,15 @@ async fn complete_mission(
     }))
 }
 
+/// Minimum character count for a `DoKind::PasteValue` reflection (missions
+/// 102/103). Not tied to any protocol fact — it's a judgment call about how
+/// much text rules out a "no" or a single pasted character while still
+/// welcoming a short-but-real answer (a bare docs link, a one-line
+/// restatement). Deliberately well under the frontend's per-mission
+/// `maxLength` (300 for 102, 500 for 103), which caps length rather than
+/// setting a floor.
+const MIN_PASTE_VALUE_LEN: usize = 20;
+
 /// Verify that a submitted proof matches what the server expects for the
 /// given mission. Returns `BadRequest` on mismatch.
 ///
@@ -203,6 +212,22 @@ async fn verify_proof(
         // non-empty above); there's no server-side artifact to compare to.
         // The proof string gets recorded in mission_completions for audit.
         DoKind::Knowledge => Ok(()),
+
+        // Missions 102/103: a paste-value reflection (a docs link/sentence,
+        // or a restated "good first issue"). We deliberately do not judge
+        // whether the reflection is *good* — we can't, and pretending to
+        // would be worse than the honest bar this replaces (issue #81).
+        // All we enforce is that it clears a minimum length, so a
+        // one-character answer can't pass it off as substance. The message
+        // is written as an invitation to say more, not a rejection.
+        DoKind::PasteValue => {
+            if proof.chars().count() < MIN_PASTE_VALUE_LEN {
+                return Err(AppError::BadRequest(format!(
+                    "say a little more: at least {MIN_PASTE_VALUE_LEN} characters, so there's something real to reflect on"
+                )));
+            }
+            Ok(())
+        }
 
         // Mission 14: Nostr identity created in browser; client submits the
         // npub it generated. We don't validate the bech32 here beyond

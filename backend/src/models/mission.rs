@@ -327,9 +327,13 @@ impl Mission {
             87 | 88 | 89 | 90 => DoKind::Knowledge,
             91 | 93 | 94 | 95 | 96 => DoKind::Knowledge,
             97 | 98 | 99 => DoKind::Knowledge,
-            // 102/103 render a paste-value input on the frontend; server-side
-            // any non-empty reflection counts, same as knowledge missions.
-            100 | 101 | 102 | 103 | 104 => DoKind::Knowledge,
+            100 | 101 | 104 => DoKind::Knowledge,
+            // 102/103 render a paste-value input on the frontend: paste a
+            // docs link/sentence (102), or restate a "good first issue" in
+            // your own words (103). Split out of the Knowledge run above so
+            // verify_proof can require a minimum length instead of letting
+            // a one-character reflection clear the mission (issue #81).
+            102 | 103 => DoKind::PasteValue,
             106 | 107 | 108 | 109 | 110 => DoKind::Knowledge,
 
             // Action missions:
@@ -411,6 +415,19 @@ mod tests {
         }
     }
 
+    /// Missions 102/103 render a paste-value reflection input and must
+    /// enforce a minimum length (issue #81) — they can't fall back into the
+    /// neighbouring 100/101/104 `Knowledge` arm, which accepts any
+    /// non-empty string.
+    #[test]
+    fn paste_value_missions_are_not_shadowed_by_knowledge_arms() {
+        assert_eq!(Mission::do_kind(102), DoKind::PasteValue);
+        assert_eq!(Mission::do_kind(103), DoKind::PasteValue);
+        for n in [100u8, 101, 104] {
+            assert_eq!(Mission::do_kind(n), DoKind::Knowledge, "mission {n}");
+        }
+    }
+
     /// The bar itself: every flight path carries at least one mission with a
     /// real action, except Money Basics, which is deliberately exempt
     /// because it is the conceptual opening path.
@@ -438,6 +455,15 @@ mod tests {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum DoKind {
     Knowledge,
+    /// A free-text reflection (docs link, restated issue, etc.) that must
+    /// clear a minimum length so it isn't the same "any non-empty string
+    /// passes" bar as `Knowledge`. See `verify_proof`'s `PasteValue` arm.
+    ///
+    /// Covers missions 102/103 only. Mission 106 also renders a paste-value
+    /// input on the frontend, but intentionally stays `Knowledge` here: it's a
+    /// numeric naira-quote input, not a reflection, so the minimum-length floor
+    /// doesn't apply.
+    PasteValue,
     NostrIdentity,
     Invoice,
     Pay,

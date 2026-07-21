@@ -20,6 +20,7 @@
 //!       * mission 11 (seed-words) requires 64-hex commitment
 //!       * mission 14 (nostr-identity) requires bech32 npub
 //!       * mission 42 (onchain-signet) requires 64-hex txid
+//!       * missions 102/103 (paste-value) require a minimum-length reflection
 //!   - bearer auth enforcement: wrong/missing token → 401
 //!   - facilitator endpoints require X-Facilitator-Key
 //!   - proof archive endpoint (/me/completions)
@@ -686,6 +687,62 @@ fn mission_42_requires_64_hex_txid_before_any_explorer_lookup() {
 }
 
 #[test]
+fn paste_value_missions_require_more_than_a_word() {
+    // Issue #81: 102 and 103 render a paste-value reflection input and must
+    // enforce a minimum length, so a one-character (or one-word) answer
+    // can't clear the mission the way a Knowledge mission's "acknowledged"
+    // filler would.
+    let h = Harness::start();
+    let s = create_session(&h.base, "paste-value-test");
+    let j = join_session(&h.base, "kate", &s.id);
+
+    // Walk to mission 102: prerequisites are 100, 101.
+    for m in [100u8, 101] {
+        let r = complete(&h.base, &j.auth_token, m, "acknowledged");
+        assert_eq!(r.status(), 200, "mission {m} should succeed");
+    }
+
+    // Too short: rejected, and the message reads as an invitation to say
+    // more rather than a scolding "invalid" rejection.
+    let r = complete(&h.base, &j.auth_token, 102, "no");
+    assert_eq!(r.status(), 400);
+    let v: Value = r.json().unwrap();
+    let err = v["error"].as_str().unwrap();
+    assert!(
+        err.contains("more"),
+        "expected a nudge to write more, got: {err}"
+    );
+
+    // The knowledge-mission filler "acknowledged" is also too short here —
+    // it must not silently pass the way it does on a Knowledge mission.
+    let r = complete(&h.base, &j.auth_token, 102, "acknowledged");
+    assert_eq!(r.status(), 400);
+
+    // Long enough: passes and advances the per-tree pointer to 103.
+    let r = complete(
+        &h.base,
+        &j.auth_token,
+        102,
+        "https://bitcoindevkit.org/docs — the intro paragraph assumes I already know what a descriptor is.",
+    );
+    assert_eq!(r.status(), 200, "{}", r.text().unwrap());
+    let v: Value = r.json().unwrap();
+    assert_eq!(v["next_mission"], 103);
+
+    // Mission 103 enforces the same floor.
+    let r = complete(&h.base, &j.auth_token, 103, "idk");
+    assert_eq!(r.status(), 400);
+
+    let r = complete(
+        &h.base,
+        &j.auth_token,
+        103,
+        "The issue asks for reflection answers to need substance; it's done when 102 and 103 enforce a minimum length.",
+    );
+    assert_eq!(r.status(), 200, "{}", r.text().unwrap());
+}
+
+#[test]
 fn proof_archive_lists_completions_in_order() {
     let h = Harness::start();
     let s = create_session(&h.base, "archive-test");
@@ -1042,16 +1099,24 @@ fn daily_streak_extends_on_consecutive_days_and_resets_after_a_gap() {
 
 #[test]
 fn open_source_graduation_demands_a_parseable_github_proof() {
-    // Missions 100..=104 are reflection missions (any non-empty proof),
-    // but 105 must name a GitHub account and a github.com PR URL. A bad
+    // Missions 100/101/104 are plain reflection missions (any non-empty
+    // proof); 102/103 are paste-value missions and need a proof past the
+    // minimum-length floor (see paste_value_missions_require_more_than_a_word
+    // above). 105 must name a GitHub account and a github.com PR URL. A bad
     // proof fails the shape check before any network call happens, so
     // this test stays offline.
     let h = Harness::start();
     let s = create_session(&h.base, "oss-grad");
     let j = join_session(&h.base, "grace", &s.id);
 
-    for m in [100, 101, 102, 103, 104] {
-        let r = complete(&h.base, &j.auth_token, m, "acknowledged");
+    // Order matters: the per-tree gate requires 100..104 in sequence.
+    for m in [100u8, 101, 102, 103, 104] {
+        let proof = if m == 102 || m == 103 {
+            "This is a long enough reflection to clear the paste-value floor."
+        } else {
+            "acknowledged"
+        };
+        let r = complete(&h.base, &j.auth_token, m, proof);
         assert_eq!(r.status(), 200, "completing mission {m}");
     }
 
