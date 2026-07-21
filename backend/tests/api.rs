@@ -1102,7 +1102,7 @@ fn open_source_graduation_demands_a_parseable_github_proof() {
     // Missions 100/101/104 are plain reflection missions (any non-empty
     // proof); 102/103 are paste-value missions and need a proof past the
     // minimum-length floor (see paste_value_missions_require_more_than_a_word
-    // below). 105 must name a GitHub account and a github.com PR URL. A bad
+    // above). 105 must name a GitHub account and a github.com PR URL. A bad
     // proof fails the shape check before any network call happens, so
     // this test stays offline.
     let h = Harness::start();

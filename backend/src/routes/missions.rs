@@ -223,7 +223,7 @@ async fn verify_proof(
         DoKind::PasteValue => {
             if proof.chars().count() < MIN_PASTE_VALUE_LEN {
                 return Err(AppError::BadRequest(format!(
-                    "say a little more — at least {MIN_PASTE_VALUE_LEN} characters, so there's something real to reflect on"
+                    "say a little more: at least {MIN_PASTE_VALUE_LEN} characters, so there's something real to reflect on"
                 )));
             }
             Ok(())
