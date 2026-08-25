@@ -745,8 +745,9 @@ export default function LearnerView({ participantId }: { participantId: string }
                     break
                 }
 
-                // Generic reflection input: missions 102/103 log the docs
-                // fix / issue restatement the learner will act on in 105.
+                // Generic reflection input: missions 102/103/104 log the
+                // docs fix, issue restatement, or test proof the learner
+                // will act on in 105.
                 case 'paste-value': {
                     if (!doInput.trim()) {
                         setDoError('Write or paste your answer first.')
