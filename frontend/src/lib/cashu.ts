@@ -17,6 +17,15 @@ function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+function isHexString(value: unknown): value is string {
+    return (
+        typeof value === 'string' &&
+        value.length > 0 &&
+        value.length % 2 === 0 &&
+        /^[0-9a-f]+$/i.test(value)
+    )
+}
+
 function decodeBase64Url(payload: string): Uint8Array {
     if (!payload || !/^[A-Za-z0-9_-]+$/.test(payload) || payload.length % 4 === 1) {
         throw new Error('The cashuA payload is not valid base64url.')
@@ -72,6 +81,9 @@ export function decodeCashuV3Sample(input: string): CashuV3Facts {
     if (!isRecord(decoded) || !Array.isArray(decoded.token) || decoded.token.length !== 1) {
         throw new Error('The sample must contain exactly one mint entry.')
     }
+    if (decoded.unit !== undefined && decoded.unit !== 'sat') {
+        throw new Error('This exercise can only report a Cashu token denominated in sats.')
+    }
 
     const entry = decoded.token[0]
     if (!isRecord(entry) || typeof entry.mint !== 'string' || !entry.mint.trim()) {
@@ -90,6 +102,13 @@ export function decodeCashuV3Sample(input: string): CashuV3Facts {
             proof.amount <= 0
         ) {
             throw new Error('Every proof amount must be a positive integer.')
+        }
+        if (
+            !isHexString(proof.id) ||
+            typeof proof.secret !== 'string' ||
+            !isHexString(proof.C)
+        ) {
+            throw new Error('Every V3 proof must include a hexadecimal id and C, plus a string secret.')
         }
         amountSats += proof.amount
         if (!Number.isSafeInteger(amountSats)) {
