@@ -29,6 +29,12 @@ function cashuA(value) {
     return 'cashuA' + Buffer.from(JSON.stringify(value)).toString('base64url')
 }
 
+function mutateSample(mutator) {
+    const sample = JSON.parse(Buffer.from(SAMPLE.slice('cashuA'.length), 'base64url').toString('utf8'))
+    mutator(sample)
+    return cashuA(sample)
+}
+
 const session = await apiPost('/sessions', { name: 'Cashu Decode E2E' })
 const joined = await apiPost('/participants', {
     name: 'E2E',
@@ -54,6 +60,14 @@ try {
     const completionProofs = []
     const decodeRequests = []
     let decoding = false
+    let holdMissionAt84 = false
+    await page.route('**/missions/complete', async (route) => {
+        if (holdMissionAt84) {
+            await route.abort()
+            return
+        }
+        await route.continue()
+    })
     page.on('request', (request) => {
         if (!decoding) return
         decodeRequests.push(request.url())
@@ -88,6 +102,48 @@ try {
     if (hasAction) {
         decoding = true
         const invalidSamples = [
+            [
+                'explicit non-sat unit',
+                mutateSample((sample) => {
+                    sample.unit = 'usd'
+                }),
+            ],
+            [
+                'proof missing id',
+                mutateSample((sample) => {
+                    delete sample.token[0].proofs[0].id
+                }),
+            ],
+            [
+                'proof missing secret',
+                mutateSample((sample) => {
+                    delete sample.token[0].proofs[0].secret
+                }),
+            ],
+            [
+                'proof missing C',
+                mutateSample((sample) => {
+                    delete sample.token[0].proofs[0].C
+                }),
+            ],
+            [
+                'proof id is not hexadecimal',
+                mutateSample((sample) => {
+                    sample.token[0].proofs[0].id = 'not hex'
+                }),
+            ],
+            [
+                'proof secret is not a string',
+                mutateSample((sample) => {
+                    sample.token[0].proofs[0].secret = 42
+                }),
+            ],
+            [
+                'proof C is not hexadecimal',
+                mutateSample((sample) => {
+                    sample.token[0].proofs[0].C = 'not hex'
+                }),
+            ],
             ['malformed base64url', 'cashuA%%%'],
             ['invalid UTF-8', 'cashuA_w'],
             ['invalid JSON', 'cashuA' + Buffer.from('{').toString('base64url')],
@@ -127,14 +183,39 @@ try {
             ],
         ]
         for (const [name, token] of invalidSamples) {
+            const completionCount = completionProofs.length
             await field.fill(token)
+            holdMissionAt84 = true
             await action.first().click({ force: true })
             await sleep(100)
+            holdMissionAt84 = false
             report.assert(
                 (await page.getByRole('alert').count()) > 0,
                 `${name} is rejected before completion`,
             )
+            report.assert(
+                completionProofs.length === completionCount,
+                `${name} is rejected without a completion request`,
+            )
         }
+        completionProofs.length = 0
+        decodeRequests.length = 0
+
+        const omittedUnitSample = mutateSample((sample) => {
+            delete sample.unit
+        })
+        await field.fill(omittedUnitSample)
+        holdMissionAt84 = true
+        await action.first().click({ force: true })
+        await sleep(100)
+        holdMissionAt84 = false
+        report.assert(
+            completionProofs.length === 1 &&
+                completionProofs[0] === JSON.stringify(CANONICAL_PROOF),
+            'an omitted V3 unit is accepted as implied sats',
+        )
+        completionProofs.length = 0
+        decodeRequests.length = 0
 
         await field.fill('cashuBdeadbeef')
         await action.first().click({ force: true })
