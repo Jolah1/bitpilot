@@ -323,7 +323,7 @@ impl Mission {
             67 | 68 | 69 | 70 | 71 | 72 | 73 | 74 | 75 | 76 => DoKind::Knowledge,
             77 | 78 => DoKind::Knowledge,
             79 | 80 | 81 | 82 | 83 => DoKind::Knowledge,
-            84 | 85 | 86 => DoKind::Knowledge,
+            85 | 86 => DoKind::Knowledge,
             87 | 88 | 89 | 90 => DoKind::Knowledge,
             91 | 93 | 94 | 95 | 96 => DoKind::Knowledge,
             97 | 98 | 99 => DoKind::Knowledge,
@@ -333,7 +333,7 @@ impl Mission {
             // your own words (103). Split out of the Knowledge run above so
             // verify_proof can require a minimum length instead of letting
             // a one-character reflection clear the mission (issue #81).
-            102 | 103 => DoKind::PasteValue,
+            84 | 102 | 103 => DoKind::PasteValue,
             106 | 107 | 108 | 109 | 110 => DoKind::Knowledge,
 
             // Action missions:
@@ -428,6 +428,15 @@ mod tests {
         }
     }
 
+    /// Mission 84 decodes a bundled Cashu sample through the paste-value
+    /// input. Its neighbours remain reading-only lessons.
+    #[test]
+    fn mission_84_is_not_shadowed_by_knowledge_arms() {
+        assert_eq!(Mission::do_kind(84), DoKind::PasteValue);
+        assert_eq!(Mission::do_kind(85), DoKind::Knowledge);
+        assert_eq!(Mission::do_kind(86), DoKind::Knowledge);
+    }
+
     /// The bar itself: every flight path carries at least one mission with a
     /// real action, except Money Basics, which is deliberately exempt
     /// because it is the conceptual opening path.
@@ -459,10 +468,11 @@ pub enum DoKind {
     /// clear a minimum length so it isn't the same "any non-empty string
     /// passes" bar as `Knowledge`. See `verify_proof`'s `PasteValue` arm.
     ///
-    /// Covers missions 102/103 only. Mission 106 also renders a paste-value
-    /// input on the frontend, but intentionally stays `Knowledge` here: it's a
-    /// numeric naira-quote input, not a reflection, so the minimum-length floor
-    /// doesn't apply.
+    /// Covers mission 84's exact decoded Cashu facts and missions 102/103's
+    /// reflections. Mission 106 also renders a paste-value input on the
+    /// frontend, but intentionally stays `Knowledge` here: it is a numeric
+    /// naira-quote input, not a reflection, so the minimum-length floor does
+    /// not apply.
     PasteValue,
     NostrIdentity,
     Invoice,

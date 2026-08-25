@@ -9,6 +9,7 @@ import {
     type CSSProperties,
 } from 'react'
 import { api, ApiError } from '../lib/api'
+import { cashuV3CompletionProof, decodeCashuV3Sample } from '../lib/cashu'
 import { rich } from '../lib/rich'
 import { GOALS, getSavedGoal, saveGoal, type Goal } from '../lib/goals'
 import { useIsTechReal } from '../lib/runtime'
@@ -752,6 +753,20 @@ export default function LearnerView({ participantId }: { participantId: string }
                         setDoError('Write or paste your answer first.')
                         setLoading(false)
                         return
+                    }
+                    if (mission.id === 84) {
+                        const facts = decodeCashuV3Sample(doInput)
+                        proof = cashuV3CompletionProof(facts)
+                        outcome = {
+                            summary: 'Official sample decoded locally.',
+                            details: [
+                                { label: 'mint', value: facts.mint },
+                                { label: 'amount', value: `${facts.amountSats} sats` },
+                                { label: 'proofs', value: `${facts.proofCount} proofs` },
+                            ],
+                            simulated: false,
+                        }
+                        break
                     }
                     proof = doInput.trim()
                     outcome = {
@@ -1677,7 +1692,9 @@ function BadgesStrip({
 function MissionHeader({ mission }: { mission: MissionDef }) {
     const techReal = useIsTechReal(mission.tech)
     const statusChip =
-        mission.tech === 'lightning'
+        mission.id === 84
+            ? { label: 'Offline sample', tone: 'green' as const }
+            : mission.tech === 'lightning'
             ? techReal
                 ? { label: 'Testnet', tone: 'green' as const }
                 : { label: 'Simulated', tone: 'neutral' as const }
@@ -1736,6 +1753,8 @@ function MissionHeader({ mission }: { mission: MissionDef }) {
                             title={
                                 statusChip.label === 'Simulated'
                                     ? "Action is simulated, no real value moves."
+                                    : statusChip.label === 'Offline sample'
+                                      ? 'A bundled public sample decoded only in this browser.'
                                     : statusChip.label === 'Testnet'
                                       ? 'Real Lightning, signet network, no mainnet sats.'
                                       : statusChip.label === 'Testmint'
@@ -2302,7 +2321,7 @@ function DoPanel({
             {!outcome && ui.primary && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                     <label htmlFor={`do-input-${mission.id}`} style={labelStyle}>
-                        {ui.primary.label}
+                        {mission.do.inputLabel ?? ui.primary.label}
                     </label>
                     {ui.primary.type === 'textarea' ? (
                         <>
