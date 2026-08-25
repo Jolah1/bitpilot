@@ -144,6 +144,40 @@ try {
                     sample.token[0].proofs[0].C = 'not hex'
                 }),
             ],
+            [
+                'later proof has degenerate metadata',
+                mutateSample((sample) => {
+                    Object.assign(sample.token[0].proofs[1], {
+                        id: '00',
+                        secret: '',
+                        C: '00',
+                    })
+                }),
+            ],
+            [
+                'later proof has an empty secret',
+                mutateSample((sample) => {
+                    sample.token[0].proofs[1].secret = ''
+                }),
+            ],
+            [
+                'later proof has an undersized V1 keyset id',
+                mutateSample((sample) => {
+                    sample.token[0].proofs[1].id = '00'
+                }),
+            ],
+            [
+                'later proof C is not a compressed SEC1 point',
+                mutateSample((sample) => {
+                    sample.token[0].proofs[1].C = '04' + '00'.repeat(32)
+                }),
+            ],
+            [
+                'later proof C is not on secp256k1',
+                mutateSample((sample) => {
+                    sample.token[0].proofs[1].C = '02' + 'ff'.repeat(32)
+                }),
+            ],
             ['malformed base64url', 'cashuA%%%'],
             ['invalid UTF-8', 'cashuA_w'],
             ['invalid JSON', 'cashuA' + Buffer.from('{').toString('base64url')],
