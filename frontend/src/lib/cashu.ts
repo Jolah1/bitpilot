@@ -1,3 +1,5 @@
+import { secp256k1 } from '@noble/curves/secp256k1'
+
 export const CASHU_V3_SAMPLE =
     'cashuAeyJ0b2tlbiI6W3sibWludCI6Imh0dHBzOi8vODMzMy5zcGFjZTozMzM4IiwicHJvb2ZzIjpbeyJhbW91bnQiOjIsImlkIjoiMDA5YTFmMjkzMjUzZTQxZSIsInNlY3JldCI6IjQwNzkxNWJjMjEyYmU2MWE3N2UzZTZkMmFlYjRjNzI3OTgwYmRhNTFjZDA2YTZhZmMyOWUyODYxNzY4YTc4MzciLCJDIjoiMDJiYzkwOTc5OTdkODFhZmIyY2M3MzQ2YjVlNDM0NWE5MzQ2YmQyYTUwNmViNzk1ODU5OGE3MmYwY2Y4NTE2M2VhIn0seyJhbW91bnQiOjgsImlkIjoiMDA5YTFmMjkzMjUzZTQxZSIsInNlY3JldCI6ImZlMTUxMDkzMTRlNjFkNzc1NmIwZjhlZTBmMjNhNjI0YWNhYTNmNGUwNDJmNjE0MzNjNzI4YzcwNTdiOTMxYmUiLCJDIjoiMDI5ZThlNTA1MGI4OTBhN2Q2YzA5NjhkYjE2YmMxZDVkNWZhMDQwZWExZGUyODRmNmVjNjlkNjEyOTlmNjcxMDU5In1dfV0sInVuaXQiOiJzYXQiLCJtZW1vIjoiVGhhbmsgeW91LiJ9'
 
@@ -17,13 +19,22 @@ function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function isHexString(value: unknown): value is string {
-    return (
-        typeof value === 'string' &&
-        value.length > 0 &&
-        value.length % 2 === 0 &&
-        /^[0-9a-f]+$/i.test(value)
-    )
+function isV1KeysetId(value: unknown): value is string {
+    return typeof value === 'string' && /^00[0-9a-f]{14}$/i.test(value)
+}
+
+function isNonEmptySecret(value: unknown): value is string {
+    return typeof value === 'string' && value.length > 0
+}
+
+function isCompressedSecp256k1Point(value: unknown): value is string {
+    if (typeof value !== 'string' || !/^(02|03)[0-9a-f]{64}$/i.test(value)) return false
+    try {
+        secp256k1.ProjectivePoint.fromHex(value)
+        return true
+    } catch {
+        return false
+    }
 }
 
 function decodeBase64Url(payload: string): Uint8Array {
@@ -104,11 +115,13 @@ export function decodeCashuV3Sample(input: string): CashuV3Facts {
             throw new Error('Every proof amount must be a positive integer.')
         }
         if (
-            !isHexString(proof.id) ||
-            typeof proof.secret !== 'string' ||
-            !isHexString(proof.C)
+            !isV1KeysetId(proof.id) ||
+            !isNonEmptySecret(proof.secret) ||
+            !isCompressedSecp256k1Point(proof.C)
         ) {
-            throw new Error('Every V3 proof must include a hexadecimal id and C, plus a string secret.')
+            throw new Error(
+                'Every V3 proof must include a valid V1 keyset id, a non-empty secret, and a compressed secp256k1 point C.',
+            )
         }
         amountSats += proof.amount
         if (!Number.isSafeInteger(amountSats)) {
