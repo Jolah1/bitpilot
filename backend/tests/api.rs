@@ -20,7 +20,7 @@
 //!       * mission 11 (seed-words) requires 64-hex commitment
 //!       * mission 14 (nostr-identity) requires bech32 npub
 //!       * mission 42 (onchain-signet) requires 64-hex txid
-//!       * missions 102/103 (paste-value) require a minimum-length reflection
+//!       * missions 102/103/104 (paste-value) require a minimum-length reflection
 //!   - bearer auth enforcement: wrong/missing token → 401
 //!   - facilitator endpoints require X-Facilitator-Key
 //!   - proof archive endpoint (/me/completions)
@@ -691,7 +691,7 @@ fn paste_value_missions_require_more_than_a_word() {
     // Issue #81: 102 and 103 render a paste-value reflection input and must
     // enforce a minimum length, so a one-character (or one-word) answer
     // can't clear the mission the way a Knowledge mission's "acknowledged"
-    // filler would.
+    // filler would. Issue #86 extends the same interaction to mission 104.
     let h = Harness::start();
     let s = create_session(&h.base, "paste-value-test");
     let j = join_session(&h.base, "kate", &s.id);
@@ -740,6 +740,35 @@ fn paste_value_missions_require_more_than_a_word() {
         "The issue asks for reflection answers to need substance; it's done when 102 and 103 enforce a minimum length.",
     );
     assert_eq!(r.status(), 200, "{}", r.text().unwrap());
+
+    // Mission 104 asks for the learner's test or a link to its file. Empty
+    // input and the old knowledge filler cannot complete it.
+    let r = complete(&h.base, &j.auth_token, 104, "");
+    assert_eq!(r.status(), 400);
+
+    let r = complete(&h.base, &j.auth_token, 104, "     acknowledged     ");
+    assert_eq!(r.status(), 400);
+
+    // A substantive file URL passes, advances to 105, and is preserved in
+    // the existing completion ledger.
+    let proof = "https://github.com/example/project/blob/main/tests/example.rs";
+    let r = complete(&h.base, &j.auth_token, 104, proof);
+    assert_eq!(r.status(), 200, "{}", r.text().unwrap());
+    let v: Value = r.json().unwrap();
+    assert_eq!(v["next_mission"], 105);
+
+    let completions: Vec<Value> = client()
+        .get(format!("{}/api/participants/me/completions", h.base))
+        .header("authorization", format!("Bearer {}", j.auth_token))
+        .send()
+        .unwrap()
+        .json()
+        .unwrap();
+    let mission_104 = completions
+        .iter()
+        .find(|item| item["mission"] == 104)
+        .expect("mission 104 completion");
+    assert_eq!(mission_104["proof"], proof);
 }
 
 #[test]
@@ -1099,8 +1128,8 @@ fn daily_streak_extends_on_consecutive_days_and_resets_after_a_gap() {
 
 #[test]
 fn open_source_graduation_demands_a_parseable_github_proof() {
-    // Missions 100/101/104 are plain reflection missions (any non-empty
-    // proof); 102/103 are paste-value missions and need a proof past the
+    // Missions 100/101 are plain reflection missions (any non-empty proof);
+    // 102/103/104 are paste-value missions and need a proof past the
     // minimum-length floor (see paste_value_missions_require_more_than_a_word
     // above). 105 must name a GitHub account and a github.com PR URL. A bad
     // proof fails the shape check before any network call happens, so
@@ -1111,7 +1140,7 @@ fn open_source_graduation_demands_a_parseable_github_proof() {
 
     // Order matters: the per-tree gate requires 100..104 in sequence.
     for m in [100u8, 101, 102, 103, 104] {
-        let proof = if m == 102 || m == 103 {
+        let proof = if matches!(m, 102 | 103 | 104) {
             "This is a long enough reflection to clear the paste-value floor."
         } else {
             "acknowledged"
