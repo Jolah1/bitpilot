@@ -185,8 +185,32 @@ async fn complete_mission(
     }))
 }
 
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CashuDecodeProof {
+    format: String,
+    mint: String,
+    amount_sats: u64,
+    proof_count: usize,
+}
+
+fn verify_cashu_decode_proof(proof: &str) -> Result<(), AppError> {
+    let decoded: CashuDecodeProof = serde_json::from_str(proof)
+        .map_err(|_| AppError::BadRequest("mission 84 requires the decoded sample facts".into()))?;
+    if decoded.format != "cashuA-v3"
+        || decoded.mint != "https://8333.space:3338"
+        || decoded.amount_sats != 10
+        || decoded.proof_count != 2
+    {
+        return Err(AppError::BadRequest(
+            "mission 84 requires the official cashuA V3 sample facts".into(),
+        ));
+    }
+    Ok(())
+}
+
 /// Minimum character count for a `DoKind::PasteValue` reflection (missions
-/// 102/103). Not tied to any protocol fact — it's a judgment call about how
+/// 102/103). Not tied to any protocol fact - it is a judgment call about how
 /// much text rules out a "no" or a single pasted character while still
 /// welcoming a short-but-real answer (a bare docs link, a one-line
 /// restatement). Deliberately well under the frontend's per-mission
@@ -221,6 +245,9 @@ async fn verify_proof(
         // one-character answer can't pass it off as substance. The message
         // is written as an invitation to say more, not a rejection.
         DoKind::PasteValue => {
+            if mission == 84 {
+                return verify_cashu_decode_proof(proof);
+            }
             if proof.chars().count() < MIN_PASTE_VALUE_LEN {
                 return Err(AppError::BadRequest(format!(
                     "say a little more: at least {MIN_PASTE_VALUE_LEN} characters, so there's something real to reflect on"

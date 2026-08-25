@@ -743,6 +743,60 @@ fn paste_value_missions_require_more_than_a_word() {
 }
 
 #[test]
+fn mission_84_decode_requires_canonical_proof_and_advances() {
+    let h = Harness::start();
+    let s = create_session(&h.base, "cashu-decode-test");
+    let j = join_session(&h.base, "mina", &s.id);
+
+    for m in [31u8, 32] {
+        let r = complete(&h.base, &j.auth_token, m, "acknowledged");
+        assert_eq!(r.status(), 200, "mission {m} should succeed");
+    }
+
+    let minted: Value = client()
+        .post(format!("{}/api/ecash/mint", h.base))
+        .header("authorization", format!("Bearer {}", j.auth_token))
+        .json(&json!({ "amount_sats": 50 }))
+        .send()
+        .unwrap()
+        .json()
+        .unwrap();
+    let token = minted["token"].as_str().unwrap();
+    assert_eq!(complete(&h.base, &j.auth_token, 33, token).status(), 200);
+
+    let redeemed = client()
+        .post(format!("{}/api/ecash/redeem", h.base))
+        .header("authorization", format!("Bearer {}", j.auth_token))
+        .json(&json!({ "token": token }))
+        .send()
+        .unwrap();
+    assert_eq!(redeemed.status(), 200);
+    assert_eq!(complete(&h.base, &j.auth_token, 34, token).status(), 200);
+
+    let invalid_proofs = [
+        "acknowledged",
+        r#"{"format":"cashuA-v3","mint":"https://8333.space:3338","amount_sats":10}"#,
+        r#"{"format":"cashuA-v3","mint":"https://8333.space:3338","amount_sats":10,"proof_count":2,"extra":true}"#,
+        r#"{"format":"cashuB-v4","mint":"https://8333.space:3338","amount_sats":10,"proof_count":2}"#,
+        r#"{"format":"cashuA-v3","mint":"https://example.com","amount_sats":10,"proof_count":2}"#,
+        r#"{"format":"cashuA-v3","mint":"https://8333.space:3338","amount_sats":11,"proof_count":2}"#,
+        r#"{"format":"cashuA-v3","mint":"https://8333.space:3338","amount_sats":10,"proof_count":1}"#,
+    ];
+    for proof in invalid_proofs {
+        let r = complete(&h.base, &j.auth_token, 84, proof);
+        assert_eq!(r.status(), 400, "mission 84 accepted invalid proof: {proof}");
+    }
+
+    let canonical =
+        r#"{"format":"cashuA-v3","mint":"https://8333.space:3338","amount_sats":10,"proof_count":2}"#;
+    let r = complete(&h.base, &j.auth_token, 84, canonical);
+    assert_eq!(r.status(), 200, "{}", r.text().unwrap());
+    let v: Value = r.json().unwrap();
+    assert_eq!(v["next_mission"], 55);
+    assert_eq!(v["participant"]["current_per_tree"]["ecash"], 55);
+}
+
+#[test]
 fn proof_archive_lists_completions_in_order() {
     let h = Harness::start();
     let s = create_session(&h.base, "archive-test");

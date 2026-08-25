@@ -1,3 +1,5 @@
+import { CASHU_V3_SAMPLE } from './cashu'
+
 // ─── Backend-shape types ─────────────────────────────────────────────────────
 export interface Participant {
     id: string
@@ -225,6 +227,8 @@ export interface MissionDef {
         helper: string
         /** For text inputs: placeholder. */
         placeholder?: string
+        /** Optional mission-specific label for the primary text input. */
+        inputLabel?: string
         /** For text inputs: max length. */
         maxLength?: number
         /**
@@ -2296,18 +2300,21 @@ export const MISSIONS: MissionDef[] = [
             ],
         },
     }),
-    knowledge({
+    {
         id: 84,
         emoji: '🎟️',
         topic: 'eCash',
         tech: 'ecash',
         name: 'What a token actually looks like',
-        tagline: 'A Cashu token is a base64 string. Anyone holding it is the owner.',
+        tagline: 'Decode a real sample and inspect its mint, value, and proofs',
+        simulated: false,
         learn: {
             heading: 'Bearer notes as text',
             body:
-                "A Cashu eCash token is a compact base64-URL string, prefixed with `cashuA` (or the newer versioned prefix). Decode it and you get JSON: which mint issued it, a list of proofs (id, amount, unblinded signature), and optionally a memo.\n\nWhoever holds the token *is* the owner. Give it to your friend by any channel, email, SMS, a QR code, a scribbled note, and it is theirs. They redeem it against the mint; you can't spend it after that because the mint will refuse the second redemption.\n\nThis is what people mean when they call eCash \"digital cash\". It's a bearer instrument in the strictest sense: possession = ownership. No account, no signature required to send, no reversal. Which is exactly the good and the bad of physical cash, transplanted into a text string.",
-            tip: 'A Cashu token is a slip of paper. Whoever holds the slip has the sats. Do not share by group text.',
+                "Cashu has two token formats you will see. `cashuA` is legacy V3: base64url-encoded JSON. `cashuB` is current V4: base64url-encoded CBOR. This exercise uses JSON so your browser can reveal the structure without a package or a network request.\n\nThe official NUT-00 V3 sample is below. Select and copy the whole token:\n\n`" +
+                CASHU_V3_SAMPLE +
+                "`\n\nDecode it and you will find the mint URL and a list of proofs. Each proof carries an amount, keyset id, secret, and unblinded signature. Whoever holds a valid token can redeem it, so real tokens must be treated like cash.",
+            tip: 'This is a public sample worth 10 test sats. Your own Cashu tokens are bearer money, so keep them private.',
         },
         quiz: {
             question: 'What does "bearer instrument" mean for a Cashu token?',
@@ -2317,7 +2324,15 @@ export const MISSIONS: MissionDef[] = [
                 { text: 'It requires a signature to transfer', correct: false, why: 'Nope, hand over the text and the transfer is done.' },
             ],
         },
-    }),
+        do: {
+            kind: 'paste-value',
+            actionLabel: 'Decode sample token',
+            helper: 'Paste the official sample from the lesson. It is decoded locally, and the raw token stays in this browser.',
+            inputLabel: 'Cashu token to decode',
+            placeholder: 'cashuA...',
+            maxLength: 800,
+        },
+    },
     knowledge({
         id: 85,
         emoji: '🗂️',
