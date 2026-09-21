@@ -17,6 +17,7 @@ const suite = [
     ['sign-event.test.mjs'],
     ['review-archive.test.mjs'],
     ['publish-confirm.test.mjs'],
+    ['mission-104-proof.test.mjs'],
     ['badge-share.test.mjs'],
     ['passphrase-fork.test.mjs'],
     ['mission-prose.test.mjs'],

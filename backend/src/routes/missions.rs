@@ -186,12 +186,12 @@ async fn complete_mission(
 }
 
 /// Minimum character count for a `DoKind::PasteValue` reflection (missions
-/// 102/103). Not tied to any protocol fact — it's a judgment call about how
+/// 102/103/104). Not tied to any protocol fact — it's a judgment call about how
 /// much text rules out a "no" or a single pasted character while still
 /// welcoming a short-but-real answer (a bare docs link, a one-line
 /// restatement). Deliberately well under the frontend's per-mission
-/// `maxLength` (300 for 102, 500 for 103), which caps length rather than
-/// setting a floor.
+/// `maxLength` (300 for 102, 500 for 103, 1000 for 104), which caps length
+/// rather than setting a floor.
 const MIN_PASTE_VALUE_LEN: usize = 20;
 
 /// Verify that a submitted proof matches what the server expects for the
@@ -213,10 +213,11 @@ async fn verify_proof(
         // The proof string gets recorded in mission_completions for audit.
         DoKind::Knowledge => Ok(()),
 
-        // Missions 102/103: a paste-value reflection (a docs link/sentence,
-        // or a restated "good first issue"). We deliberately do not judge
-        // whether the reflection is *good* — we can't, and pretending to
-        // would be worse than the honest bar this replaces (issue #81).
+        // Missions 102/103/104: a paste-value reflection (a docs link or
+        // sentence, a restated "good first issue", or a test or file link).
+        // We deliberately do not judge whether the reflection is *good* —
+        // we can't, and pretending to would be worse than the honest bar
+        // this replaces (issues #81 and #86).
         // All we enforce is that it clears a minimum length, so a
         // one-character answer can't pass it off as substance. The message
         // is written as an invitation to say more, not a rejection.

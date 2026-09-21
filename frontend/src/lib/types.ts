@@ -2782,13 +2782,14 @@ export const MISSIONS: MissionDef[] = [
             ],
         },
     },
-    knowledge({
+    {
         id: 104,
         emoji: '🧪',
         topic: 'Open Source',
         tech: 'bitcoin',
         name: 'Tests are contributions too',
         tagline: 'The easiest code PR in existence: prove an existing function works.',
+        simulated: false,
         learn: {
             heading: 'Why maintainers love test-only PRs',
             body:
@@ -2803,7 +2804,14 @@ export const MISSIONS: MissionDef[] = [
                 { text: 'CI pipelines skip test files', correct: false, why: 'CI exists precisely to run them.' },
             ],
         },
-    }),
+        do: {
+            kind: 'paste-value',
+            actionLabel: 'Save my test',
+            helper: 'Paste the test you wrote, or a link to the file containing it.',
+            placeholder: 'Paste your test snippet or a link to its file',
+            maxLength: 1000,
+        },
+    },
     {
         id: 105,
         emoji: '🏁',

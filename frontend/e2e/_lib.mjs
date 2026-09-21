@@ -82,6 +82,15 @@ export function proofFor(mission) {
     // is the property the verifier checks. Real ones are derived in the
     // browser from the learner's own seed and never reach the server.
     if (mission === 92) return `bc1q${'a'.repeat(38)} bc1q${'b'.repeat(38)}`
+    // The Open Source reflection missions require substantive paste-value
+    // proofs. Keep these valid so shared seeding can reach later missions.
+    if (mission === 102) return 'https://github.com/example/project/blob/main/README.md'
+    if (mission === 103) {
+        return 'The issue asks for a browser regression and is done when that test passes.'
+    }
+    if (mission === 104) {
+        return 'https://github.com/example/project/blob/main/tests/mission-104.test.js'
+    }
     return 'acknowledged' // Knowledge
 }
 
