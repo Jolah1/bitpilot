@@ -12,6 +12,7 @@
  * completions are ever needed.
  */
 import crypto from 'node:crypto'
+import { readFileSync } from 'node:fs'
 import { finalizeEvent, getPublicKey, nip19 } from 'nostr-tools'
 import {
     ensureExplorerStub,
@@ -21,6 +22,9 @@ import {
 
 export const API = process.env.BP_API ?? 'http://localhost:8080/api'
 export const APP = process.env.BP_APP ?? 'http://localhost:5173'
+
+/** The app's mission/flight-path source of truth, read by the helpers below. */
+const TYPES_TS = new URL('../src/lib/types.ts', import.meta.url)
 
 /**
  * POST JSON to the backend, optionally as an authenticated participant.
@@ -56,6 +60,41 @@ export { ensureExplorerStub }
 /** Deterministic Nostr identity for seeding. Test-only, never a real key. */
 const E2E_SK = new Uint8Array(32).fill(7)
 export const E2E_NPUB = nip19.npubEncode(getPublicKey(E2E_SK))
+
+/**
+ * Mission ids of a flight path, in path order, read from the app's own
+ * TREES table. A copy kept here rots silently every time the curriculum is
+ * reordered or extended: the test then "completes" a tree that no longer
+ * ends where it thinks, and every later assertion fails for the wrong
+ * reason. Reading the real list means these tests follow the curriculum.
+ */
+export function treeMissions(key) {
+    const src = readFileSync(TYPES_TS, 'utf8')
+    const row = new RegExp(`key:\\s*'${key}'[\\s\\S]*?missions:\\s*\\[([^\\]]*)\\]`).exec(src)
+    if (!row) throw new Error(`treeMissions: no "${key}" row in types.ts`)
+    return row[1].split(',').map((n) => Number(n.trim()))
+}
+
+/**
+ * The correct quiz option and Do-step button label for one mission, read
+ * from types.ts for the same reason as treeMissions.
+ */
+export function missionCopy(id) {
+    const src = readFileSync(TYPES_TS, 'utf8')
+    const start = src.indexOf(`\n        id: ${id},`)
+    if (start < 0) throw new Error(`missionCopy: mission ${id} not found in types.ts`)
+    const next = src.indexOf('\n        id: ', start + 1)
+    const block = src.slice(start, next < 0 ? undefined : next)
+    const answer = /\{\s*text:\s*'((?:[^'\\]|\\.)*)'\s*,\s*correct:\s*true/.exec(block)
+    if (!answer) throw new Error(`missionCopy: no correct quiz option for mission ${id}`)
+    const action = /actionLabel:\s*'((?:[^'\\]|\\.)*)'/.exec(block)
+    return { answer: answer[1], actionLabel: action ? action[1] : null }
+}
+
+/** Escape a literal string for use inside a RegExp. */
+export function reEscape(s) {
+    return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
 
 export function proofFor(mission) {
     // NostrIdentity (14) and SignEvent (17) are linked: mission 17's
