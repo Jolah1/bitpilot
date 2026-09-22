@@ -5,12 +5,29 @@
  *
  *   node e2e/badge-share.test.mjs
  */
-import { seedParticipant, launch, openApp, enterTree, passLearnAndQuiz, sleep, makeReporter } from './_lib.mjs'
+import {
+    seedParticipant,
+    launch,
+    openApp,
+    enterTree,
+    passLearnAndQuiz,
+    sleep,
+    makeReporter,
+    treeMissions,
+    missionCopy,
+    reEscape,
+} from './_lib.mjs'
 
 const report = makeReporter('badge-share')
 
-// Money Basics tree = [0,1,77,78,2,5,9,10]; seed all but the final mission.
-const creds = await seedParticipant([0, 1, 77, 78, 2, 5, 9])
+// Seed every Money Basics mission but the last, read from the app's own
+// TREES table, then finish the last one in the UI so the completion fires
+// the celebration. Reading the path keeps this working when the
+// curriculum is reordered or extended.
+const money = treeMissions('money')
+const lastMission = money[money.length - 1]
+const { answer, actionLabel } = missionCopy(lastMission)
+const creds = await seedParticipant(money.slice(0, -1))
 const browser = await launch()
 try {
     const page = await openApp(browser, creds, {
@@ -18,11 +35,13 @@ try {
         npub: 'npub1' + 'q'.repeat(50),
     })
     await enterTree(page, 'Money Basics')
-    await passLearnAndQuiz(page, 'only a company can reset your access', report)
+    await passLearnAndQuiz(page, answer, report)
 
     // Knowledge Do step: acknowledge, then the Next/Finish button fires the
     // tree-completion celebration.
-    const got = page.getByRole('button', { name: /You got it/i })
+    const got = page.getByRole('button', {
+        name: actionLabel ? new RegExp(reEscape(actionLabel), 'i') : /You got it/i,
+    })
     if (await got.count()) await got.first().click({ force: true })
     await sleep(1200)
     const finish = page.getByRole('button', { name: /Finish Money Basics|Next:/i })
@@ -93,8 +112,13 @@ try {
     // Verifiable certificate: issue one, then check the public page.
     const certBtn = page.getByRole('button', { name: /verifiable certificate/i })
     report.assert(await certBtn.count() > 0, 'the share modal offers a verifiable certificate')
-    await certBtn.first().evaluate((el) => el.click())
-    await sleep(1200)
+    // Guard the click: a missing button is already reported as a failed
+    // assert above, and must not also crash the file with an uncaught
+    // locator timeout that hides every later check.
+    if (await certBtn.count()) {
+        await certBtn.first().evaluate((el) => el.click())
+        await sleep(1200)
+    }
     report.assert(
         (await page.getByText(/Certificate ready/i).count()) > 0,
         'certificate issuance reports ready with a link',
@@ -140,7 +164,7 @@ try {
     // Badge wordmark fit: the per-path award wordmark (e.g. BITCOIN WINGS)
     // used to overflow the 600px card. Earn the bitcoin badge via the API,
     // open its share modal from the badge strip, and measure the <text>.
-    const bitcoinDone = await seedParticipant([6, 7, 8, 87, 88, 18, 19, 89, 40, 90, 48, 49])
+    const bitcoinDone = await seedParticipant(treeMissions('bitcoin'))
     const fitPage = await openApp(browser, bitcoinDone)
     const tile = fitPage.getByRole('button', { name: /Bitcoin earned/i })
     report.assert((await tile.count()) > 0, 'earned bitcoin badge shows in the badge strip')
