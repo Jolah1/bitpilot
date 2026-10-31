@@ -16,6 +16,12 @@ const codeStyle: React.CSSProperties = {
     background: 'rgba(128, 128, 128, 0.14)',
     borderRadius: 4,
     padding: '1px 5px',
+    // Lesson prose embeds opaque strings with no spaces or hyphens in them
+    // (a Cashu token, an invoice, a hex key). Without this they lay out as
+    // one unbreakable word several thousand pixels wide, and the mission
+    // card clips the overflow instead of scrolling it, so the learner sees
+    // only the first line and cannot select the rest.
+    overflowWrap: 'anywhere',
 }
 
 // **bold**  |  *italic* (non-space at both ends, so "5 * 3 * 2" is left

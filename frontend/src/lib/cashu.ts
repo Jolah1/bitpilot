@@ -9,6 +9,16 @@ export interface CashuV3Facts {
     proofCount: number
 }
 
+/**
+ * What `CASHU_V3_SAMPLE` above decodes to.
+ *
+ * The backend requires these same three values in
+ * `backend/src/routes/missions.rs` (`CASHU_84_*`). Swapping the sample for a
+ * token with a different mint or denominations means editing **both** sides:
+ * this file would decode and validate the new token happily, then the server
+ * would reject every completion. Same hazard as the mission catalogue in
+ * AGENTS.md.
+ */
 const OFFICIAL_FACTS: CashuV3Facts = {
     mint: 'https://8333.space:3338',
     amountSats: 10,
@@ -66,6 +76,14 @@ function decodeBase64Url(payload: string): Uint8Array {
 
 export function decodeCashuV3Sample(input: string): CashuV3Facts {
     const token = input.trim()
+    // Missions 33 and 34 hand the learner a simulated token shaped
+    // `cashuBsim_<ts>_<amount>`, so pasting one here is the obvious thing to
+    // try. Calling that "V4 CBOR" would be false, so check for it first.
+    if (token.startsWith('cashuBsim_')) {
+        throw new Error(
+            'That is the simulated token from an earlier mission, not a real Cashu token. Use the bundled V3 sample shown below.',
+        )
+    }
     if (token.startsWith('cashuB')) {
         throw new Error(
             'cashuB is the current V4 CBOR format. This exercise uses the bundled cashuA V3 JSON sample.',

@@ -2311,10 +2311,10 @@ export const MISSIONS: MissionDef[] = [
         learn: {
             heading: 'Bearer notes as text',
             body:
-                "Cashu has two token formats you will see. `cashuA` is legacy V3: base64url-encoded JSON. `cashuB` is current V4: base64url-encoded CBOR. This exercise uses JSON so your browser can reveal the structure without a package or a network request.\n\nThe official NUT-00 V3 sample is below. Select and copy the whole token:\n\n`" +
+                "Cashu has two token formats you will see. `cashuA` is legacy V3: base64url-encoded JSON. `cashuB` is current V4: base64url-encoded CBOR. This exercise uses JSON so your browser can reveal the structure without a package or a network request.\n\nThe official NUT-00 V3 sample is below. The Do step shows it again with a copy button, so there is nothing to memorise:\n\n`" +
                 CASHU_V3_SAMPLE +
                 "`\n\nDecode it and you will find the mint URL and a list of proofs. Each proof carries an amount, keyset id, secret, and unblinded signature. Whoever holds a valid token can redeem it, so real tokens must be treated like cash.",
-            tip: 'This is a public sample worth 10 test sats. Your own Cashu tokens are bearer money, so keep them private.',
+            tip: 'This is a published spec example that decodes to 10 sats. It is an illustration, not spendable money. Your own Cashu tokens are bearer money, so keep them private.',
         },
         quiz: {
             question: 'What does "bearer instrument" mean for a Cashu token?',

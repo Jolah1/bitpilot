@@ -194,13 +194,27 @@ struct CashuDecodeProof {
     proof_count: usize,
 }
 
+/// The facts mission 84's bundled NUT-00 V3 sample decodes to.
+///
+/// These mirror `OFFICIAL_FACTS` in `frontend/src/lib/cashu.ts`, which the
+/// browser derives from `CASHU_V3_SAMPLE` in the same file. Swapping that
+/// sample for one with a different mint or denominations means editing
+/// **both** sides: the frontend would decode and validate the new token
+/// happily, then every completion would be rejected here. Same hazard as the
+/// mission catalogue in AGENTS.md, and `cashu_canonical_proof_is_accepted`
+/// below pins the wire format these three values travel in.
+const CASHU_84_FORMAT: &str = "cashuA-v3";
+const CASHU_84_MINT: &str = "https://8333.space:3338";
+const CASHU_84_AMOUNT_SATS: u64 = 10;
+const CASHU_84_PROOF_COUNT: usize = 2;
+
 fn verify_cashu_decode_proof(proof: &str) -> Result<(), AppError> {
     let decoded: CashuDecodeProof = serde_json::from_str(proof)
         .map_err(|_| AppError::BadRequest("mission 84 requires the decoded sample facts".into()))?;
-    if decoded.format != "cashuA-v3"
-        || decoded.mint != "https://8333.space:3338"
-        || decoded.amount_sats != 10
-        || decoded.proof_count != 2
+    if decoded.format != CASHU_84_FORMAT
+        || decoded.mint != CASHU_84_MINT
+        || decoded.amount_sats != CASHU_84_AMOUNT_SATS
+        || decoded.proof_count != CASHU_84_PROOF_COUNT
     {
         return Err(AppError::BadRequest(
             "mission 84 requires the official cashuA V3 sample facts".into(),
@@ -960,5 +974,22 @@ mod tests {
         ] {
             assert!(parse_pr_proof(p).is_err(), "should reject: {p}");
         }
+    }
+
+    /// Pins the exact JSON `cashuV3CompletionProof` in
+    /// `frontend/src/lib/cashu.ts` emits. If either side's canonical facts
+    /// change without the other, this fails instead of the mission silently
+    /// becoming uncompletable for every learner.
+    #[test]
+    fn cashu_canonical_proof_is_accepted() {
+        let canonical = r#"{"format":"cashuA-v3","mint":"https://8333.space:3338","amount_sats":10,"proof_count":2}"#;
+        assert!(verify_cashu_decode_proof(canonical).is_ok());
+
+        // The same three values, assembled from the constants the verifier
+        // actually reads, so a drifted constant cannot pass by luck.
+        let built = format!(
+            r#"{{"format":"{CASHU_84_FORMAT}","mint":"{CASHU_84_MINT}","amount_sats":{CASHU_84_AMOUNT_SATS},"proof_count":{CASHU_84_PROOF_COUNT}}}"#
+        );
+        assert_eq!(built, canonical);
     }
 }
