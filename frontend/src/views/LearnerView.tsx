@@ -9,6 +9,7 @@ import {
     type CSSProperties,
 } from 'react'
 import { api, ApiError } from '../lib/api'
+import { CASHU_V3_SAMPLE, cashuV3CompletionProof, decodeCashuV3Sample } from '../lib/cashu'
 import { rich } from '../lib/rich'
 import { GOALS, getSavedGoal, saveGoal, type Goal } from '../lib/goals'
 import { useIsTechReal } from '../lib/runtime'
@@ -754,6 +755,20 @@ export default function LearnerView({ participantId }: { participantId: string }
                         setLoading(false)
                         return
                     }
+                    if (mission.id === 84) {
+                        const facts = decodeCashuV3Sample(doInput)
+                        proof = cashuV3CompletionProof(facts)
+                        outcome = {
+                            summary: 'Official sample decoded locally.',
+                            details: [
+                                { label: 'mint', value: facts.mint },
+                                { label: 'amount', value: `${facts.amountSats} sats` },
+                                { label: 'proofs', value: `${facts.proofCount} proofs` },
+                            ],
+                            simulated: false,
+                        }
+                        break
+                    }
                     proof = doInput.trim()
                     outcome = {
                         summary: 'Saved. This is your raw material for the final mission.',
@@ -1452,7 +1467,10 @@ function navButtonStyle(enabled: boolean): CSSProperties {
  * seed phrase, and showing commitment plumbing to learners was removed on
  * purpose. The seed itself lives in this browser, never on our server.
  */
-function archiveLabelFor(kind: DoKind): string | null {
+function archiveLabelFor(kind: DoKind, mission: number): string | null {
+    // Mission 84's proof is the facts its decoder produced, not prose the
+    // learner typed, so the generic paste-value label would misdescribe it.
+    if (mission === 84) return 'What you decoded'
     switch (kind) {
         case 'nostr-identity':
             return 'Your Nostr public key'
@@ -1498,26 +1516,26 @@ function archiveLabelFor(kind: DoKind): string | null {
  * learner sees two labelled addresses rather than one run-on line, and a
  * signed event is indented back into readable JSON.
  */
-function formatArchivedProof(kind: DoKind, proof: string): string {
-    if (kind === 'passphrase-fork') {
-        const [plain, withPass] = proof.split(/\s+/)
-        return withPass
-            ? `without passphrase:\n${plain}\n\nwith passphrase:\n${withPass}`
-            : proof
-    }
-    if (kind === 'sign-event') {
+function formatArchivedProof(kind: DoKind, proof: string, mission: number): string {
+    if (kind === 'sign-event' || mission === 84) {
         try {
             return JSON.stringify(JSON.parse(proof), null, 2)
         } catch {
             return proof
         }
     }
+    if (kind === 'passphrase-fork') {
+        const [plain, withPass] = proof.split(/\s+/)
+        return withPass
+            ? `without passphrase:\n${plain}\n\nwith passphrase:\n${withPass}`
+            : proof
+    }
     return proof
 }
 
 /** The archive block on a completed mission: read it back, copy it out. */
-function ArchivedProof({ kind, proof }: { kind: DoKind; proof: string }) {
-    const label = archiveLabelFor(kind)
+function ArchivedProof({ kind, mission, proof }: { kind: DoKind; mission: number; proof: string }) {
+    const label = archiveLabelFor(kind, mission)
     const [copied, setCopied] = useState(false)
     if (!label || !proof.trim()) return null
 
@@ -1576,7 +1594,7 @@ function ArchivedProof({ kind, proof }: { kind: DoKind; proof: string }) {
                     wordBreak: 'break-all',
                 }}
             >
-                {formatArchivedProof(kind, proof)}
+                {formatArchivedProof(kind, proof, mission)}
             </pre>
         </div>
     )
@@ -1678,7 +1696,9 @@ function BadgesStrip({
 function MissionHeader({ mission }: { mission: MissionDef }) {
     const techReal = useIsTechReal(mission.tech)
     const statusChip =
-        mission.tech === 'lightning'
+        mission.id === 84
+            ? { label: 'Offline sample', tone: 'green' as const }
+            : mission.tech === 'lightning'
             ? techReal
                 ? { label: 'Testnet', tone: 'green' as const }
                 : { label: 'Simulated', tone: 'neutral' as const }
@@ -1737,6 +1757,8 @@ function MissionHeader({ mission }: { mission: MissionDef }) {
                             title={
                                 statusChip.label === 'Simulated'
                                     ? "Action is simulated, no real value moves."
+                                    : statusChip.label === 'Offline sample'
+                                      ? 'A bundled public sample decoded only in this browser.'
                                     : statusChip.label === 'Testnet'
                                       ? 'Real Lightning, signet network, no mainnet sats.'
                                       : statusChip.label === 'Testmint'
@@ -2145,6 +2167,82 @@ function TaskLinks({ links }: { links?: { label: string; href: string }[] }) {
     )
 }
 
+/**
+ * Mission 84 asks the learner to paste the bundled NUT-00 V3 sample. The
+ * token is 622 characters with no break opportunities, so repeating it from
+ * the lesson by hand is not realistic, and the Read tab is not reachable
+ * from here until the mission is complete. Show the sample where it is
+ * needed: wrapped so all of it is visible, copyable, and fillable in one
+ * click for anyone whose clipboard is blocked.
+ */
+function CashuSampleBlock({ onUse }: { onUse: () => void }) {
+    const [copied, setCopied] = useState(false)
+    // Matches the archive block's copy button above.
+    const btn: CSSProperties = {
+        background: 'transparent',
+        border: '1px solid var(--border)',
+        borderRadius: 'var(--radius-1)',
+        color: 'var(--text)',
+        cursor: 'pointer',
+        fontSize: 12,
+        padding: '4px 10px',
+    }
+
+    const copy = async () => {
+        try {
+            await navigator.clipboard.writeText(CASHU_V3_SAMPLE)
+            setCopied(true)
+            setTimeout(() => setCopied(false), 2000)
+        } catch {
+            // Clipboard can be blocked (insecure context, iframe perms).
+            // "Paste it for me" and manual selection both still work.
+        }
+    }
+
+    return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                <span style={{ fontSize: 12, color: 'var(--muted)' }}>Official NUT-00 V3 sample</span>
+                <div style={{ display: 'flex', gap: 6 }}>
+                    <button
+                        type="button"
+                        className="bp-press"
+                        onClick={copy}
+                        aria-label={copied ? 'Copied' : 'Copy the sample token'}
+                        style={btn}
+                    >
+                        {copied ? '✓ Copied' : 'Copy'}
+                    </button>
+                    <button
+                        type="button"
+                        className="bp-press"
+                        onClick={onUse}
+                        style={btn}
+                    >
+                        Paste it for me
+                    </button>
+                </div>
+            </div>
+            <code
+                style={{
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: 10.5,
+                    lineHeight: 1.45,
+                    background: 'rgba(128, 128, 128, 0.14)',
+                    borderRadius: 'var(--radius-2)',
+                    padding: 10,
+                    maxHeight: 132,
+                    overflowY: 'auto',
+                    wordBreak: 'break-all',
+                    userSelect: 'all',
+                }}
+            >
+                {CASHU_V3_SAMPLE}
+            </code>
+        </div>
+    )
+}
+
 function DoPanel({
     mission,
     tone,
@@ -2254,7 +2352,7 @@ function DoPanel({
                     mission below.
                 </div>
                 {archivedProof && (
-                    <ArchivedProof kind={mission.do.kind} proof={archivedProof} />
+                    <ArchivedProof kind={mission.do.kind} mission={mission.id} proof={archivedProof} />
                 )}
                 <button
                     className="bp-press"
@@ -2272,6 +2370,8 @@ function DoPanel({
             <p style={{ fontSize: 14, color: 'var(--muted)', lineHeight: 1.6, margin: 0 }}>
                 {mission.do.helper}
             </p>
+
+            {mission.id === 84 && !outcome && <CashuSampleBlock onUse={() => setDoInput(CASHU_V3_SAMPLE)} />}
 
             <TaskLinks links={mission.do.links} />
 
@@ -2303,7 +2403,7 @@ function DoPanel({
             {!outcome && ui.primary && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                     <label htmlFor={`do-input-${mission.id}`} style={labelStyle}>
-                        {ui.primary.label}
+                        {mission.do.inputLabel ?? ui.primary.label}
                     </label>
                     {ui.primary.type === 'textarea' ? (
                         <>

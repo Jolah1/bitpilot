@@ -121,6 +121,13 @@ export function proofFor(mission) {
     // is the property the verifier checks. Real ones are derived in the
     // browser from the learner's own seed and never reach the server.
     if (mission === 92) return `bc1q${'a'.repeat(38)} bc1q${'b'.repeat(38)}`
+    // Mission 84 is a PasteValue mission verified against the exact facts
+    // decoded from the bundled NUT-00 V3 sample, not against a length
+    // floor. Mirrors verify_cashu_decode_proof in
+    // backend/src/routes/missions.rs.
+    if (mission === 84) {
+        return '{"format":"cashuA-v3","mint":"https://8333.space:3338","amount_sats":10,"proof_count":2}'
+    }
     // The Open Source reflection missions require substantive paste-value
     // proofs. Keep these valid so shared seeding can reach later missions.
     if (mission === 102) return 'https://github.com/example/project/blob/main/README.md'

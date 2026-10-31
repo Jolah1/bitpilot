@@ -12,6 +12,7 @@
   "dependencies": {
     "@fontsource-variable/inter": "^5.1.0",
     "@fontsource-variable/jetbrains-mono": "^5.1.0",
+    "@noble/curves": "^1.9.7",
     "@scure/bip32": "^1.5.0",
     "@scure/bip39": "^1.4.0",
     "@tanstack/react-query": "^5.28.0",

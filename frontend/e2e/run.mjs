@@ -20,6 +20,7 @@ const suite = [
     ['mission-104-proof.test.mjs'],
     ['badge-share.test.mjs'],
     ['passphrase-fork.test.mjs'],
+    ['ecash-decode.test.mjs'],
     ['mission-prose.test.mjs'],
     ['solo-rank.test.mjs'],
 ]
